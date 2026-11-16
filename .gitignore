@@ -1,0 +1,4 @@
+# Created when NeroNet runs from this folder
+data/
+# Optional: node.exe placed beside start.bat
+/node.exe

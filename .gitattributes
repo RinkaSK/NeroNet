@@ -1,0 +1,2 @@
+# Keep every file byte for byte, so that SHA256SUMS.txt stays valid after a checkout.
+* -text

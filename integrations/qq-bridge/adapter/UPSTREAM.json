@@ -1,0 +1,617 @@
+{
+  "adapterVersion": "1.2.0",
+  "repository": "https://github.com/Derpyu520/qq-bridge",
+  "tag": "v0.2.2-rc1",
+  "commit": "5fe6d3e1aee014a34047103edfc8aaafc8322176",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "requiredNotice": "Copyright 2026 Derpyu520 and qq-bridge contributors",
+  "dshTarget": "DeepSeek Harness 0.2.2-rc.3 (npm @deepseek-ai/dsh@0.2.2-rc.3)",
+  "maintainer": "NeroNet project (independent adaptation; not affiliated with or endorsed by the qq-bridge authors)",
+  "note": "SHA-256 of LF-normalised UTF-8 without BOM. Renamed inputs are found by a unique approved content hash within sourceDirectory. Only recorded inputs may be replaced. Revert restores the saved pre-install state.",
+  "format": "verified-file-replacement/v1",
+  "files": {
+    "config.example.json": {
+      "upstream": "8af4e993dced2d3d3ce44d06c99b4d0377a208ff57d20bf598bb96bdf1ca61a4",
+      "adapted": "2a088910d42e775b0a5677e0091f3e40f50e4dbae6a4bad86a567667b08cd131",
+      "accepted": [
+        "8af4e993dced2d3d3ce44d06c99b4d0377a208ff57d20bf598bb96bdf1ca61a4"
+      ],
+      "sourceDirectory": ".",
+      "sourcePath": "config.example.json"
+    },
+    "package-lock.json": {
+      "upstream": "1b19df3e4d0b25bf87cccc3dda6fc0981ac47fd053720698bf1c1d1dbde51086",
+      "adapted": "03e299a0efa6702af858e7bc33a354ad0beaacc58a0c51de7723b413ca92774a",
+      "accepted": [
+        "1b19df3e4d0b25bf87cccc3dda6fc0981ac47fd053720698bf1c1d1dbde51086",
+        "03e299a0efa6702af858e7bc33a354ad0beaacc58a0c51de7723b413ca92774a"
+      ],
+      "sourceDirectory": ".",
+      "sourcePath": "package-lock.json"
+    },
+    "package.json": {
+      "upstream": "b86e2e4585c66b96a6d6ab05776ab657ad6df935890161c0f337205c648e3594",
+      "adapted": "508771ffd414077aaf92a708500af71d4b1f5ac7616c08f8bff53f68c448e58d",
+      "accepted": [
+        "b86e2e4585c66b96a6d6ab05776ab657ad6df935890161c0f337205c648e3594",
+        "580d6f1bedd8ba01795192aa7ebe87685572d30dfebbc82379be58782cae3145"
+      ],
+      "sourceDirectory": ".",
+      "sourcePath": "package.json"
+    },
+    "public/console.html": {
+      "upstream": "11da999025cdf920a1236af361716a7ed410b27f8429306427d76659aa260114",
+      "adapted": "8589bf408f7b6b5dcd7c262ae1ca09a81a33b09561c225ffff53afb73ae9e138",
+      "accepted": [
+        "11da999025cdf920a1236af361716a7ed410b27f8429306427d76659aa260114"
+      ],
+      "sourceDirectory": "public",
+      "sourcePath": "public/console.html"
+    },
+    "scripts/audit-bridge-harness.mjs": {
+      "upstream": "401f062a9fb25fd72c00e15c47eaee56cddb9c8985afb36c2d3bcf2d83f20fc8",
+      "adapted": "4f76c45545b7bf5281c3288414c6f0531d06d7ace3f714e5f0f59fd49dbe745f",
+      "accepted": [
+        "401f062a9fb25fd72c00e15c47eaee56cddb9c8985afb36c2d3bcf2d83f20fc8"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/audit-bridge-harness.mjs"
+    },
+    "scripts/check-onebot-status.mjs": {
+      "upstream": "f5fc2b4310d68b09169492df8fd19c13b782123a9ab1586f0aab5bf035d25d12",
+      "adapted": "152da7881434e0e8ec3e9a7eada332e566830959f2a10c72ab8fd2432335ed61",
+      "accepted": [
+        "f5fc2b4310d68b09169492df8fd19c13b782123a9ab1586f0aab5bf035d25d12"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/check-onebot-status.mjs"
+    },
+    "scripts/diagnose-acl.mjs": {
+      "upstream": "02c0495ee77351b414ba937555a43e407e437ca9493a9b2c73af00adf2a85c43",
+      "adapted": "7e5646581e4eae378595770069d1e07ffc5a96cac4069f27f16d8624d143f275",
+      "accepted": [
+        "02c0495ee77351b414ba937555a43e407e437ca9493a9b2c73af00adf2a85c43"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/diagnose-acl.mjs"
+    },
+    "scripts/harden-state-acl.mjs": {
+      "upstream": "d0e867950e07ee28b442d730b47b1e79a3cb95e6fdf21369e64e87c519a4c03d",
+      "adapted": "960db8142a9cccb17a86a43e80dddcc2617f1d3bd51c9344fba354f8c4053ed7",
+      "accepted": [
+        "d0e867950e07ee28b442d730b47b1e79a3cb95e6fdf21369e64e87c519a4c03d"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/harden-state-acl.mjs"
+    },
+    "scripts/patch-onebot-sdk.mjs": {
+      "upstream": "cc3b9da52bb0dbd23e63683b207d6a41584004eaff71229ece9eb1b74bd2ecd6",
+      "adapted": "62db466fa44789d311c1e6e0bcef7d9ea79fde7b3f3553a884d5d32e82d12314",
+      "accepted": [
+        "cc3b9da52bb0dbd23e63683b207d6a41584004eaff71229ece9eb1b74bd2ecd6"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": null
+    },
+    "scripts/probe-020-protocol.mjs": {
+      "upstream": "0431c10b742791f8724746434133fd66dd88f7730d19a8f08757435b4d36596c",
+      "adapted": "7887ecbcf7153405032d1cdbb97deb4982cdafdb7dafb51dbd8ea12b81b2a405",
+      "accepted": [
+        "0431c10b742791f8724746434133fd66dd88f7730d19a8f08757435b4d36596c"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/probe-020-protocol.mjs"
+    },
+    "scripts/probe-onebot-heartbeat.mjs": {
+      "upstream": "a09cee888d8ab3a7f49c9cc4a23a2d6fd6f6c48f2f6cde09f3f671d2b7c5547f",
+      "adapted": "298a009f0c94db75ff54c2363ec5785823b87c9dcc9d516acab9471f70ddd074",
+      "accepted": [
+        "a09cee888d8ab3a7f49c9cc4a23a2d6fd6f6c48f2f6cde09f3f671d2b7c5547f"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": null
+    },
+    "scripts/probe-tools.mjs": {
+      "upstream": "d74466dc46222c462a1be7e23825bc23d36d7b7827d7f2d8b2cd5b1bc450f099",
+      "adapted": "8f658b16291aca0a294986d5741660c62fd81ce50145e44bdca871922f438440",
+      "accepted": [
+        "d74466dc46222c462a1be7e23825bc23d36d7b7827d7f2d8b2cd5b1bc450f099"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/probe-tools.mjs"
+    },
+    "scripts/send-test-group.mjs": {
+      "upstream": "4f9974dc5df7443563d464043d30b8421add3945e81a259f2a9270c34ce4d5c8",
+      "adapted": "2a166e9d3a3c7ef85be1dac77f527abd948aec43159315196732645dd37ac625",
+      "accepted": [
+        "4f9974dc5df7443563d464043d30b8421add3945e81a259f2a9270c34ce4d5c8"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/send-test-group.mjs"
+    },
+    "scripts/send-voice.mjs": {
+      "upstream": "85c3c460dfd4d75543e3ee3890370845b44229ee2cad346100e2c20b7841d510",
+      "adapted": "4652ca344f647d32c8a04a9be36c0a47a8b629bd69c2b6e8109e1c22ef5abdcd",
+      "accepted": [
+        "85c3c460dfd4d75543e3ee3890370845b44229ee2cad346100e2c20b7841d510"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/send-voice.mjs"
+    },
+    "scripts/setup-dsh.mjs": {
+      "upstream": "880ceeb02181e237b3ec948f1a93d79489da41141ded8e0d20fed4b813e4f8ff",
+      "adapted": "a7552c78a78734abd6ee4668a296c8b545bad6da5f82b5b11bb57b2320d5f4ab",
+      "accepted": [
+        "880ceeb02181e237b3ec948f1a93d79489da41141ded8e0d20fed4b813e4f8ff"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/setup-dsh.mjs"
+    },
+    "scripts/test-agent-preset-patches.mjs": {
+      "upstream": "6815c3bc5d5f4ec5f58cc1b992764b267c459c023d3692334d5d36846f60154e",
+      "adapted": "60fd079882086fe39f2f3140fd0a2a833041131dbce2c99796c5fc20d59e4688",
+      "accepted": [
+        "6815c3bc5d5f4ec5f58cc1b992764b267c459c023d3692334d5d36846f60154e"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-agent-preset-patches.mjs"
+    },
+    "scripts/test-audit-regressions.mjs": {
+      "upstream": "e0680c127e309697758e18ed1b01c4a30418e2575846140110da15ff2cfb3146",
+      "adapted": "0ed9cd4d048bcc8eb9b31578ad990305da73794b909b0861abe42ec117b7ff8d",
+      "accepted": [
+        "e0680c127e309697758e18ed1b01c4a30418e2575846140110da15ff2cfb3146"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-audit-regressions.mjs"
+    },
+    "scripts/test-audit-security-mcp.mjs": {
+      "upstream": "69f5bbeda7a9307c510727c772e0c21ea1952837313038d13091d2dcc23e4c4f",
+      "adapted": "cc4c46d3e01c9a778bc5b73225a58a17b60f811a6094787f46b89eba9d8aa8ff",
+      "accepted": [
+        "69f5bbeda7a9307c510727c772e0c21ea1952837313038d13091d2dcc23e4c4f"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-audit-security-mcp.mjs"
+    },
+    "scripts/test-audit-setup-guards.mjs": {
+      "upstream": "84517b71aeb68c44a3944840dfb6595ee949111c534f9fff635999374b0b8dd3",
+      "adapted": "7d5064fcdf60189c5ac8abe9db12ac56dc05a82abd9c89e3f6e98817107ebcad",
+      "accepted": [
+        "84517b71aeb68c44a3944840dfb6595ee949111c534f9fff635999374b0b8dd3"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-audit-setup-guards.mjs"
+    },
+    "scripts/test-audit-setup.mjs": {
+      "upstream": "4a3b9ae57f3d87a77489ede19435ba13d208195460932b6a3013d86b0e7ab380",
+      "adapted": "996b06cd450bcd28dc29f85dac8da3de78e383eb3cfb7d311c219d22ab433de4",
+      "accepted": [
+        "4a3b9ae57f3d87a77489ede19435ba13d208195460932b6a3013d86b0e7ab380"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-audit-setup.mjs"
+    },
+    "scripts/test-audit.mjs": {
+      "upstream": "b22ccb976f6b01dc9e8512638dd6369094a024932da9adfd798ff4adca409cf7",
+      "adapted": "130ed847fa115424127033083e656571337027fb8497f335f2adb8a195f508e3",
+      "accepted": [
+        "b22ccb976f6b01dc9e8512638dd6369094a024932da9adfd798ff4adca409cf7"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-audit.mjs"
+    },
+    "scripts/test-console.mjs": {
+      "upstream": "382288c59e03a2d9ced89750224ba27dc591749f9a75cb22ab5ba04f425829e9",
+      "adapted": "ac05d383012accfd3341c9965f9e85a154343062e79886102ad1739e3787a5d3",
+      "accepted": [
+        "382288c59e03a2d9ced89750224ba27dc591749f9a75cb22ab5ba04f425829e9"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-console.mjs"
+    },
+    "scripts/test-delivery-regressions.mjs": {
+      "upstream": "80ed4a2c6c85ab84d9cdaa58a78ba9db69240ecbeebe7754b1b19e5ef257d345",
+      "adapted": "19d8f69602077dd57a9a9be5bee23bc53e1d519f1ed03ef60bc1f6017eaa1117",
+      "accepted": [
+        "80ed4a2c6c85ab84d9cdaa58a78ba9db69240ecbeebe7754b1b19e5ef257d345"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-delivery-regressions.mjs"
+    },
+    "scripts/test-issue-followup-bridge.mjs": {
+      "upstream": "d1fe6638215fe0774db008f1d40504b547ad8596726d66a198321c00bc1d2f70",
+      "adapted": "e11e7ca3b0416fd041327fe4d369242f4a5d6c4162e90ba67416420d3f661237",
+      "accepted": [
+        "d1fe6638215fe0774db008f1d40504b547ad8596726d66a198321c00bc1d2f70"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-issue-followup-bridge.mjs"
+    },
+    "scripts/test-issue-followup-mcp.mjs": {
+      "upstream": "e48bce0f37f3425bfd8156f8103b359746cd167011b464ff246ca2cd01eb06dc",
+      "adapted": "785521f5e64d4acb469c8532e39842422aca110a3a7de9d0d5c8d182d4943913",
+      "accepted": [
+        "e48bce0f37f3425bfd8156f8103b359746cd167011b464ff246ca2cd01eb06dc"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-issue-followup-mcp.mjs"
+    },
+    "scripts/test-issue-followup-runtime.mjs": {
+      "upstream": "9ed8de48d3fb29996dd43eadbbe633e9ffc70c135a7d9541379896030cd7e9e8",
+      "adapted": "24e7971a127f25d35c12b024ede68bd9792e9b90136b674a91dd6acf022c3032",
+      "accepted": [
+        "9ed8de48d3fb29996dd43eadbbe633e9ffc70c135a7d9541379896030cd7e9e8"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-issue-followup-runtime.mjs"
+    },
+    "scripts/test-mcp-exec.mjs": {
+      "upstream": "7c4a58abf7aa8f0cccf638097b0a36739a68a6a2cb0357ac1883ab066ce32414",
+      "adapted": "743bf5c8872408e1ca620fe62f342b1e85e2cec62add037e7aa65897a7d4fe9d",
+      "accepted": [
+        "7c4a58abf7aa8f0cccf638097b0a36739a68a6a2cb0357ac1883ab066ce32414"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-mcp-exec.mjs"
+    },
+    "scripts/test-mcp-host.mjs": {
+      "upstream": "e0447396f89c6f1f0db65a23ca1aed1e2ef5f5f3e4b9fefeddb6e42602f28ebf",
+      "adapted": "815e4baaa43c297b1d192cb4f2c6657683cc9613361e761d8b6eb796bfa95bd5",
+      "accepted": [
+        "e0447396f89c6f1f0db65a23ca1aed1e2ef5f5f3e4b9fefeddb6e42602f28ebf"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-mcp-host.mjs"
+    },
+    "scripts/test-mcp-safe.mjs": {
+      "upstream": "551e05190863c50ca45828c1df252d5b229e994cd1bdadce057d978d82a1e5b7",
+      "adapted": "547259ee07fa43dda36dd9765c47e548a824b85ff7dea7c85427999429219b53",
+      "accepted": [
+        "551e05190863c50ca45828c1df252d5b229e994cd1bdadce057d978d82a1e5b7"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-mcp-safe.mjs"
+    },
+    "scripts/test-mcp-servers-stdio.mjs": {
+      "upstream": "f2bc630f369f47acabe549d94ef84ca557b83b2cde498fd320809026ee43386c",
+      "adapted": "7dcf1dd298bc30d276acde335e678def1a24df1608d6f2343e9bc9e4820a3d4f",
+      "accepted": [
+        "f2bc630f369f47acabe549d94ef84ca557b83b2cde498fd320809026ee43386c"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-mcp-servers-stdio.mjs"
+    },
+    "scripts/test-md-to-plain.mjs": {
+      "upstream": "9d02a8987b29403b2fd1e36fc2067220d62cdee1682a5f3c1e99cf7290fde5f2",
+      "adapted": "cc2f6a9f2c46b6ec43a3d4315e6875ae7e16f9a25af8dd0bdc575d4c88e6e9b9",
+      "accepted": [
+        "9d02a8987b29403b2fd1e36fc2067220d62cdee1682a5f3c1e99cf7290fde5f2"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-md-to-plain.mjs"
+    },
+    "scripts/test-onebot-connection.mjs": {
+      "upstream": "ea2b995b5a6c7fbf294480df6bc0d518f70d222bb26463fbb30348cba2914bb7",
+      "adapted": "e81d16638fc0a264ee3d542196b4da9d3cc67abd836673a7db6c1bdca6aa87b0",
+      "accepted": [
+        "ea2b995b5a6c7fbf294480df6bc0d518f70d222bb26463fbb30348cba2914bb7"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-onebot-connection.mjs"
+    },
+    "scripts/test-preset-local-tools.mjs": {
+      "upstream": "704af367ef56ef625872a1b0c38e228824a70bf1bff1c23176b959eac89389f3",
+      "adapted": "7542214eeedef9d059d605ac6de41fed3a0c83445608f0f110d244d25acbaa92",
+      "accepted": [
+        "704af367ef56ef625872a1b0c38e228824a70bf1bff1c23176b959eac89389f3"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-preset-local-tools.mjs"
+    },
+    "scripts/test-qq-model-view.mjs": {
+      "upstream": "ea2bc704a5c5fd46d80023b4821791109b4aaf750e0a7bd845667aedb8d051c1",
+      "adapted": "d9f1b06c8da2bba4092a372e1b1ab5d44b410843952088df37d71169d657f88b",
+      "accepted": [
+        "ea2bc704a5c5fd46d80023b4821791109b4aaf750e0a7bd845667aedb8d051c1",
+        "5cec9864c841d4e6ae8e53efe9127fc58015c34e076f1fb88ae651ff3e522cb8"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-qq-model-view.mjs"
+    },
+    "scripts/test-setup-dsh-idempotent.mjs": {
+      "upstream": "10f26277590958315d54c7204cc17aded1b69cc47989ec00c4997adbae800184",
+      "adapted": "17e75880d8b2180b5cac42eb038705fd7c4de522ce01d450c29757f1435e8fd0",
+      "accepted": [
+        "10f26277590958315d54c7204cc17aded1b69cc47989ec00c4997adbae800184"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-setup-dsh-idempotent.mjs"
+    },
+    "scripts/test-onebot-conn.mjs": {
+      "upstream": "721bdf868e3becd05552b02d60b76efb2e6370ec69c5edec7bfd35a58b93a8c2",
+      "adapted": "13387340f7c358e2ce3ddf644c82f81a9437bbbce54ced54d735ecb7bd8e5836",
+      "accepted": [
+        "721bdf868e3becd05552b02d60b76efb2e6370ec69c5edec7bfd35a58b93a8c2"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": null
+    },
+    "scripts/test-onebot-upstream-health.mjs": {
+      "upstream": "813b784e0eb5904c94080efaf5a5ceff73605c75b1a88a00f55644f703c29c29",
+      "adapted": "0667fba73add3eadca50d46438e41c72fcc6b912de49f63bf92a991901864fea",
+      "accepted": [
+        "813b784e0eb5904c94080efaf5a5ceff73605c75b1a88a00f55644f703c29c29"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": null
+    },
+    "scripts/test-sticker-http-fallback.mjs": {
+      "upstream": "ae610059ca1ecddb44d5f02dae75fe7eb77f4068dcff7390c60c6fe1bddd0ae6",
+      "adapted": "10662bd52e5ba39236cdb96c63cfe7f916b3d5a51051380a27b78aea296101da",
+      "accepted": [
+        "ae610059ca1ecddb44d5f02dae75fe7eb77f4068dcff7390c60c6fe1bddd0ae6"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-sticker-http-fallback.mjs"
+    },
+    "scripts/test-stickers.mjs": {
+      "upstream": "8ee4e3741939b2bb0997bee643c27cc82c16eeb9cbdb5d9c09e305160f8bb05d",
+      "adapted": "882721196b6cb8c64e70ecc1cab243b419066551665001e1e8fb8a8d65cd9847",
+      "accepted": [
+        "8ee4e3741939b2bb0997bee643c27cc82c16eeb9cbdb5d9c09e305160f8bb05d"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-stickers.mjs"
+    },
+    "scripts/test-tool-restrict-guard.mjs": {
+      "upstream": "d2d2e40907e069053223a2f56235151f8dad529980ea545a24bd315b14cebc8d",
+      "adapted": "c88790fb76b090fb16381089fc31a8e94f1508005a91d2713f989d27e86050d2",
+      "accepted": [
+        "d2d2e40907e069053223a2f56235151f8dad529980ea545a24bd315b14cebc8d",
+        "11a0874e2f91bfe5d6bb45cbee926088f8ce626e0b3cc6be5dd0013eac1fb410"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-tool-restrict-guard.mjs"
+    },
+    "scripts/test-tool-surface.mjs": {
+      "upstream": "2d49059d682dff333f595967b8c25e8572690a26011ce4052b1879f346cec846",
+      "adapted": "10f09d1275f9da713663ce8999996bb91785fbc71f5aee034b2b77cf96ba3eff",
+      "accepted": [
+        "2d49059d682dff333f595967b8c25e8572690a26011ce4052b1879f346cec846"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-tool-surface.mjs"
+    },
+    "scripts/test-voice-system.mjs": {
+      "upstream": "6320b6385328bc75d8bf7a75456bb6c968bad00c0c932934b3255ee3d4b3a2c2",
+      "adapted": "79c823f8ca57434d06cfbc55bbfe438a6e20835420cb8902dfa5794e637f3760",
+      "accepted": [
+        "6320b6385328bc75d8bf7a75456bb6c968bad00c0c932934b3255ee3d4b3a2c2"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-voice-system.mjs"
+    },
+    "scripts/test-voice.mjs": {
+      "upstream": "b4ea3f8da694261afd8b2c7e97a7d314c291c987a072f2b772b85473236aef81",
+      "adapted": "20912bddabb3aa4b801ee901063e659b45818d47b1b98106da5dd48e35949361",
+      "accepted": [
+        "b4ea3f8da694261afd8b2c7e97a7d314c291c987a072f2b772b85473236aef81"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/test-voice.mjs"
+    },
+    "scripts/verify-dsh-022-adaptation.mjs": {
+      "upstream": "f46f6553cf5545d44be70789ec43e85320a292a0c0ca1db21f10fab1442fa817",
+      "adapted": "957ef3198c8a18c296ad5ec0ba367bea3f705dc004c15f6103c0a397bbf11ece",
+      "accepted": [
+        "f46f6553cf5545d44be70789ec43e85320a292a0c0ca1db21f10fab1442fa817"
+      ],
+      "sourceDirectory": "scripts",
+      "sourcePath": "scripts/verify-dsh-022-adaptation.mjs"
+    },
+    "src/bridge.js": {
+      "upstream": "0ad6ed147f72806a23627dfd369169fa0de59b3d06bb5387a5dcd62b572737b4",
+      "adapted": "b7baf88d9ada0a66d1eb98307de827626fb41d53664fe9fe41623ff33998b9fe",
+      "accepted": [
+        "0ad6ed147f72806a23627dfd369169fa0de59b3d06bb5387a5dcd62b572737b4",
+        "56e166b235bcbc17826653f36a6bed9b1c5bf27aa097f00098f70e1ac1d73509",
+        "2c929dd742fd90cb893284e1c77328116bc4b2d8cf9ae35e624019f0349bc7a4",
+        "98825ce3ca30106bec0bd2691c0a851c189ab61fd33384dc5b4c585e1bf687a5",
+        "9c3d7edaa7387c642a9a8a154289c7242a7f309d2d3423d403032f636898da08"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/bridge.js"
+    },
+    "src/forward.js": {
+      "upstream": "6b4fe6533125bc3057108f452e291bf63e083a0b0b13664612cf60384c97a833",
+      "adapted": "729020e7f6f73f34c2ca1fea9cb8e9420c19137cfe2259647eb45c66fc8105dc",
+      "accepted": [
+        "6b4fe6533125bc3057108f452e291bf63e083a0b0b13664612cf60384c97a833"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/forward.js"
+    },
+    "src/mcp-host-server.js": {
+      "upstream": "bb42d7ffbf56bb161b91b0ed071875c605ab538676cf2982baa080cf13e580c1",
+      "adapted": "b80d8720f93003765210d73b7a5543defd7d5ae6fd755285f513c1a28e449f54",
+      "accepted": [
+        "bb42d7ffbf56bb161b91b0ed071875c605ab538676cf2982baa080cf13e580c1",
+        "55d2060d293c31b0abb82e5c91ae27ffceaa185f0bcc7dfb89ca06e7d4bc9195"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/mcp-host-server.js"
+    },
+    "src/mcp-onebot-safe.js": {
+      "upstream": "48e44445e1743ee33174c0361b51fa616f77dc9b4a83dc70bad4d4f7c443b0a1",
+      "adapted": "9da9bd2895125e218925301a90985365918881ffb8bda3e3b3ac17a73f49ba27",
+      "accepted": [
+        "48e44445e1743ee33174c0361b51fa616f77dc9b4a83dc70bad4d4f7c443b0a1",
+        "a6e49aba6cc18a26a07b39fc60ae0367c32c96867e0e0c82f8b8ce1d8984817f"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": null
+    },
+    "src/mcp-web-search-safe.js": {
+      "upstream": "fd25763ca03292452d426d5902fcbad8b1f6e90f0bfbcb703904db71df32cfd2",
+      "adapted": "6fe321ec2541551f2e6d56ff370bfa69cd26c8da1599987823a6def51f913eaa",
+      "accepted": [
+        "fd25763ca03292452d426d5902fcbad8b1f6e90f0bfbcb703904db71df32cfd2"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/mcp-web-search-safe.js"
+    },
+    "src/onebot-config.js": {
+      "upstream": null,
+      "adapted": "93452c3d456a6fbf196023d11b0a82e38ee7d5ac67b2e255189b7c712b72117c",
+      "accepted": [
+        "c7df9c70b26d11243ef4b3cf2e4bc66e8e3f1b8c7e6103c55625e95e00ca8910",
+        "0a65195c17b0d9c46c1074da15e332c88b343dc59420c2d4eb200d0946251fc6",
+        "4be0d419669daf1c5cb4625aeb055af5d68546362da72e61aafcb8dfeedf3aed",
+        "9508853fc204c1eab23109a990b68d7ef3f122c367d78e02e0d821c03fb1a815"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/onebot-config.js"
+    },
+    "src/onebot-ws-client.js": {
+      "upstream": null,
+      "adapted": "4eda66eafad5af5bced5921215ac35fae012504b5b1de5288fc5e4a5aca66d48",
+      "accepted": [
+        "4eda66eafad5af5bced5921215ac35fae012504b5b1de5288fc5e4a5aca66d48",
+        "9a8a8780a0662298086847327b7e54bfcf6e91b1c27df89f010e2d659fa892b6",
+        "5f6bd331c758b28aa84eaed46309a04e26f453975238eed53ca25f5737848a0a",
+        "5fad44238758b8175762958bf555c3ff044a70d15e74cc462c724420e5cdd941"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/onebot-ws-client.js"
+    },
+    "src/safe-fetch.js": {
+      "upstream": "ec758f5ef8031ae8fe5343f60d3ef1ee2dd3476cb537f949fb37e03438171f76",
+      "adapted": "166e1b1e58d230b79280810df9eab75b8812dc153baa027708204579f61d05ae",
+      "accepted": [
+        "ec758f5ef8031ae8fe5343f60d3ef1ee2dd3476cb537f949fb37e03438171f76",
+        "166e1b1e58d230b79280810df9eab75b8812dc153baa027708204579f61d05ae"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/safe-fetch.js"
+    },
+    "src/self-test.js": {
+      "upstream": "6fc5f2201d43050e0c59de0597b6526e78a3b7e77a1d79f9a7485d0a3829c770",
+      "adapted": "972d8dd5547925e81eba1fc8a967ecd5675feb023d5ef959a58e30e2f66128f7",
+      "accepted": [
+        "6fc5f2201d43050e0c59de0597b6526e78a3b7e77a1d79f9a7485d0a3829c770"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/self-test.js"
+    },
+    "src/onebot-conn.js": {
+      "upstream": "e19ad86a4753ecdc79c9b2bfe5d7a85cdf6a1e04f486d079fe7417c74d7d987b",
+      "adapted": "b0b48bb4832302b31c38f17421b31322d8d4f31d02631a74deb24af4b19f66b0",
+      "accepted": [
+        "e19ad86a4753ecdc79c9b2bfe5d7a85cdf6a1e04f486d079fe7417c74d7d987b"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": null
+    },
+    "src/sticker-lib.js": {
+      "upstream": "f693f3c801bdf5f07cdd004ecff6df171e0d9b39fb59e45f236f3db1384c2c23",
+      "adapted": "cecf7457689307535b5e4d61716f8af4a29cf075f40b428f3f3059d356f50451",
+      "accepted": [
+        "f693f3c801bdf5f07cdd004ecff6df171e0d9b39fb59e45f236f3db1384c2c23"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/sticker-lib.js"
+    },
+    "src/voice-core.js": {
+      "upstream": "ef9c5d6fb7da9c4c97cc370182004eae1f091d05f354f761436acbde8e4daec1",
+      "adapted": "8cf69ce92bcded6788f7208157c121be583fe15e9567385d36cb03f2b61f53d9",
+      "accepted": [
+        "ef9c5d6fb7da9c4c97cc370182004eae1f091d05f354f761436acbde8e4daec1"
+      ],
+      "sourceDirectory": "src",
+      "sourcePath": "src/voice-core.js"
+    },
+    ".github/ISSUE_TEMPLATE/bug_report.yml": {
+      "upstream": "8de08fedb69682e63b6f6136bb6228116d3aba02767dc445d91d5202745d3e04",
+      "adapted": "c916a6c5101d7c768d9f00fa7a619331dd46da7f8ec68735de283f1e00cc39e1",
+      "accepted": [
+        "8de08fedb69682e63b6f6136bb6228116d3aba02767dc445d91d5202745d3e04"
+      ],
+      "sourceDirectory": ".github/ISSUE_TEMPLATE",
+      "sourcePath": ".github/ISSUE_TEMPLATE/bug_report.yml"
+    },
+    ".github/ISSUE_TEMPLATE/config.yml": {
+      "upstream": "0b3cf32680cdf3a9ca00441f5b86394b3075de3e27a17559ae9c43631d70d5f4",
+      "adapted": "b7ca7c4fdd3e119d0a6a02d1f63c76b4da71cda0ed473a47640017688ffe1933",
+      "accepted": [
+        "0b3cf32680cdf3a9ca00441f5b86394b3075de3e27a17559ae9c43631d70d5f4"
+      ],
+      "sourceDirectory": ".github/ISSUE_TEMPLATE",
+      "sourcePath": ".github/ISSUE_TEMPLATE/config.yml"
+    },
+    ".github/workflows/ci.yml": {
+      "upstream": "e9125f58e4e5e9e9ba72cc4174e1a653b32b91ca56db6c01e012f215e424005b",
+      "adapted": "9aad98d51f3ca1d81f3fd41fb7f7e09ae398c5884bae13ce2139776c46cc0b96",
+      "accepted": [
+        "e9125f58e4e5e9e9ba72cc4174e1a653b32b91ca56db6c01e012f215e424005b"
+      ],
+      "sourceDirectory": ".github/workflows",
+      "sourcePath": ".github/workflows/ci.yml"
+    },
+    "dsh/agent-presets/qq-chat/agent.cordis.yml": {
+      "upstream": "d1afaa4df0527e045268ff40b43e6d038b131258fbcfed1c8df1b7b350afb7f8",
+      "adapted": "bf1136f087faefeca753ca796e7718c29957ed4cdc01ef0b74059425c32b9534",
+      "accepted": [
+        "d1afaa4df0527e045268ff40b43e6d038b131258fbcfed1c8df1b7b350afb7f8"
+      ],
+      "sourceDirectory": "dsh/agent-presets/qq-chat",
+      "sourcePath": "dsh/agent-presets/qq-chat/agent.cordis.yml"
+    },
+    "dsh/agent-presets/qq-chat-v2/agent.cordis.yml": {
+      "upstream": "d2f86fb2f083a6afe2c2690ffcb9b21cb51528ea0b6d2a6e45e9e38c9c410951",
+      "adapted": "cf19fc7cb32fac455ca3ed64da333f834a00a533930733054bb2c68e65cca5dc",
+      "accepted": [
+        "d2f86fb2f083a6afe2c2690ffcb9b21cb51528ea0b6d2a6e45e9e38c9c410951"
+      ],
+      "sourceDirectory": "dsh/agent-presets/qq-chat-v2",
+      "sourcePath": "dsh/agent-presets/qq-chat-v2/agent.cordis.yml"
+    },
+    "plugins/qq-agent-presets/qq-self-key.mjs": {
+      "upstream": "98e562d4c53d175b9262e346191c1506179cd227b4d066cf2e9f11b3b33ce17a",
+      "adapted": "19b8e80d46fdb58a38e0e5a95da1f5aacaf9c01fd3cc32dfd201df8f504b1771",
+      "accepted": [
+        "98e562d4c53d175b9262e346191c1506179cd227b4d066cf2e9f11b3b33ce17a"
+      ],
+      "sourceDirectory": "plugins/qq-agent-presets",
+      "sourcePath": "plugins/qq-agent-presets/qq-self-key.mjs"
+    },
+    "plugins/qq-agent-presets/qq-tool-restrict.mjs": {
+      "upstream": "0e849c272d5bdb8fc929ca5db49577a29379c81efed6d916a007c6b1bec3263c",
+      "adapted": "174643d467a5df85d3bad5255effa37fa85e20897c9aeed7ac9b6b00a8bb0a96",
+      "accepted": [
+        "0e849c272d5bdb8fc929ca5db49577a29379c81efed6d916a007c6b1bec3263c",
+        "8e458fd2ba1cfb7c14c2f436e8440f1707686e1db0d723ca910f283e5405123a"
+      ],
+      "sourceDirectory": "plugins/qq-agent-presets",
+      "sourcePath": "plugins/qq-agent-presets/qq-tool-restrict.mjs"
+    },
+    "plugins/qq-agent-presets/presets/qq-chat-v2.patch.yml": {
+      "upstream": "852f8ead77a68868b5d5b59cd579f1eef53173387bb7b4c1aaca3d4d09f276fc",
+      "adapted": "61421d3d525fc5e6f2bf962889b32e8f8f9033fb006987c76433e3eb49a25360",
+      "accepted": [
+        "852f8ead77a68868b5d5b59cd579f1eef53173387bb7b4c1aaca3d4d09f276fc"
+      ],
+      "sourceDirectory": "plugins/qq-agent-presets/presets",
+      "sourcePath": "plugins/qq-agent-presets/presets/qq-chat-v2.patch.yml"
+    },
+    "plugins/qq-agent-presets/presets/qq-chat.patch.yml": {
+      "upstream": "f90d85d4df020859e781a0ba79b02a4082956737b290ba59b5594ab7943de9d6",
+      "adapted": "46e99cbc823a1d08e272b756f12e928ecc173d8467413c3f72fdd16c599cd04a",
+      "accepted": [
+        "f90d85d4df020859e781a0ba79b02a4082956737b290ba59b5594ab7943de9d6"
+      ],
+      "sourceDirectory": "plugins/qq-agent-presets/presets",
+      "sourcePath": "plugins/qq-agent-presets/presets/qq-chat.patch.yml"
+    }
+  }
+}

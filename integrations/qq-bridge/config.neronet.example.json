@@ -1,0 +1,32 @@
+{
+  "dsh": {
+    "baseUrl": "http://127.0.0.1:3080",
+    "provider": "deepseek-official",
+    "model": "deepseek-flash",
+    "reasoningEffort": "max",
+    "authToken": "",
+    "allowRemote": false,
+    "autoDiscoverPort": false
+  },
+  "onebot": {
+    "provider": "neronet",
+    "wsUrl": "ws://127.0.0.1:3001/",
+    "httpUrl": "http://127.0.0.1:3000",
+    "wsAccessToken": "",
+    "httpAccessToken": ""
+  },
+  "ownerQQ": null,
+  "agentPreset": "qq-chat",
+  "workspaceTitle": "QQ 聊天",
+  "allow": {
+    "private": [],
+    "groups": []
+  },
+  "deny": {
+    "private": [],
+    "groups": []
+  },
+  "allowAllWhenEmpty": false,
+  "consolePort": 3100,
+  "consoleToken": ""
+}

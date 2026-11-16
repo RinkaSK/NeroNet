@@ -1,0 +1,148 @@
+// qq-tool-restrict 守卫的回归（2026-10-18 新增）。
+//
+// 背景：一份重启后**新建**的 QQ 会话，请求头里 `dev_*` 仍然是 18 个
+// （docs/audits/AUDIT_2026-10-18_MEDIA_AND_WATERMARK.md §3 P3）。
+// 名单本身是对的、加载的副本也含这些名字，所以失败在 `ctx.tools.restrict()` 调用期，
+// 被 per-name try/catch 静默吞掉 —— 现网完全不可观测（DSH 的 stderr 不落文件）。
+//
+// 本文件用桩 ctx 验证守卫现在的行为：
+//   1. restrict 抛错时**不静默**：写诊断文件、并 3 秒后对失败项重试一次；
+//   2. 时序问题（后注册的工具）能被重试补上；
+//   3. 执行期 guard 白名单照旧：mcp__* 放行、dev_* 拒绝。
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PLUGIN = path.join(ROOT, 'plugins', 'qq-agent-presets', 'qq-tool-restrict.mjs');
+
+let failures = 0;
+let tests = 0;
+async function test(name, run) {
+  tests++;
+  try { await run(); console.log('PASS', name); }
+  catch (error) { failures++; console.error('FAIL', name, '—', error?.stack ?? error); }
+}
+
+// 每次都重新 import 一份干净模块（诊断文件路径来自 env，必须在 import 前设好）
+async function loadPlugin(diagFile) {
+  process.env.QQ_TOOL_RESTRICT_LOG = diagFile;
+  const url = pathToFileURL(PLUGIN).href + `?t=${Math.random().toString(36).slice(2)}`;
+  const mod = await import(url);
+  delete process.env.QQ_TOOL_RESTRICT_LOG;
+  return mod;
+}
+
+function makeCtx({ restrictImpl, knownAfter = Infinity }) {
+  const calls = { restrict: [], guard: null, hidden: new Set() };
+  let round = 0;
+  const ctx = {
+    tools: {
+      restrict(filter) {
+        const name = filter?.deny?.[0];
+        calls.restrict.push(name);
+        round += 1;
+        const result = restrictImpl({ name, round });
+        if (result instanceof Error) throw result;
+        calls.hidden.add(name);
+        return () => {};
+      },
+      guard(fn) { calls.guard = fn; }
+    }
+  };
+  return { ctx, calls, knownAfter };
+}
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-tool-restrict-'));
+
+// NeroNet adaptation: the three cases below follow the adapted guard (see the comment block
+// "NeroNet adaptation" in plugins/qq-agent-presets/qq-tool-restrict.mjs). A name the running DSH
+// does not have is "absent" (nothing to hide), not a failure; a tool that exists and cannot be
+// hidden is a failure and is never silent.
+const listed = (mod, calls) => [...calls.hidden].filter((name) => mod.RESTRICTED_TOOL_NAMES.includes(name));
+
+await test('名单里的名字在本 DSH 不存在：记为 absent，不算失败，不刷错误', async () => {
+  const diag = path.join(tmpDir, 'diag-absent.log');
+  const mod = await loadPlugin(diag);
+  const { ctx, calls } = makeCtx({ restrictImpl: () => new Error('tools.restrict() names unknown global tool "x"') });
+  mod.apply(ctx);
+  assert.ok(calls.restrict.length > 0, '必须真的调用 restrict');
+  const first = fs.readFileSync(diag, 'utf8');
+  assert.match(first, /restrict mode=list hidden=0 absent=\d+ failed=0/, `诊断文件应分别记录 hidden/absent/failed：${first}`);
+  assert.doesNotMatch(first, /失败:/, '不存在的名字不能记成失败');
+});
+
+await test('工具存在但无法隐藏：不静默，写诊断文件并带 DSH 的原始报错', async () => {
+  const diag = path.join(tmpDir, 'diag-real-failure.log');
+  const mod = await loadPlugin(diag);
+  const { ctx } = makeCtx({ restrictImpl: ({ name }) => (name === 'pwsh' ? new Error('layer rejected the restriction') : new Error('tools.restrict() names unknown global tool "x"')) });
+  mod.apply(ctx);
+  const first = fs.readFileSync(diag, 'utf8');
+  assert.match(first, /restrict mode=list hidden=0 absent=\d+ failed=1/, `诊断文件应记录失败计数：${first}`);
+  assert.match(first, /失败: pwsh: layer rejected the restriction/, '诊断文件必须带 DSH 的原始报错');
+});
+
+await test('时序问题能被 3 秒后的复查补藏（工具晚注册）', async () => {
+  const diag = path.join(tmpDir, 'diag-late.log');
+  const mod = await loadPlugin(diag);
+  const total = mod.RESTRICTED_TOOL_NAMES.length;
+  // 第一轮（探测 + 名单）全部「不存在」（模拟全局工具还没注册），之后全部成功（模拟 3 秒后已注册）
+  const { ctx, calls } = makeCtx({
+    restrictImpl: ({ round }) => (round <= total + 1 ? new Error('tools.restrict() names unknown global tool "x"') : undefined)
+  });
+  mod.apply(ctx);
+  assert.equal(listed(mod, calls).length, 0, '第一轮应当一个都没藏掉');
+  await new Promise((resolve) => setTimeout(resolve, 3400));
+  assert.equal(listed(mod, calls).length, total, `复查后应全部藏掉，实际 ${listed(mod, calls).length}/${total}`);
+  const log = fs.readFileSync(diag, 'utf8');
+  assert.match(log, new RegExp(`延迟复查 mode=list hidden=${total} absent=0 failed=0`), `复查结果应写入诊断：${log}`);
+});
+
+await test('restrict 全部成功时只写一行汇总（failed=0），不写失败明细', async () => {
+  const diag = path.join(tmpDir, 'diag-ok.log');
+  const mod = await loadPlugin(diag);
+  const { ctx, calls } = makeCtx({ restrictImpl: () => undefined });
+  mod.apply(ctx);
+  assert.equal(listed(mod, calls).length, mod.RESTRICTED_TOOL_NAMES.length);
+  const lines = fs.readFileSync(diag, 'utf8').split('\n').filter(Boolean);
+  assert.equal(lines.length, 1, '只应有一行汇总');
+  assert.match(lines[0], /restrict mode=list hidden=\d+ absent=0 failed=0/);
+});
+
+await test('执行期 guard 照旧：QQ MCP 放行、dev_* 与本地工具拒绝', async () => {
+  const diag = path.join(tmpDir, 'diag-guard.log');
+  const mod = await loadPlugin(diag);
+  const { ctx, calls } = makeCtx({ restrictImpl: () => undefined });
+  mod.apply(ctx);
+  assert.equal(typeof calls.guard, 'function', '必须注册执行期 guard');
+  const guard = calls.guard;
+  for (const name of ['mcp__onebot__qq_send_message', 'mcp__onebot-host__onebot_status', 'mcp__web-search-safe__web_search', 'ask_user_question', 'todo_write']) {
+    assert.equal(guard({ name, agent: { id: 'qqb-g-1' }, arguments: { key: 'group:1' } }), undefined, `${name} 应放行`);
+  }
+  for (const name of ['dev_inject_plugin', 'dev_plugin_status', 'pwsh', 'read', 'write', 'dsh_snapshot', 'skill']) {
+    assert.match(String(guard({ name })), /不在 QQ 桥接白名单内/, `${name} 必须拒绝`);
+  }
+  const send = { name: 'mcp__onebot__qq_send_message', agent: { id: 'qqb-g-1' } };
+  assert.equal(guard({ ...send, arguments: { target: 'group:1' } }), undefined);
+  assert.equal(guard({ ...send, arguments: { key: 'group:1', target: 'group:01' } }), undefined);
+  for (const args of [{}, { target: 'group:2' }, { key: 'group:1', target: 'group:2' }]) {
+    assert.equal(guard({ ...send, arguments: args }), '该会话不可用');
+  }
+  for (const [tool, field, kind] of [
+    ['qq_send_group_message', 'groupId', 'group'], ['qq_reply', 'groupId', 'group'],
+    ['qq_send_private_message', 'userId', 'private'], ['qq_send_burst', 'groupId', 'group']
+  ]) {
+    const exec = { name: `mcp__onebot__${tool}`, agent: { id: `qqb-${kind === 'group' ? 'g' : 'p'}-1` } };
+    assert.equal(guard({ ...exec, arguments: { [field]: '1' } }), undefined);
+    assert.equal(guard({ ...exec, arguments: { [field]: '2', target: `${kind}:1` } }), '该会话不可用');
+    assert.equal(guard({ name: exec.name, arguments: { [field]: '1' } }), '该会话不可用');
+  }
+  assert.match(String(guard({ name: '' })), /工具名无效/);
+  assert.match(String(guard({})), /工具名无效/);
+});
+
+fs.rmSync(tmpDir, { recursive: true, force: true });
+console.log(`\n${failures ? 'FAILED' : 'ALL PASS'}  tests=${tests} failures=${failures}`);
+if (failures) process.exit(1);

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "mode": "portable",
+  "allowedComputerName": null,
+  "qqExecutable": "C:\\Program Files\\Tencent\\QQNT\\QQ.exe",
+  "installRoot": "C:\\NeroNet",
+  "homeRoot": "C:\\NeroNet-data",
+  "managementHosts": [
+    "127.0.0.1",
+    "::1",
+    "localhost"
+  ]
+}

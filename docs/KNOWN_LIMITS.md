@@ -1,0 +1,69 @@
+# NeroNet 已知限制
+
+适用版本：1.5.0。
+
+## 1. QQ 版本
+
+- 只支持 Windows x64 的 QQ，并且只支持 NeroNet 已经适配的 QQ 程序文件。本版本适配了 QQ 9.9.25 和 QQ 9.9.37。
+- 适配按 QQ 核心文件（`wrapper.node`）的 SHA-256 判断，不按版本号判断。版本号相同但文件不同的 QQ 也会被拒绝。
+- 遇到未适配的 QQ 时 NeroNet 拒绝接入并报告原因，不会尝试猜测。QQ 更新后如果无法接入，可以先更新到最新的 NeroNet，或者在项目仓库提交 issue。
+
+## 2. 测试范围
+
+- 本版本的全部自动化测试通过（应用、管理界面、Native 组件）。
+- 1.5.0 的安装包在 QQ 9.9.37 上做了在线测试：双击启动、收发私聊和群消息、引用回复、`#状态`、停止后再启动、机器人 QQ 重启后自动接回。
+- 媒体收发、AstrBot、qq-bridge 的在线测试是在 1.5.0 之前的构建上完成的，没有在 1.5.0 的安装包上全部重做。
+- 没有做过长时间连续运行的专门测试。在开发和测试过程中，没有出现过因 QQ 风控或其他原因被强制下线的情况。
+- 测试在有限的群和账号中进行，不能代表所有群、所有消息类型的表现。
+
+## 3. 部署
+
+- 同一台电脑上运行多个 QQ 时，启动需要手动指定机器人 QQ 的进程号，机器人 QQ 重启后的自动接入也有条件，见 [DEPLOY.md](DEPLOY.md) 第 3 节。只运行一个 QQ 时没有这些限制。
+- 只支持完整包手动更新。更换版本需要正常退出并重新登录机器人 QQ。
+- NeroNet 停止后，已加载的组件留在 QQ 进程里直到 QQ 退出，不支持在任意时刻完全卸载。
+- 部署配置或动作配置修改后，需要正常停止并重新启动 NeroNet 才生效。
+- 管理界面默认只允许本机访问。内网地址需要在部署配置中显式允许，登录认证不能关闭。
+- 包内不含 QQ 和 ffmpeg。Node.js 只在带 Node 的下载包里附带；Node.js 发布安全更新时，请换用新版本的 NeroNet 下载包，或自行替换文件夹里的 `node.exe`（必须是 Node.js 24 x64）。
+- `SHA256SUMS.txt` 只能证明文件完整，不是发布者签名。
+
+## 4. OneBot 功能
+
+不支持的功能：
+
+- 发送 `mface`（商城表情）、`markdown` 消息段，以及把 `poke` 作为消息段发送：返回 `retcode 1400`，不发出任何内容。戳一戳请使用 `send_poke`、`group_poke`、`friend_poke` 动作。
+- 语音转文字（`fetch_ptt_text`）、标记已读（`mark_msg_as_read`）、发送空间说说（`send_qzone_msg`）：返回 `retcode 1404`。
+- `get_group_msg_history` 的 `reverse_order = false`。
+- 对所有账号生效的全局配置文件 `onebot.json`。
+
+行为说明：
+
+- `get_friend_list` 只返回真实好友，不含“我的设备”。
+- 消息中的文件段只有在动作配置开放了对应的上传动作（`upload_group_file` 或 `upload_private_file`）时才接受，否则返回 `retcode 1400`。`astrbot` 档案开放了这两个动作，`qqbridge` 档案没有。
+- `get_record` 的 `out_format`：转成 wav 不需要外部程序；转成其他格式需要 ffmpeg，没有时返回 `NERONET_RECORD_CONVERTER_MISSING`。
+- 图片的 file id 形如 `<md5>.<扩展名>`。
+- 管理类动作（踢人、禁言、设置管理员等）默认不开放，需要在动作配置的 `extraActions` 中逐个加入。这些动作没有逐个测试，开放后请先在测试群确认。
+
+合并转发：
+
+- 嵌套最多 3 层；私聊转发每个节点最多 1 个文件；转发中不能包含戳一戳。
+- 引用已有消息的节点（`id`）只能引用 NeroNet 收到或发出过的消息。
+- `send_forward_msg` 不指定目标、只上传时，不能包含图片、语音、视频。
+- 机器人刚发出的转发里的图片，短时间内用 `get_forward_msg` 或 `get_image` 回读时可能拿不到图片地址；QQ 中显示正常。
+
+## 5. 运行时行为
+
+- **停止时正在接收的消息**：停止 NeroNet 时，已经收到但还在等待媒体地址的消息最多再等 2 秒。仍未完成的会保存进消息库，之后可以用 `get_msg` 读取，但不再作为事件推送给客户端。NeroNet 停止期间到达的消息同样不会补推。
+- **运行记录文件**：`gateway-metadata.jsonl`、`supervisor-metadata.jsonl` 各自最多保留约 24 MiB（当前文件 8 MiB，加两份旧文件），超出后删除最旧的。
+- **HTTP 服务的「同时接受 WebSocket」**：开启后，同一端口用同一个令牌接受 WebSocket 连接。
+- **多个客户端**：每个连接的 OneBot 客户端都会收到同一条消息。多个客户端同时在线时，需要自行避免重复回复。
+- **媒体显示**：部分 QQ 客户端版本会把机器人自己发出的图片显示为空白，对方收到的图片正常。
+
+未测试的情况：
+
+- 在 QQ 菜单中“退出账号”后换号或重新登录（机器人 QQ 进程重启后快速登录、短时断网后恢复已经测试）。
+- 接收拍一拍通知。
+
+## 6. 接入的客户端
+
+- **AstrBot**：见 [integrations/astrbot/README.md](../integrations/astrbot/README.md) 第 10 节。动作档案按 AstrBot 核心和热门插件的实际调用确定，不保证插件市场里的每个插件都兼容。
+- **qq-bridge**：第三方项目，作者已停止维护，采用 PolyForm Noncommercial 许可，只能用于非商业用途。NeroNet 只适配 `v0.2.2-rc1`。未测试的范围和使用限制见 [integrations/qq-bridge/README.md](../integrations/qq-bridge/README.md) 第 1 节。

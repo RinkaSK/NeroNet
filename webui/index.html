@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" class="light" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/webp" href="/brand/neronet/logo.webp" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#a83650" />
+    <!-- WebUI is an admin surface; tell every compliant crawler to skip it. -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet" />
+    <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet" />
+    <title>NeroNet</title>
+    <script>
+      try {
+        var p = JSON.parse(localStorage.getItem('neronet.console.visual.v1') || '{}');
+        var dark = p.mode === 'dark' || (p.mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        var r = document.documentElement;
+        r.dataset.consoleMode = dark ? 'dark' : 'light';
+        r.dataset.consoleMotion = String(p.motion !== false);
+        r.classList.toggle('dark', dark); r.classList.toggle('light', !dark);
+        r.style.colorScheme = dark ? 'dark' : 'light';
+        r.style.background = dark ? '#241e21' : '#faf6ef';
+      } catch (_) {}
+    </script>
+    <script type="module" crossorigin src="/assets/index-_UmMMTWo.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/common-rz1pJeN3.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-BF0gMXyj.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
