@@ -1,6 +1,6 @@
 # NeroNet 部署与更新
 
-适用版本：1.5.0。示例中的路径和进程号请换成实际值。
+适用版本：1.5.1。示例中的路径和进程号请换成实际值。
 
 ## 1. 准备
 
@@ -166,7 +166,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
    $node    = 'C:\Tools\node-v24.22.1-win-x64\node.exe'
    $profile = 'C:\NeroNet-config\deployment.json'
    .\scripts\Test-NeroNet.ps1 -NodePath $node
-   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.5.0'
+   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.5.1'
    ```
 
    安装脚本把文件复制到一个新目录并再次核对。目标目录已存在时拒绝执行，不会覆盖旧版本。
@@ -174,7 +174,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
 3. 启动和停止：
 
    ```powershell
-   Set-Location 'C:\NeroNet\1.5.0'
+   Set-Location 'C:\NeroNet\1.5.1'
    .\scripts\Start-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -HomeDirectory 'C:\NeroNet-data\bot'
    .\scripts\Stop-NeroNet.ps1 -HomeDirectory 'C:\NeroNet-data\bot'
    ```

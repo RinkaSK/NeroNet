@@ -49,7 +49,7 @@ var init_product = __esm({
     "product.json"() {
         product_default = {
             name: "NeroNet",
-            version: "1.5.0",
+            version: "1.5.1",
             slug: "neronet",
             copyrightHolder: "NeroNet 项目组",
             ownershipStatement: "Copyright 2026 NeroNet 项目组 · PolyForm Noncommercial 1.0.0"

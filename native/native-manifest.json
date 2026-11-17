@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "buildEvidenceSha256": "6c6bdeb7971a15d89dd0c4c0369c8ac2d65b4fa656118beabb489c09eaf41e29",
+  "buildEvidenceSha256": "3bc44f3684301aea8134e7ba1e1cfde0b816b49e500c768620d25c3e974aa275",
   "artifacts": [
     {
       "name": "neronet_live_binding.dll",
@@ -19,8 +19,8 @@
     },
     {
       "name": "neronet.binding",
-      "sha256": "6088bd931c1e6d97b70d1956955c77fd9e1e166d3ac3edc7004977c191a39521",
-      "bytes": 2260
+      "sha256": "b19eb53443296d2bf0ef35ed3328e6fadc876bc6d7ceb34a93fde6f79f83b151",
+      "bytes": 4413
     }
   ]
 }

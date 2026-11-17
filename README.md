@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img alt="版本" src="https://img.shields.io/badge/version-1.5.0-a83650">
+  <img alt="版本" src="https://img.shields.io/badge/version-1.5.1-a83650">
   <img alt="平台" src="https://img.shields.io/badge/platform-Windows%20x64-555">
   <img alt="协议" src="https://img.shields.io/badge/OneBot-v11-555">
   <img alt="许可" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-555">
@@ -46,8 +46,8 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 
 | 文件 | 大小 | 适合 |
 |---|---|---|
-| `NeroNet-1.5.0-win-x64-with-node.zip` | 约 36 MB | **推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
-| `NeroNet-1.5.0-win-x64.zip` | 约 3 MB | 已经安装了 Node.js 24（x64）的电脑 |
+| `NeroNet-1.5.1-win-x64-with-node.zip` | 约 36 MB | **推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
+| `NeroNet-1.5.1-win-x64.zip` | 约 3 MB | 已经安装了 Node.js 24（x64）的电脑 |
 
 两个包只差一个 `node.exe`。Releases 页面列出了两个压缩包的 SHA-256；解压后包内每个文件的 SHA-256 在 `SHA256SUMS.txt` 里，启动时会自动核对。
 
@@ -56,13 +56,13 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 | 项目 | 要求 |
 |---|---|
 | 系统 | Windows x64 |
-| QQ | Windows 版 QQ，已测试 9.9.25 和 9.9.37，见下面的“测试情况”。不随包附带 |
+| QQ | Windows 版 QQ，已适配 9.9.25、9.9.30、9.9.32 和 9.9.37，见下面的“测试情况”。不随包附带 |
 | Node.js | 24（x64），本版本用 24.22.1 构建和测试。带 Node 的下载包已附带 |
 | ffmpeg | 可选。只在发送 MP3、OGG 等非 WAV/SILK 音频、生成视频封面、语音转码时需要 |
 
 ## 快速开始
 
-1. 下载 `NeroNet-1.5.0-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
+1. 下载 `NeroNet-1.5.1-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
 2. 登录机器人 QQ。
 3. 双击 `start.bat`。窗口里会显示接入的 QQ 进程、当前状态和管理界面地址：
 
@@ -107,7 +107,7 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 
 ## 测试情况
 
-- **QQ 版本**：测试使用的是 Windows 版 QQ 9.9.25 和 9.9.37（9.9.37 是目前的最新版）。只列出这两个版本，不代表其他版本一定不能用：NeroNet 启动时会检查 QQ，能正常接入就可以使用；遇到不支持的 QQ 会明确提示，不会带着问题运行。遇到问题时，可以先把 QQ 和 NeroNet 都更新到最新版本再试，或者[提交 issue](../../issues)。
+- **QQ 版本**：主要测试使用的是 Windows 版 QQ 9.9.25 和 9.9.37（9.9.37 是目前的最新版）。1.5.1 对 QQ 9.9.30 和 9.9.32 做了抽查更新，优化了对不同 QQ 版本的通用性。只列出这几个版本，不代表其他版本一定不能用：NeroNet 启动时会检查 QQ，能正常接入就可以使用；遇到不支持的 QQ 会明确提示，不会带着问题运行。遇到问题时，可以先把 QQ 和 NeroNet 都更新到最新版本再试，或者[提交 issue](../../issues)。
 - **稳定性**：没有做过长时间连续运行的专门测试。在开发和测试过程中，没有出现过因 QQ 风控或其他原因被强制下线的情况。
 - 不支持的消息类型、未测试的场景等细节见 [已知限制](docs/KNOWN_LIMITS.md)。
 
