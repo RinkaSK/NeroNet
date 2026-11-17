@@ -14,6 +14,7 @@
   <a href="#快速开始">快速开始</a> ·
   <a href="docs/DEPLOY.md">部署说明</a> ·
   <a href="docs/KNOWN_LIMITS.md">已知限制</a> ·
+  <a href="#接入机器人框架">接入 AstrBot / qq-bridge</a> ·
   <a href="#许可">许可</a>
 </p>
 
@@ -30,7 +31,7 @@
 
 NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现端：收到的 QQ 消息作为 OneBot 事件推送出去，收到的 OneBot 动作通过这个 QQ 执行。
 
-它只负责收发，不包含机器人逻辑。聊天、大模型对话和插件由接入的 OneBot 客户端提供，例如 [AstrBot](integrations/astrbot/README.md)。
+它只负责收发，不包含机器人逻辑。聊天、大模型对话和插件由接入的 OneBot 客户端提供，例如 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 和 [qq-bridge](https://github.com/Derpyu520/qq-bridge)。
 
 - **解压即用**：带 Node 的下载包解压后双击 `start.bat` 就能运行，不用安装，不用写配置。
 - **标准协议**：HTTP、正向 WebSocket、反向 WebSocket、HTTP POST 上报，可以同时开多个，每个有自己的访问令牌。
@@ -96,11 +97,13 @@ NeroNet 不会在多个 QQ 之间自己挑选，启动时会报错并列出进�
 
 ## 接入机器人框架
 
-| 框架 | 说明 |
-|---|---|
-| AstrBot | [integrations/astrbot](integrations/astrbot/README.md)：一条命令写好 NeroNet 和 AstrBot 两边的配置，支持同机、跨机器和 Docker |
-| qq-bridge + DeepSeek Harness | [integrations/qq-bridge](integrations/qq-bridge/README.md)：附带适配器和配置脚本，支持 DSH Web 和桌面客户端 |
-| 其他 OneBot v11 客户端 | 连接 NeroNet 的 HTTP 或 WebSocket 服务，在数据目录的 `config\neronet-actions.json` 中开放需要的动作，见 [部署说明第 8 节](docs/DEPLOY.md) |
+| 框架 | 项目主页 | 接入指南 |
+|---|---|---|
+| AstrBot | [GitHub](https://github.com/AstrBotDevs/AstrBot) · [官网](https://astrbot.app) · [文档](https://docs.astrbot.app) | [integrations/astrbot](integrations/astrbot/README.md)：一条命令写好 NeroNet 和 AstrBot 两边的配置，支持同机、跨机器和 Docker |
+| qq-bridge + DeepSeek Harness | [GitHub](https://github.com/Derpyu520/qq-bridge) | [integrations/qq-bridge](integrations/qq-bridge/README.md)：附带适配器和配置脚本，支持 DSH Web 和桌面客户端 |
+| 其他 OneBot v11 客户端 | | 连接 NeroNet 的 HTTP 或 WebSocket 服务，在数据目录的 `config\neronet-actions.json` 中开放需要的动作，见 [部署说明第 8 节](docs/DEPLOY.md) |
+
+AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联，各自按自己的许可提供。
 
 ## 测试情况
 

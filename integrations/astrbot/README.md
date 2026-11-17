@@ -4,6 +4,8 @@
 
 本目录的文件：本指南、`Connect-AstrBot.ps1`（一步配置脚本）和它调用的 `connect-astrbot.mjs`。
 
+AstrBot 项目主页：[GitHub](https://github.com/AstrBotDevs/AstrBot) · [官网](https://astrbot.app) · [文档](https://docs.astrbot.app)。
+
 NeroNet 让已登录的 QQ 作为 OneBot v11 实现端运行。AstrBot 通过自带的 `aiocqhttp`（OneBot v11）平台适配器接入 NeroNet 后，可以在 QQ 群聊和私聊中使用 AstrBot 的大模型对话、指令和插件市场里的插件。
 
 ## 1. 适配状态

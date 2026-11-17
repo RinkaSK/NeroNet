@@ -1,5 +1,7 @@
 # NeroNet × qq-bridge 接入指南
 
+qq-bridge 项目主页：[GitHub](https://github.com/Derpyu520/qq-bridge)。
+
 本文说明如何让公开项目 qq-bridge 通过 NeroNet 收发 QQ 消息，并由 DeepSeek Harness（DSH）提供模型回合。DSH 可以是命令行启动的 **DSH Web**（固定端口），也可以是 **DSH 桌面客户端**（每次启动端口不同）。
 
 qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 NeroNet 项目独立完成，不代表 qq-bridge 作者，也未获其背书。
