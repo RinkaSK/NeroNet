@@ -1,6 +1,6 @@
 # NeroNet 部署与更新
 
-适用版本：1.5.1。示例中的路径和进程号请换成实际值。
+适用版本：1.5.2。示例中的路径和进程号请换成实际值。
 
 ## 1. 准备
 
@@ -27,14 +27,14 @@
 NeroNet 已启动。状态：已就绪
   机器人 QQ 进程：1234（电脑上唯一运行的 QQ）
   管理界面：http://127.0.0.1:5099
-  初始密码：D:\NeroNet\data\webui-initial-password.txt（首次登录后请修改）
+  初始密码：D:\NeroNet\data\webui-initial-password.txt（首次登录后请修改，修改后这个文件会自动删除）
   数据目录：D:\NeroNet\data
   停止：运行 stop.bat
 ```
 
 - 状态不是“已就绪”时（例如 QQ 还没登录完），NeroNet 在后台继续等待，窗口可以关掉。
 - `http://127.0.0.1:5100` 返回就绪状态（JSON），可用于脚本检查。
-- 第一次打开管理界面：用初始密码登录，阅读并确认使用须知和数据说明，然后在「安全与访问」里修改密码。
+- 第一次打开管理界面：用初始密码登录，阅读并确认使用须知和数据说明，然后在「安全与访问」里修改密码。修改成功后，`webui-initial-password.txt` 会自动删除，启动时也不再提示初始密码；如果文件没能删除，界面会提示手动删除它。
 - 首次启动会自动建好两个只监听本机的 OneBot 服务：HTTP `127.0.0.1:3000` 和正向 WebSocket `127.0.0.1:3001`，访问令牌在管理界面「OneBot 配置」里查看。
 
 停止：双击 `stop.bat`。它请求正常关闭并等待最多 40 秒，不会强行结束进程。NeroNet 停止后，已经加载进 QQ 的组件会留在 QQ 进程里，直到 QQ 退出。
@@ -46,6 +46,15 @@ NeroNet 已启动。状态：已就绪
 - 同一个 QQ 程序登录过多个账号时，重新打开 QQ 可能会自动登录上次用过的另一个账号。这时 NeroNet 会短暂接入它、发现账号不符后放开；它加载的组件会留在那个 QQ 进程里，直到它退出。在这样的电脑上请用 `-AdminPid` 指明另一个账号的 QQ（见第 3 节），并在重启机器人 QQ 时确认登录的是机器人账号。
 - 想换一个机器人账号：停止 NeroNet，换一个新的 NeroNet 文件夹（或清空 `data` 目录）再启动。
 
+连接中断后的自动恢复：
+
+- NeroNet 与 QQ 里的组件之间的连接意外中断时，NeroNet 会自动恢复：先确认旧的连接已经清理干净，再重新核对 QQ 进程、账号和登录状态，然后重新接入。正常情况下几秒到十几秒完成。
+- 恢复期间管理界面和 OneBot 服务不可用，恢复后自动可用，客户端按自己的重连方式重新连接即可。
+- **中断时正在发送的消息不会自动重发。** 这些请求会收到失败的回应，但消息有可能已经送达，是否重发由客户端自己决定。
+- 10 分钟内最多自动恢复 3 次，每次之前的等待依次是 2 秒、5 秒、15 秒。超过次数，或者无法确认旧的连接已经清理干净时，NeroNet 会停止，并在 `supervisor-metadata.jsonl` 里记录原因（`recoveryExhausted` 或 `recoveryBlocked`）。这时请正常退出并重新登录机器人 QQ，再启动 NeroNet。
+- 用 `stop.bat` 停止的 NeroNet 不会自动恢复；恢复过程中运行 `stop.bat` 也会立即停止。
+- 恢复时如果登录的不是绑定的机器人账号，或者 QQ 还没登录完，NeroNet 按第 2、3 节的规则保持等待。
+
 ## 3. 电脑上有多个 QQ
 
 NeroNet 不会在多个 QQ 之间自己挑选，启动会报错并列出进程号。这时用参数启动（在 NeroNet 文件夹里打开 PowerShell）：
@@ -56,6 +65,8 @@ NeroNet 不会在多个 QQ 之间自己挑选，启动会报错并列出进程�
 
 - `-BotPid <进程号>`：指定机器人 QQ。
 - `-AdminPid <进程号>`：指定一个永远不接入的 QQ（例如你自己的账号）。只有两个 QQ 时，只给 `-AdminPid` 也可以，剩下的那个就是机器人。
+
+启动后的提示会说明机器人 QQ 是怎么确定的：“由 -BotPid 指定”“电脑上唯一运行的 QQ”，或者“排除 -AdminPid 指定的 QQ 后，剩下的唯一一个 QQ”。
 
 电脑上同时运行着两个安装位置的 QQ（例如新旧两个版本）时，也用 `-BotPid` 指定：NeroNet 使用该进程所属的那个 QQ。
 
@@ -80,7 +91,7 @@ Get-Process QQ | Where-Object { try { $_.Modules.ModuleName -contains 'wrapper.n
 | 路径 | 内容 |
 |---|---|
 | `deployment.json` | 运行配置（自动生成） |
-| `webui-initial-password.txt` | 管理界面的初始密码 |
+| `webui-initial-password.txt` | 管理界面的初始密码。只在还没有修改密码时存在，修改密码后自动删除 |
 | `config\runtime.json` | 管理界面的监听地址、端口和日志保留设置 |
 | `config\local-token` | 默认的 OneBot 访问令牌（首次启动时生成，默认的两个服务使用它） |
 | `config\onebot_<机器人QQ>.json` | OneBot 服务配置（含访问令牌） |
@@ -104,6 +115,8 @@ NeroNet 只支持完整包更新，没有在线更新。
 
 不要把新版本的文件覆盖到旧文件夹上，也不要把不同版本的文件混在一起使用（例如新的 `app` 配旧的 `native`）。
 
+如果跳过了第 2 步（没有退出 QQ 就启动了新版本），NeroNet 不会接入这个 QQ，并提示“这个 QQ 里还留着另一个版本的 NeroNet 组件”。这时不需要停止 NeroNet：正常退出机器人 QQ 再重新登录，NeroNet 会自动接入。
+
 回退：停止新版本，正常退出并重新登录机器人 QQ，回到旧文件夹启动。更新前请保留旧文件夹；消息库和图片引用不保证跨版本通用，回退时使用更新前的那份 `data`。
 
 QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝接入。建议关闭 QQ 的自动更新，更新 QQ 之前先确认 NeroNet 是否支持新版本。
@@ -117,7 +130,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
 | `NERONET_FFMPEG` | `ffmpeg.exe` 的完整路径 |
 | `NERONET_HIGHWAY_PROXY` | 上传图片、语音、视频时使用的 HTTP 代理 |
 | `NERONET_LOG_LEVEL` | 日志级别 |
-| `NERONET_WEBUI_BOOTSTRAP_PASSWORD` | 第一次启动时使用的管理界面密码（至少 8 个字符），代替随机初始密码 |
+| `NERONET_WEBUI_BOOTSTRAP_PASSWORD` | 第一次启动时使用的管理界面密码（至少 8 个字符），代替随机初始密码。使用它时不会生成 `webui-initial-password.txt` |
 | `NERONET_DEPLOYMENT_PROFILE` | 部署配置文件路径（第 9 节）；与 `-DeploymentProfile` 作用相同 |
 
 ## 7. 可选：ffmpeg
@@ -166,7 +179,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
    $node    = 'C:\Tools\node-v24.22.1-win-x64\node.exe'
    $profile = 'C:\NeroNet-config\deployment.json'
    .\scripts\Test-NeroNet.ps1 -NodePath $node
-   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.5.1'
+   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.5.2'
    ```
 
    安装脚本把文件复制到一个新目录并再次核对。目标目录已存在时拒绝执行，不会覆盖旧版本。
@@ -174,7 +187,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
 3. 启动和停止：
 
    ```powershell
-   Set-Location 'C:\NeroNet\1.5.1'
+   Set-Location 'C:\NeroNet\1.5.2'
    .\scripts\Start-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -HomeDirectory 'C:\NeroNet-data\bot'
    .\scripts\Stop-NeroNet.ps1 -HomeDirectory 'C:\NeroNet-data\bot'
    ```

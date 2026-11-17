@@ -1,5 +1,5 @@
 {
-  "adapterVersion": "1.2.0",
+  "adapterVersion": "1.2.1",
   "repository": "https://github.com/Derpyu520/qq-bridge",
   "tag": "v0.2.2-rc1",
   "commit": "5fe6d3e1aee014a34047103edfc8aaafc8322176",
@@ -140,7 +140,7 @@
     },
     "scripts/setup-dsh.mjs": {
       "upstream": "880ceeb02181e237b3ec948f1a93d79489da41141ded8e0d20fed4b813e4f8ff",
-      "adapted": "a7552c78a78734abd6ee4668a296c8b545bad6da5f82b5b11bb57b2320d5f4ab",
+      "adapted": "20e875bcf92fb5ef0ef4c5f24b27d4d9c1cbc946f819323797f2ad72c5df3714",
       "accepted": [
         "880ceeb02181e237b3ec948f1a93d79489da41141ded8e0d20fed4b813e4f8ff"
       ],

@@ -20,12 +20,14 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
 | 项目 | 测试所用的版本 |
 |---|---|
 | qq-bridge | `v0.2.2-rc1`，提交 `5fe6d3e1aee014a34047103edfc8aaafc8322176` |
-| NeroNet 适配器 | 1.1.0。本包附带的是 **1.2.0**，见下面的说明 |
+| NeroNet 适配器 | 1.1.0 和 1.2.0。本包附带的是 **1.2.1**，见下面的说明 |
 | DSH Web | `@deepseek-ai/dsh@0.2.2-rc.3`，固定端口 |
 | DSH 桌面客户端 | DeepSeek Harness 0.2.1-rc.2（Windows） |
-| Node.js | 24.22.1（qq-bridge 需要 Node.js 22 或更高版本） |
+| Node.js | 24.22.1，自带 npm 11.19.1（qq-bridge 需要 Node.js 22 或更高版本） |
 
-适配器 1.2.0 改为整文件替换，并把配置段和 MCP 服务统一命名为 `onebot`。它通过了自动化测试，但下面这些在线测试是在 1.1.0 上完成的，没有在 1.2.0 和 NeroNet 1.5.0、1.5.1 的安装包上重做。
+适配器 1.2.0 改为整文件替换，并把配置段和 MCP 服务统一命名为 `onebot`。1.2.1 在它的基础上只改了 `scripts\setup-dsh.mjs`：安装结果按最终状态检查，提示更明确（见第 5、6 节）。
+
+下面的内容先在适配器 1.1.0 上做过在线测试；之后在适配器 1.2.0、NeroNet 1.5.1、QQ 9.9.37 上按“全新安装”重新测试了其中的对话、引用、@、识图、三种聊天模式、三种重启恢复、DSH 桌面客户端的自动发现和恢复、令牌错误和 NeroNet 未启动的提示、与 AstrBot 共存。1.5.2 和适配器 1.2.1 上回归了适配器升级、`setup-dsh.mjs web`、一步配置、私聊对话和大图识别；DSH 桌面客户端没有在 1.5.2 上重测。
 
 在真实 QQ 私聊和测试群中测试通过的内容：
 
@@ -55,7 +57,7 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
 ## 3. 准备
 
 1. 登录机器人 QQ，用 `start.bat` 启动一次 NeroNet。这一步会在数据目录（NeroNet 文件夹里的 `data`）生成 `config\onebot_<机器人QQ>.json`。
-2. 准备 Node.js 24.22.1。
+2. 准备 Node.js 24.22.1（自带 npm 11.19.1）。这个版本的 npm 对依赖包的安装脚本有新的默认行为，见第 4 节末尾的“npm 跳过安装脚本”。
 3. 准备一个 DeepSeek 账号或 DeepSeek API Key，供 DSH 使用。
 4. 决定 DSH 的运行方式和数据目录（下文记作 `DSH_HOME`）：
 
@@ -119,6 +121,26 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
 
    `onebot` 段的地址和令牌由第 7 节的配置工具填写。
 
+### npm 跳过安装脚本
+
+Node.js 24.22.1 自带的 npm 11.19.1 默认**不运行依赖包自己的安装脚本**，安装结束时会列出被跳过的包（提示 `packages have install scripts not yet covered by allowScripts`）。这不是报错，安装命令的退出码仍然是 0。
+
+| 安装的内容 | 被跳过安装脚本的包（测试时的版本） |
+|---|---|
+| qq-bridge（`npm ci`） | 没有 |
+| DSH（`npm install @deepseek-ai/dsh@0.2.2-rc.3`） | `node-pty@1.2.0-beta.15`、`koffi@3.1.1`、`@deepseek-ai/dsh-subprocess-local@0.2.2-rc.3`、`protobufjs@7.6.6`、`@google/genai@2.21.0` |
+
+测试时没有批准任何安装脚本：`node-pty` 和 `koffi` 自带 Windows x64 的预编译文件，实测可以加载；DSH Web 的对话、识图和三种聊天模式都正常。`@deepseek-ai/dsh-subprocess-local` 的安装脚本（准备子进程辅助程序）没有单独验证，它与 `closed-agent` 模式下执行主机命令有关，这部分本来就没有测试。
+
+安装后可以这样确认两个原生模块能加载（在 DSH 的安装目录里执行，两行都应输出 `ok`）：
+
+```powershell
+node -e "require('node-pty'); console.log('ok')"
+node -e "require('koffi'); console.log('ok')"
+```
+
+如果某个模块加载失败，或者确实需要某个包的安装脚本：先用 `npm install-scripts ls` 查看被跳过的包，只对你核对过的包执行 `npm install-scripts approve <包名>`，然后重新执行安装命令。不建议用 `--all` 一次全部批准。
+
 ## 5. 方式一：DSH Web（固定地址）
 
 1. **安装 DSH。** 在单独的目录安装固定版本：
@@ -144,6 +166,15 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
    cd <qq-bridge>
    node scripts\setup-dsh.mjs web
    ```
+
+   脚本结束时会检查最终状态，并用下面两种方式之一结束：
+
+   - `检查通过：profile web 的 bundle 链接、package.json、preset 和 MCP 条目都已就位`：安装完成（退出码 0）。
+   - `缺失：…` 加上 `profile web 的安装不完整`：真实的安装失败（退出码 1），按列出的缺失项修正后重新运行。
+
+   按本节的方法把 DSH 装在单独目录时，`PATH` 里没有 `dsh` 命令，脚本会提示“已跳过 dsh plugin install”。这是正常的：DSH 加载 bundle 需要的链接由脚本自己建好，不依赖这条命令。
+
+   检查通过只说明文件就位。最终请在第 5 步启动后确认：DSH 的输出里没有 `cannot resolve profile bundle`，Bridge 日志出现 `DSH 已就绪`，并在 QQ 里实际发一条消息看到回复。
 
 4. **填写 `config.json` 的 DSH 地址。**
 
@@ -204,7 +235,7 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
    node scripts\setup-dsh.mjs desktop
    ```
 
-   脚本最后一步会尝试运行 `dsh plugin install`，桌面客户端没有这个命令，所以会显示“返回退出码 1”。这不影响使用：所需的链接已经由脚本建好，桌面客户端可以正常加载。
+   桌面客户端没有 `dsh` 命令，脚本会提示“已跳过 dsh plugin install”，然后和 DSH Web 一样检查最终状态：显示 `检查通过：profile desktop …` 就是安装完成；显示 `缺失：…` 和“安装不完整”是真实的失败，需要修正后重新运行（见第 5 节第 3 步）。
 
 3. **填写 `config.json` 的 DSH 字段。**
 
@@ -270,7 +301,9 @@ cd <NeroNet>
 配置工具的其他行为：
 - 被修改的文件会先备份为 `*.bak-qqbridge-<时间>`。
 - 重复执行时，没有变化就不写入。
-- 输出中的令牌只显示长度。需要查看令牌原文时加 `-ShowToken`。
+- 输出的提示是中文，字段名保持英文（方便脚本读取）。
+- 输出中的令牌只显示长度。需要查看令牌原文时加 `-ShowToken`（直接用 `node connect-qqbridge.mjs` 运行时是 `--show-token`，提示里写的是你实际使用的那一种）。
+- 输出的 `media` 一项是识图的预检：有没有找到 ffmpeg，以及没有时哪些图片不能识别（见第 8 节）。
 - 加 `-Stickers` 会额外开放收藏表情的写入动作（`add_custom_face` 和 `modify_custom_face`）。这两个动作会修改机器人账号的收藏表情，默认不开放。**发送已有的收藏表情不需要这个选项。**
 - 配置工具不会启动或重启任何程序。
 
@@ -284,7 +317,7 @@ DSH 已就绪（模式: reserved2）
 
 ## 8. 图片和收藏表情的网络要求
 
-- **收图（识图）：** Bridge 通过 NeroNet 的 `get_image` 取得图片内容，不需要自己访问外网。
+- **收图（识图）：** Bridge 通过 NeroNet 的 `get_image` 取得图片内容，不需要自己访问外网。大图和动图需要 ffmpeg，见下面的“大图、动图和 ffmpeg”。
 - **机器人发送收藏表情：** Bridge 自己从 QQ 的图片服务器（`p.qpic.cn` 等）下载表情，再交给 NeroNet 发送。默认做法是本机解析域名并直连，逐一检查解析出的地址不是内网地址。
 
   电脑只能通过 HTTP 代理上网（没有可用的 DNS 或直连路由）时，这一步会失败：「图片下载失败 … 域名解析失败」。这时可以在 `config.json` 的 `onebot` 段配置媒体代理：
@@ -302,6 +335,35 @@ DSH 已就绪（模式: reserved2）
   - 配置错误（例如写成 `https://`）时 Bridge 启动失败并说明原因。启动日志会有一行「QQ 媒体下载经代理 …」。
 
 - **新增或修改账号收藏**（`add_custom_face` / `modify_custom_face`）默认不开放，见第 7 节的 `-Stickers`。
+
+### 大图、动图和 ffmpeg
+
+NeroNet 接收图片没有 1 MiB 的限制；下面的限制是 qq-bridge 把图片交给模型之前自己做的处理（上游的默认值）。
+
+| 图片 | Bridge 的处理 | 需要 ffmpeg |
+|---|---|---|
+| 静态图，不超过 1 MiB **并且**长边不超过 1280 像素 | 原样交给模型 | 不需要 |
+| 静态图，超过 1 MiB 或长边超过 1280 像素 | 先缩小、重新编码，再交给模型 | 需要 |
+| 动图（GIF 等） | 抽取若干帧拼成一张图，再交给模型 | 需要 |
+
+没有 ffmpeg 时，后两种图片不会交给模型。Bridge 日志里有一行 `[media] 图片1 不提供：… 压不到 1024KB 以内（找不到 ffmpeg（设置 FFMPEG_PATH 或 config.json 的 socialV2.voice.ffmpegPath））`，模型通常会回答“图没打开”之类的话。从剪贴板粘贴的截图、手机原图很容易超过这两个限制。
+
+配置 ffmpeg（任选一种，然后重启 Bridge）：
+
+- 启动 Bridge 之前设置环境变量：`$env:FFMPEG_PATH = 'D:\tools\ffmpeg\bin\ffmpeg.exe'`。
+- 在 `config.json` 里填写（这一项只能在本机的配置文件里设置，不能从控制台修改）：
+
+  ```json
+  "socialV2": { "voice": { "ffmpegPath": "D:\\tools\\ffmpeg\\bin\\ffmpeg.exe" } }
+  ```
+
+- 或者把 ffmpeg 所在目录加进 `PATH`。
+
+预检：第 7 节的 `Connect-QQBridge.ps1`（加 `-Check` 不写入任何文件）输出里的 `media` 一项会说明是否找到了 ffmpeg、是从哪里找到的。上面的 1 MiB 和 1280 像素可以用 `config.json` 的 `socialV2.media.maxModelBytes`、`socialV2.media.maxLongEdge` 调整（上游的设置，没有单独测试）。
+
+这里的 ffmpeg 是 qq-bridge 用的，和 NeroNet 自己用的 `NERONET_FFMPEG`（发送 MP3 等音频、生成视频封面）是两处独立的设置，可以指向同一个 `ffmpeg.exe`。
+
+测试情况：在 QQ 9.9.37、DSH Web 0.2.2-rc.3 上发送一张 1920×1200、约 1.7 MB 的图片。没有 ffmpeg 时，Bridge 记录“不提供”，机器人回答取不到图；设置 `FFMPEG_PATH` 并重启 Bridge 后，日志为 `原图 1920×1200 1758KB → 1280×800 136KB`，识别正常。480×300 的小图不需要 ffmpeg。动图没有测试。
 
 ## 9. 模式、唤醒和与 AstrBot 共存
 
@@ -371,11 +433,13 @@ DSH 已就绪（模式: reserved2）
 | `state\tool-restrict.log` 里有 `absent=…` | 正常。它表示守卫名单里有这么多工具名在当前 DSH 里不存在，不需要隐藏。只有 `failed` 不为 0 才需要关注（见下） |
 | DSH 日志中出现「restrict 失败 N 个（工具存在但无法隐藏…）」 | 有工具存在却没能从模型的工具列表里隐藏。调用时的白名单仍然会拒绝它；请带上这一行和 DSH 版本反馈问题 |
 | 语音消息只显示「[语音]」 | 语音转文字（`fetch_ptt_text`）不在支持范围内：NeroNet 没有实现这个动作（返回 1404），所以 Bridge 只显示「[语音]」 |
+| 发了一张大图，模型说图片打不开或加载失败；Bridge 日志有 `[media] 图片1 不提供：…找不到 ffmpeg` | 图片超过 1 MiB 或长边超过 1280 像素，而 Bridge 没有找到 ffmpeg。见第 8 节“大图、动图和 ffmpeg” |
+| `setup-dsh.mjs` 显示 `缺失：…` 和“安装不完整” | 真实的安装失败。按列出的缺失项检查 `DSH_HOME` 是否正确、是否有权限创建目录链接，然后重新运行 |
 | 从剪贴板粘贴图片后，模型说“这是文件，读不到图” | QQ 客户端把粘贴的内容当作文件发出了。改用聊天窗口的「图片」按钮选择图片发送 |
 
 ## 11. 更新和回退
 
-- **升级适配器：** 先用安装时的那一版适配器执行 `--revert`，再用新版 NeroNet 自带的 `apply-adapter.mjs` 安装，然后重新执行 `setup-dsh.mjs`，重启 DSH 和 Bridge。`config.json` 不会被修改。
+- **升级适配器：** 先用安装时的那一版适配器执行 `--revert`，再用新版 NeroNet 自带的 `apply-adapter.mjs` 安装，然后重新执行 `setup-dsh.mjs`，重启 DSH 和 Bridge。`config.json` 不会被修改。从 1.2.0 升到 1.2.1 也按这个顺序做。
 - **回到上游 qq-bridge：**
 
   ```powershell

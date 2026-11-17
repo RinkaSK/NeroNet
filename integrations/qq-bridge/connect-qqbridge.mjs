@@ -21,26 +21,29 @@ import {fileURLToPath} from 'node:url';
 const readJson=file=>JSON.parse(fs.readFileSync(file,'utf8').replace(/^﻿/,''));
 const stamp=()=>new Date().toISOString().replace(/[-:]/g,'').replace(/\..*/,'');
 
+// The switch that prints the tokens, as the caller knows it (the PowerShell script or this tool).
+const showTokenSwitch=()=>process.env.NERONET_TOOL_ENTRY==='powershell'?'-ShowToken':'--show-token';
+
 export function parseArgs(argv){
  const out={check:false,showToken:false,stickers:false};
  for(let i=0;i<argv.length;i++){
-  const a=argv[i],next=()=>{const v=argv[++i];if(v===undefined||v.startsWith('--'))throw Error(`${a} needs a value`);return v;};
+  const a=argv[i],next=()=>{const v=argv[++i];if(v===undefined||v.startsWith('--'))throw Error(`${a} 后面需要一个值`);return v;};
   if(a==='--home')out.home=next();else if(a==='--bridge')out.bridge=next();else if(a==='--uin')out.uin=next();
   else if(a==='--check')out.check=true;else if(a==='--show-token')out.showToken=true;else if(a==='--stickers')out.stickers=true;
-  else throw Error('Unknown argument '+a);
+  else throw Error('不认识的参数 '+a);
  }
- if(!out.home)throw Error('--home <NeroNet data directory> is required');
+ if(!out.home)throw Error('需要用 --home 指定 NeroNet 的数据目录');
  if(!out.bridge)throw Error('--bridge <qq-bridge directory> is required');
  if(out.uin!==undefined&&!/^\d{5,12}$/.test(out.uin))throw Error('--uin must be a QQ number');
  return out;
 }
 
 export function findOneBotConfig(configDir,uin){
- if(!fs.existsSync(configDir))throw Error(`No config directory in ${path.dirname(configDir)}: start NeroNet once with this data directory first`);
+ if(!fs.existsSync(configDir))throw Error(`${path.dirname(configDir)} 里没有 config 目录：请先用这个数据目录启动一次 NeroNet`);
  const files=fs.readdirSync(configDir).filter(n=>/^onebot_\d+\.json$/.test(n));
  const pick=uin?files.filter(n=>n===`onebot_${uin}.json`):files;
- if(pick.length===0)throw Error(uin?`config/onebot_${uin}.json not found`:'No config/onebot_<QQ>.json yet: start NeroNet once and log in the bot first');
- if(pick.length>1)throw Error('Several bot accounts found; choose one with --uin: '+files.join(', '));
+ if(pick.length===0)throw Error(uin?`没有找到 config/onebot_${uin}.json`:'还没有 config/onebot_<QQ>.json：请先登录机器人 QQ 并启动一次 NeroNet');
+ if(pick.length>1)throw Error('找到多个机器人账号的配置，请用 --uin 指定其中一个：'+files.join(', '));
  return path.join(configDir,pick[0]);
 }
 
@@ -83,10 +86,10 @@ const arrayFormat=s=>String(s?.messageFormat??'array')==='array';
 /** Why a server cannot serve qq-bridge (null = it can). The bridge needs array messages; its
  *  WebSocket needs events and actions on one connection, which is the Universal role. */
 export function unsuitable(kind,s){
- if(!enabled(s))return 'it is disabled';
- if(!reachable(s))return 'it is not reachable on a loopback address with a valid port';
- if(!arrayFormat(s))return `its messageFormat is ${s.messageFormat}; qq-bridge needs array`;
- if(kind==='ws'&&String(s.role??'Universal').toLowerCase()!=='universal')return `its role is ${s.role}; qq-bridge needs Universal (events and actions on one connection)`;
+ if(!enabled(s))return '它没有启用';
+ if(!reachable(s))return '它没有绑定在本机地址（127.0.0.1 等）的有效端口上';
+ if(!arrayFormat(s))return `它的消息格式是 ${s.messageFormat}，qq-bridge 需要 array`;
+ if(kind==='ws'&&String(s.role??'Universal').toLowerCase()!=='universal')return `它的角色是 ${s.role}，qq-bridge 需要 Universal（在同一条连接上收事件和发动作）`;
  return null;
 }
 /**
@@ -96,12 +99,12 @@ export function unsuitable(kind,s){
  */
 function pickServer(kind,list,dedicated,fallback,notes){
  const own=list.find(s=>s?.name===dedicated);
- if(own){const why=unsuitable(kind,own);if(why)throw Error(`NeroNet server "${dedicated}" exists but cannot be used by qq-bridge: ${why}. Fix or remove it, then run this tool again`);return own;}
+ if(own){const why=unsuitable(kind,own);if(why)throw Error(`NeroNet 里已有名为 "${dedicated}" 的服务，但 qq-bridge 不能使用它：${why}。请修正或删除它后重新运行`);return own;}
  const preferred=list.find(s=>s?.name===fallback);
  if(preferred&&!unsuitable(kind,preferred))return preferred;
  const other=list.find(s=>s&&!unsuitable(kind,s));
  if(other)return other;
- for(const s of list)if(enabled(s))notes.push(`note: ${kind==='ws'?'WebSocket':'HTTP'} server "${s?.name}" is left unchanged and not used (${unsuitable(kind,s)})`);
+ for(const s of list)if(enabled(s))notes.push(`说明：${kind==='ws'?'WebSocket':'HTTP'} 服务 "${s?.name}" 没有被选用，也没有被修改（${unsuitable(kind,s)}）`);
  return null;
 }
 function freePort(start,taken){let p=start;while(taken.has(p))p++;return p;}
@@ -131,14 +134,32 @@ export function plan({onebot,actions,actionsFile,bridgeConfig,stickers}){
  const policy=actions??{};
  if(typeof policy!=='object'||Array.isArray(policy))throw Error(actionsFile+' is not a JSON object');
  const profiles=Array.isArray(policy.profiles)?[...policy.profiles]:[];
- for(const name of stickers?['qqbridge','qqbridge-stickers']:['qqbridge'])if(!profiles.includes(name)){profiles.push(name);changes.push(`NeroNet: enabled the ${name} action profile in ${actionsFile}`);}
+ for(const name of stickers?['qqbridge','qqbridge-stickers']:['qqbridge'])if(!profiles.includes(name)){profiles.push(name);changes.push(`NeroNet：在 ${actionsFile} 中开启了 ${name} 动作档案`);}
  if(profiles.length)policy.profiles=profiles;
  // qq-bridge config.json: only the onebot section
  const cfg=bridgeConfig;
  const before=JSON.stringify(cfg.onebot??null);
  cfg.onebot={...(cfg.onebot&&typeof cfg.onebot==='object'?cfg.onebot:{}),...endpoint};
- if(JSON.stringify(cfg.onebot)!==before)changes.push(`qq-bridge: ${before==='null'?'added':'updated'} the onebot section (WS ${endpoint.wsUrl}, HTTP ${endpoint.httpUrl})`);
+ if(JSON.stringify(cfg.onebot)!==before)changes.push(`qq-bridge：${before==='null'?'添加':'更新'}了 onebot 段（WS ${endpoint.wsUrl}，HTTP ${endpoint.httpUrl}）`);
  return {onebot,actions:policy,bridgeConfig:cfg,endpoint,changes};
+}
+
+/**
+ * Pre-check for image recognition. qq-bridge hands a still picture to the model unchanged only
+ * when it is at most 1 MiB and its long edge at most 1280 px (its defaults); larger pictures and
+ * all animated ones are converted with ffmpeg first. Without ffmpeg those are not shown to the
+ * model. ffmpeg is looked up the way qq-bridge does: FFMPEG_PATH, then config.json
+ * socialV2.voice.ffmpegPath, then PATH. Nothing is changed here; this only reports.
+ */
+export function ffmpegCheck(bridgeConfig,env=process.env){
+ const configured=env.FFMPEG_PATH||bridgeConfig?.socialV2?.voice?.ffmpegPath||'';
+ const names=process.platform==='win32'?['ffmpeg.exe']:['ffmpeg'];
+ let found=null,source=null;
+ if(configured){if(fs.existsSync(configured)){found=configured;source=env.FFMPEG_PATH?'FFMPEG_PATH':'config.json socialV2.voice.ffmpegPath';}}
+ else for(const dir of String(env.PATH??env.Path??'').split(path.delimiter).filter(Boolean)){const hit=names.map(n=>path.join(dir,n)).find(f=>fs.existsSync(f));if(hit){found=hit;source='PATH';break;}}
+ if(found)return {ffmpeg:'found',source,note:'已找到 ffmpeg：超过 1 MiB 或长边超过 1280 像素的图片、以及动图，会先转换再交给模型识别'};
+ return {ffmpeg:configured?'configured-but-missing':'missing',source:null,
+  note:(configured?'配置的 ffmpeg 路径不存在。':'没有找到 ffmpeg。')+'不超过 1 MiB 且长边不超过 1280 像素的静态图片可以直接识别；更大的图片和动图需要 ffmpeg，否则模型看不到图。安装 ffmpeg 后，在启动 qq-bridge 前设置环境变量 FFMPEG_PATH，或在 config.json 的 socialV2.voice.ffmpegPath 中填写 ffmpeg.exe 的完整路径'};
 }
 
 export async function portsInUse(endpoint){
@@ -154,7 +175,7 @@ export function run(opts){
  const onebotFile=findOneBotConfig(configDir,opts.uin);
  const actionsFile=path.join(configDir,'neronet-actions.json');
  const bridgeFile=path.join(bridge,'config.json'),exampleFile=path.join(bridge,'config.example.json');
- if(!fs.existsSync(bridgeFile)&&!fs.existsSync(exampleFile))throw Error('Neither config.json nor config.example.json in '+bridge);
+ if(!fs.existsSync(bridgeFile)&&!fs.existsSync(exampleFile))throw Error(bridge+' 里既没有 config.json 也没有 config.example.json');
  const before={
   onebot:fs.readFileSync(onebotFile,'utf8'),
   actions:fs.existsSync(actionsFile)?fs.readFileSync(actionsFile,'utf8'):null,
@@ -164,7 +185,7 @@ export function run(opts){
   onebot:readJson(onebotFile),actions:before.actions===null?{}:readJson(actionsFile),actionsFile:path.basename(actionsFile),
   bridgeConfig:before.bridge===null?readJson(exampleFile):readJson(bridgeFile),stickers:opts.stickers
  });
- if(before.bridge===null)result.changes.push('qq-bridge: created config.json from config.example.json (fill in dsh, ownerQQ and allow lists)');
+ if(before.bridge===null)result.changes.push('qq-bridge：用 config.example.json 创建了 config.json（还需要填写 dsh、ownerQQ 和 allow 列表）');
  const writes=[[onebotFile,JSON.stringify(result.onebot,null,2)+'\n',before.onebot],[actionsFile,JSON.stringify(result.actions,null,2)+'\n',before.actions],[bridgeFile,JSON.stringify(result.bridgeConfig,null,2)+'\n',before.bridge]];
  const written=[],backups=[];
  if(!opts.check){
@@ -175,16 +196,17 @@ export function run(opts){
    fs.writeFileSync(file,text);written.push(file);
   }
  }
- const shown=t=>opts.showToken?t:(t?`(set, ${t.length} chars; --show-token prints it)`:'(none)');
+ const shown=t=>opts.showToken?t:(t?`（已设置，${t.length} 个字符；加 ${showTokenSwitch()} 可以显示原文）`:'（没有设置）');
  return {
-  check:opts.check,changes:result.changes.length?result.changes:['nothing to change'],written,backups,
+  check:opts.check,changes:result.changes.length?result.changes:['没有需要修改的内容'],written,backups,
   endpoint:{...result.endpoint,wsAccessToken:shown(result.endpoint.wsAccessToken),httpAccessToken:shown(result.endpoint.httpAccessToken)},
-  rollback:backups.length?'Stop qq-bridge and NeroNet, copy each *.bak-qqbridge-<time> file back over the file it was taken from, then start them again':'nothing was written',
-  next:written.length?['Restart NeroNet (Stop-NeroNet.ps1, then Start-NeroNet.ps1) so it reads the action profile and servers','Start or restart qq-bridge (npm start in its directory)']:[]
+  media:ffmpegCheck(result.bridgeConfig),
+  rollback:backups.length?'回退方法：停止 qq-bridge 和 NeroNet，把每个 *.bak-qqbridge-<时间> 文件复制回它原来的文件，再重新启动':'没有写入任何文件',
+  next:written.length?['重启 NeroNet（先运行 stop.bat，再运行 start.bat），让它读取动作档案和服务配置','启动或重启 qq-bridge（在它的目录里运行 npm start）']:[]
  };
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{console.log(JSON.stringify(run(parseArgs(process.argv.slice(2))),null,2));}
- catch(error){console.error('connect-qqbridge: '+error.message);process.exitCode=1;}
+ catch(error){console.error('connect-qqbridge：'+error.message);process.exitCode=1;}
 }

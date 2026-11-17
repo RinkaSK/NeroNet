@@ -49,7 +49,7 @@ var init_product = __esm({
     "product.json"() {
         product_default = {
             name: "NeroNet",
-            version: "1.5.1",
+            version: "1.5.2",
             slug: "neronet",
             copyrightHolder: "NeroNet 项目组",
             ownershipStatement: "Copyright 2026 NeroNet 项目组 · PolyForm Noncommercial 1.0.0"
@@ -220,10 +220,11 @@ function selectAfterRestart(processes, selection2) {
 function selectReplacement(processes, selection2, refused) {
     return selectAfterRestart(processes.filter((p2) => !refused.has(processKey(p2))), selection2);
 }
-var GATEWAY_EXIT_ACCOUNT_MISMATCH;
+var GATEWAY_EXIT_ACCOUNT_MISMATCH, GATEWAY_EXIT_TRANSPORT_FAULT;
 var init_process_selection = __esm({
     "process-selection.mjs"() {
         GATEWAY_EXIT_ACCOUNT_MISMATCH = 3;
+        GATEWAY_EXIT_TRANSPORT_FAULT = 4;
     }
 });
 function mayWaitForLogin(exit, runtime, lifecycle2) {
@@ -255,9 +256,40 @@ function parseDriverResult(stdout, error = null) {
     const transport = launchFailed ? "not-started" : error && (error.killed || error.signal || !Number.isInteger(exit)) ? "interrupted" : "exited";
     return { rows, malformed, exit, transport };
 }
+function plain(row, nested = false) {
+    const out = {};
+    for (const [key, value] of Object.entries(row).slice(0, 48)) {
+        if (!/^[A-Za-z0-9_]{1,40}$/.test(key))
+            continue;
+        if (typeof value === "boolean" || typeof value === "number" && Number.isFinite(value))
+            out[key] = value;
+        else if (typeof value === "string" && IDENTIFIER_FIELDS.has(key))
+            out[key] = /^[A-Za-z0-9_.\-]{1,48}$/.test(value) ? value : "(text)";
+        else if (!nested && NESTED_FIELDS.has(key) && value && typeof value === "object" && !Array.isArray(value))
+            out[key] = plain(value, true);
+    }
+    return out;
+}
+function diagnosticRows(rows) {
+    return (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object" && DIAGNOSTIC_ROWS.some((key) => row[key] === true)).slice(0, 16).map((row) => plain(row));
+}
+function reportsBuildMismatch(result) {
+    try {
+        const text = JSON.stringify(result?.rows ?? []);
+        return text.includes(BUILD_MISMATCH) || OTHER_BUILD_LOADED.test(text);
+    }
+    catch {
+        return false;
+    }
+}
+function driverErrors(rows) {
+    return (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object" && Object.hasOwn(row, "error")).slice(0, 4).map((row) => ({ error: typeof row.error === "string" && /^[A-Za-z0-9_ ;,.\-]{1,96}$/.test(row.error) ? row.error : "(text)", win32: Number.isSafeInteger(row.win32) ? row.win32 : null }));
+}
 function classifyStart(result, pid2) {
     if (result.transport === "not-started")
         return { kind: "not-started", reason: "driver-launch-failed" };
+    if (reportsBuildMismatch(result))
+        return { kind: "build-mismatch", reason: BUILD_MISMATCH };
     if (result.transport !== "exited" || result.malformed)
         return { kind: "unresolved", reason: "driver-result-incomplete" };
     const runtimeRows = result.rows.filter((x) => x.liveRuntime === true), healthRows = result.rows.filter((x) => x.lifecycleHealth === true);
@@ -304,23 +336,25 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         return retain("driver-call-threw-without-result");
     }
     const decision = classifyStart(result, target.pid);
-    record3({ nativeStart: true, pid: target.pid, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, rows: result.rows.filter((x) => x.liveRuntime || x.lifecycleHealth || x.runtimeIdentity || x.workerExit) });
+    record3({ nativeStart: true, pid: target.pid, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, rows: diagnosticRows(result.rows), errors: driverErrors(result.rows) });
     if (decision.kind === "not-started")
+        return { kind: "blocked", reason: decision.reason };
+    if (decision.kind === "build-mismatch")
         return { kind: "blocked", reason: decision.reason };
     if (decision.kind === "unresolved")
         return retain(decision.reason);
-    let observed;
+    let observed2;
     try {
-        observed = await observe2();
+        observed2 = await observe2();
     }
     catch {
         return retain("post-start-process-observation-unavailable");
     }
-    if (observed === "gone") {
+    if (observed2 === "gone") {
         record3({ nativeStartupTargetExited: true, pid: target.pid });
         return { kind: "deferred", reason: "target-exited" };
     }
-    if (observed !== "same")
+    if (observed2 !== "same")
         return retain("post-start-target-ambiguous");
     let released = false, releasePromise;
     const release = () => releasePromise ??= (async () => {
@@ -361,12 +395,20 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
     }
     return { kind: "ready", release };
 }
+var DIAGNOSTIC_ROWS, IDENTIFIER_FIELDS, NESTED_FIELDS, BUILD_MISMATCH, OTHER_BUILD_LOADED;
 var init_native_start_transaction = __esm({
     "native-start-transaction.mjs"() {
         init_native_start_policy();
+        DIAGNOSTIC_ROWS = ["liveRuntime", "lifecycleHealth", "runtimeIdentity", "workerExit", "nativeExecutorDiagnostics", "nativePipeDiagnostics", "nativeBuildCheck"];
+        IDENTIFIER_FIELDS = new Set(["reason", "operation", "match", "stage"]);
+        NESTED_FIELDS = new Set(["last", "firstFailure"]);
+        BUILD_MISMATCH = "NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ";
+        OTHER_BUILD_LOADED = /loaded DLL differs from requested build/i;
     }
 });
 function classifyDrain(result, pid2, action) {
+    if (reportsBuildMismatch(result))
+        return { kind: "unresolved", reason: BUILD_MISMATCH };
     if (!result || result.transport !== "exited" || result.malformed || !Array.isArray(result.rows))
         return { kind: "unresolved", reason: "driver-result-incomplete" };
     const runs = result.rows.filter((x) => x.liveRuntime === true), health2 = result.rows.filter((x) => x.lifecycleHealth === true);
@@ -423,7 +465,7 @@ async function drainNative({ pid: pid2, observe: observe2, invoke, record: recor
             return finish2(false, "driver-call-threw-without-result", true);
         }
         const decision = classifyDrain(result, pid2, action);
-        emit({ control: true, pid: pid2, action, classification: decision.kind, reason: decision.reason ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {} });
+        emit({ control: true, pid: pid2, action, classification: decision.kind, reason: decision.reason ?? null, exit: result?.exit ?? null, transport: result?.transport ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result?.rows), errors: driverErrors(result?.rows) });
         if (decision.kind === "closed")
             return finish2(true, "native-drain-confirmed", true);
         if (decision.kind !== "pending")
@@ -438,6 +480,7 @@ async function drainNative({ pid: pid2, observe: observe2, invoke, record: recor
 var uint;
 var init_native_drain_transaction = __esm({
     "native-drain-transaction.mjs"() {
+        init_native_start_transaction();
         uint = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 4294967295;
     }
 });
@@ -445,15 +488,13 @@ import fs2 from "node:fs";
 import path3 from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-async function closeNativeWithDrain(pid2, artifactPath, record3, waitMs = 5e3, { observe: observe2 } = {}) {
+function driver(pid2, artifactPath) {
     if (!Number.isInteger(pid2) || pid2 < 1)
         throw Error("Explicit target PID required");
-    if (typeof observe2 !== "function")
-        throw Error("Process generation observation required");
     const artifacts2 = fs2.realpathSync(artifactPath);
     const nativeEnv2 = nativeEnvironment(loadDeploymentProfile(), artifacts2);
     const exe = path3.join(artifacts2, "neronet_native_host.exe"), dll = path3.join(artifacts2, "neronet_live_binding.dll");
-    async function call(action, { timeoutMs }) {
+    return async function call(action, { timeoutMs }) {
         try {
             const { stdout } = await exec(exe, [String(pid2), dll, "--runtime-" + action], { windowsHide: true, timeout: timeoutMs, maxBuffer: 65536, env: nativeEnv2 });
             return parseDriverResult(stdout);
@@ -461,9 +502,30 @@ async function closeNativeWithDrain(pid2, artifactPath, record3, waitMs = 5e3, {
         catch (e) {
             return parseDriverResult(e.stdout, e);
         }
-    }
-    const result = await drainNative({ pid: pid2, observe: observe2, invoke: call, record: record3, budgetMs: 25e3 + waitMs });
+    };
+}
+async function closeNativeWithDrain(pid2, artifactPath, record3, waitMs = 5e3, { observe: observe2 } = {}) {
+    if (typeof observe2 !== "function")
+        throw Error("Process generation observation required");
+    const result = await drainNative({ pid: pid2, observe: observe2, invoke: driver(pid2, artifactPath), record: record3, budgetMs: 25e3 + waitMs });
     return result.closed;
+}
+async function probeNativeStatus(pid2, artifactPath, record3, { timeoutMs = 1e4, invoke } = {}) {
+    let outcome;
+    try {
+        const result = await (invoke ?? driver(pid2, artifactPath))("status", { timeoutMs });
+        const decision = classifyDrain(result, pid2, "status");
+        outcome = { faultStatusProbe: true, pid: pid2, obtained: result.transport === "exited" && !result.malformed, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result.rows), errors: driverErrors(result.rows) };
+    }
+    catch {
+        outcome = { faultStatusProbe: true, pid: pid2, obtained: false, reason: "status-probe-threw" };
+    }
+    try {
+        record3(outcome);
+    }
+    catch {
+    }
+    return outcome;
 }
 var exec;
 var init_native_close = __esm({
@@ -471,7 +533,63 @@ var init_native_close = __esm({
         init_deployment_profile();
         init_native_start_transaction();
         init_native_drain_transaction();
+        init_native_start_transaction();
         exec = promisify(execFile);
+    }
+});
+function classifyGatewayExit({ exitCode, signal = null, stopRequested: stopRequested2 = false }) {
+    if (stopRequested2)
+        return "operator-stop";
+    if (exitCode === GATEWAY_EXIT_ACCOUNT_MISMATCH)
+        return "account-mismatch";
+    if (exitCode === GATEWAY_EXIT_TRANSPORT_FAULT && !signal)
+        return "transport-fault";
+    return exitCode === 0 && !signal ? "ended" : "failed";
+}
+function recoveryPolicy({ maxAttempts = 3, windowMs = 10 * 6e4, delaysMs = [2e3, 5e3, 15e3], now: now2 = Date.now } = {}) {
+    const attempts = [];
+    return {
+        next() {
+            const t = now2();
+            while (attempts.length && t - attempts[0] > windowMs)
+                attempts.shift();
+            if (attempts.length >= maxAttempts)
+                return { allowed: false, attemptsInWindow: attempts.length, windowMs };
+            attempts.push(t);
+            return { allowed: true, attempt: attempts.length, maxAttempts, delayMs: delaysMs[Math.min(attempts.length - 1, delaysMs.length - 1)] };
+        }
+    };
+}
+async function retrying(fn, { tries = 3, pauseMs = 1e3, onRetry = () => {
+}, sleep: sleep3 = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+    let last;
+    for (let attempt = 1; attempt <= tries; attempt++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            last = error;
+            if (attempt < tries) {
+                try {
+                    onRetry(attempt);
+                }
+                catch {
+                }
+                await sleep3(pauseMs);
+            }
+        }
+    }
+    throw last;
+}
+function errorSummary(error) {
+    const code = /^[A-Z0-9_]{1,64}$/.test(String(error?.code ?? "")) ? String(error.code) : null;
+    const name = /^[A-Za-z]{1,40}$/.test(String(error?.name ?? "")) ? error.name : "Error";
+    const line = String(error?.message ?? "").split(/\r?\n/)[0].replace(/[A-Za-z0-9_\-+/=]{32,}/g, "…").slice(0, 160);
+    return { code, name, message: line, exitCode: Number.isInteger(error?.code) ? error.code : null, signal: typeof error?.signal === "string" ? error.signal : null, killed: error?.killed === true };
+}
+var init_recovery_policy = __esm({
+    "recovery-policy.mjs"() {
+        init_process_selection();
     }
 });
 import fs3 from "node:fs";
@@ -791,10 +909,15 @@ import path7 from "node:path";
 import { spawn, execFile as execFile3 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
 import { randomUUID } from "node:crypto";
-async function generations() {
+async function listGenerations() {
     const command2 = "$ErrorActionPreference='Stop'; $items=@(Get-Process | Where-Object {$_.ProcessName -eq 'QQ'} | ForEach-Object {[pscustomobject]@{pid=$_.Id;started=$_.StartTime.ToUniversalTime().ToString('o')}}); ConvertTo-Json -InputObject @($items) -Compress";
     const { stdout } = await exec3(ps, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
     return JSON.parse(stdout.trim() || "[]");
+}
+async function pause(ms) {
+    const until = Date.now() + ms;
+    while (Date.now() < until && !stopRequested())
+        await sleep(Math.min(250, until - Date.now()));
 }
 async function observe(target) {
     return (await generations()).some((p2) => processKey(p2) === processKey(target)) ? "same" : "gone";
@@ -807,12 +930,13 @@ function close(current2) {
         record
     });
 }
-var exec3, sleep, argv, botArg, adminArg, homeArg, home, artifacts, deployment, nativeEnv, nativeManifest, metadataLog, record, ps, discover, selection, stopping, current, pendingStartup, lastWaiting, epoch, guard, stopRequested, blocked;
+var exec3, sleep, argv, botArg, adminArg, homeArg, home, artifacts, deployment, nativeEnv, nativeManifest, metadataLog, record, ps, operation, observed, discover, selection, stopping, current, pendingStartup, lastWaiting, epoch, recovering, recovery, guard, stopRequested, generations, blocked;
 var init_supervisor = __esm({
     async "supervisor.mjs"() {
         init_deployment_profile();
         init_process_selection();
         init_native_close();
+        init_recovery_policy();
         init_metadata_log();
         init_generation_close();
         init_native_start_transaction();
@@ -842,7 +966,9 @@ var init_supervisor = __esm({
             metadataLog.append({ utc: (new Date()).toISOString(), ...event });
         };
         ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-        discover = () => discoverQQ(deployment.qqExecutable);
+        operation = "startup";
+        observed = (name, fn) => retrying(fn, { onRetry: (attempt) => record({ processObservationRetry: true, operation: name, attempt }) });
+        discover = () => observed("discover-qq", () => discoverQQ(deployment.qqExecutable));
         selection = selectInitial(await discover(), Number(botArg), adminArg === null ? null : Number(adminArg));
         record({ selectedProcesses: selection, accountValidationRequired: true });
         stopping = false;
@@ -850,13 +976,17 @@ var init_supervisor = __esm({
         pendingStartup = null;
         lastWaiting = "";
         epoch = 0;
+        recovering = null;
+        recovery = recoveryPolicy();
         guard = startupGuard(home);
         stopRequested = () => stopping || fs6.existsSync(path7.join(home, "STOP"));
+        generations = () => observed("list-qq-processes", listGenerations);
         blocked = new Set();
         process.on("SIGINT", () => stopping = true);
         process.on("SIGTERM", () => stopping = true);
         try {
             while (!stopRequested()) {
+                operation = "startup-guard";
                 const guardState = guard.inspect(await generations());
                 if (guardState?.blocked) {
                     record({ startupGuardBlocked: true, ...guardState });
@@ -865,16 +995,23 @@ var init_supervisor = __esm({
                 }
                 if (guardState)
                     record({ startupGuardResolved: true, ...guardState });
+                operation = "discover-qq";
                 const candidates = await discover();
+                operation = "observe-generation";
                 if (current && await observe(current.target) === "gone") {
+                    operation = "close-generation";
                     if (!await close(current))
                         break;
                     current = null;
                     if (stopping || fs6.existsSync(path7.join(home, "STOP")))
                         break;
                 }
-                if (current?.exited && current.exitCode === GATEWAY_EXIT_ACCOUNT_MISMATCH) {
+                const ended = current?.exited ? classifyGatewayExit({ exitCode: current.exitCode, signal: current.signal, stopRequested: stopRequested() }) : null;
+                if (ended)
+                    record({ gatewayEnded: true, epoch: current.epoch, pid: current.target.pid, qqStarted: current.target.started, exitCode: current.exitCode, signal: current.signal, classification: ended });
+                if (ended === "account-mismatch") {
                     const refused = current;
+                    operation = "close-generation";
                     if (!await close(refused))
                         break;
                     blocked.add(processKey(refused.target));
@@ -885,10 +1022,49 @@ var init_supervisor = __esm({
                         break;
                     continue;
                 }
-                if (current?.exited) {
-                    if (current.exitCode !== 0)
+                if (ended === "transport-fault") {
+                    const failed6 = current, pid2 = failed6.target.pid, faultSeenAt = Date.now();
+                    operation = "fault-status-probe";
+                    await probeNativeStatus(pid2, artifacts, record);
+                    operation = "fault-drain";
+                    let drained = false;
+                    try {
+                        drained = await close(failed6);
+                    }
+                    catch {
+                        drained = false;
+                    }
+                    current = null;
+                    if (!drained) {
+                        try {
+                            guard.mark({ target: failed6.target, reason: "recovery-drain-unconfirmed" });
+                        }
+                        catch {
+                        }
+                        record({ recoveryBlocked: true, pid: pid2, reason: "drain-unconfirmed", action: "exit-and-relogin-bot-qq", businessRequestsRetried: 0 });
                         process.exitCode = 1;
-                    record({ gatewayEnded: true, exitCode: current.exitCode });
+                        break;
+                    }
+                    if (stopRequested())
+                        break;
+                    const step = recovery.next();
+                    if (!step.allowed) {
+                        record({ recoveryExhausted: true, pid: pid2, attemptsInWindow: step.attemptsInWindow, windowMs: step.windowMs, action: "restart-neronet-after-checking-qq", businessRequestsRetried: 0 });
+                        process.exitCode = 1;
+                        break;
+                    }
+                    record({ recoveryScheduled: true, pid: pid2, attempt: step.attempt, maxAttempts: step.maxAttempts, delayMs: step.delayMs, businessRequestsRetried: 0 });
+                    operation = "recovery-delay";
+                    await pause(step.delayMs);
+                    if (stopRequested())
+                        break;
+                    recovering = { attempt: step.attempt, since: faultSeenAt };
+                    lastWaiting = "";
+                    continue;
+                }
+                if (ended) {
+                    if (ended === "failed")
+                        process.exitCode = 1;
                     break;
                 }
                 if (!current) {
@@ -902,6 +1078,7 @@ var init_supervisor = __esm({
                         await sleep(1500);
                         continue;
                     }
+                    operation = "native-start";
                     const attempt = await startNativeGeneration({
                         target,
                         observe: () => observe(target),
@@ -935,30 +1112,35 @@ var init_supervisor = __esm({
                     }
                     if (attempt.kind !== "ready") {
                         blocked.add(processKey(target));
-                        record({ startupRejected: true, pid: target.pid, reason: attempt.reason ?? attempt.kind });
+                        record({ startupRejected: true, pid: target.pid, reason: attempt.reason ?? attempt.kind, ...recovering ? { duringRecovery: true } : {} });
                         continue;
                     }
                     pendingStartup = attempt;
                     const stopMarker = "gateway-stop-" + randomUUID();
-                    const child = spawn(process.execPath, [...entryArguments("gateway"), String(target.pid), home, stopMarker], { windowsHide: true, stdio: "ignore" });
-                    const generation = { target, child, stopMarker, epoch: ++epoch, exited: false, exitCode: null };
+                    operation = "spawn-gateway";
+                    const child = spawn(process.execPath, [...entryArguments("gateway"), String(target.pid), home, stopMarker, String(epoch + 1), String(target.started)], { windowsHide: true, stdio: "ignore" });
+                    const generation = { target, child, stopMarker, epoch: ++epoch, exited: false, exitCode: null, signal: null };
                     current = generation;
                     pendingStartup = null;
                     child.on("error", (error) => {
                         generation.exited = true;
                         generation.exitCode = error.code ?? "spawn-error";
                     });
-                    child.on("exit", (code) => {
+                    child.on("exit", (code, signal) => {
                         generation.exited = true;
                         generation.exitCode = code;
+                        generation.signal = signal;
                     });
-                    record({ gatewayStarted: true, epoch, pid: target.pid, gatewayPid: child.pid, adminPid: selection.admin?.pid ?? null });
+                    record({ gatewayStarted: true, epoch, pid: target.pid, qqStarted: target.started, gatewayPid: child.pid, adminPid: selection.admin?.pid ?? null, ...recovering ? { recovered: true, recoveryAttempt: recovering.attempt, unavailableMs: Date.now() - recovering.since } : {} });
+                    recovering = null;
                 }
+                operation = "idle";
                 await sleep(1500);
             }
         }
         catch (error) {
-            record({ supervisorFailed: true, errorCode: error.code ?? "SUPERVISOR_FAILURE" });
+            const summary = errorSummary(error);
+            record({ supervisorFailed: true, errorCode: summary.code ?? "SUPERVISOR_FAILURE", operation, error: summary, epoch, pid: current?.target.pid ?? null });
             process.exitCode = 1;
         }
         finally {
@@ -1061,15 +1243,21 @@ var init_wire = __esm({
 });
 import net from "node:net";
 import { EventEmitter } from "node:events";
+function socketErrorSummary(error) {
+    const text = (value) => typeof value === "string" && /^[\w.\- ]{1,48}$/.test(value) ? value : null;
+    return { code: text(error?.code), errno: Number.isSafeInteger(error?.errno) ? error.errno : null, syscall: text(error?.syscall) };
+}
 function nativeReasonCode(reason) {
     if (typeof reason !== "string" || !reason)
         return "NERONET_NATIVE_REASON_MISSING";
     return reason;
 }
-var NativeClient;
+var commandLabel, TRANSPORT_FAULTS, NativeClient;
 var init_native_client = __esm({
     "native-client.mjs"() {
         init_wire();
+        commandLabel = (cmd) => typeof cmd === "string" && /^[\w.\-]{1,96}$/.test(cmd) ? cmd : "(other)";
+        TRANSPORT_FAULTS = new Set(["NERONET_NATIVE_CONNECTION_FAILED", "NERONET_NATIVE_CLOSED", "NERONET_INVALID_NATIVE_FRAME", "NERONET_UNEXPECTED_NATIVE_RESPONSE"]);
         NativeClient = class extends EventEmitter {
             constructor(pid2, { expectedUin, timeoutMs = 15e3 } = {}) {
                 super();
@@ -1085,6 +1273,9 @@ var init_native_client = __esm({
                 this.closed = false;
                 this.hello = false;
                 this.businessPaused = false;
+                this.stage = "idle";
+                this.socketError = null;
+                this.failure = null;
             }
             get isLoggedIn() {
                 return !this.closed && this.hello && !!this.uin && this.msf === 1;
@@ -1092,6 +1283,7 @@ var init_native_client = __esm({
             connect() {
                 if (this.socket)
                     throw Error("Already connected");
+                this.stage = "connecting";
                 this.socket = net.connect("\\\\.\\pipe\\neronet-own-live-" + this.pid);
                 const reader = new Reader((f) => this.onFrame(f));
                 this.socket.on("data", (b) => {
@@ -1102,7 +1294,14 @@ var init_native_client = __esm({
                         this.fail("NERONET_INVALID_NATIVE_FRAME");
                     }
                 });
-                this.socket.on("error", () => this.fail("NERONET_NATIVE_CONNECTION_FAILED"));
+                this.socket.once("connect", () => {
+                    if (this.stage === "connecting")
+                        this.stage = "connected";
+                });
+                this.socket.on("error", (error) => {
+                    this.socketError = socketErrorSummary(error);
+                    this.fail("NERONET_NATIVE_CONNECTION_FAILED");
+                });
                 this.socket.on("close", () => this.fail("NERONET_NATIVE_CLOSED"));
                 return new Promise((resolve, reject) => {
                     const done = () => {
@@ -1134,13 +1333,16 @@ var init_native_client = __esm({
                     if (this.hello || f.value0 !== BigInt(this.pid))
                         return this.fail("NERONET_NATIVE_HELLO_MISMATCH");
                     this.hello = true;
+                    this.stage = "hello";
                     return;
                 }
                 if (f.op === 32765) {
                     this.msf = f.status;
                     this.emit("network", this.msf);
-                    if (this.isLoggedIn)
+                    if (this.isLoggedIn) {
+                        this.stage = "ready";
                         this.emit("ready");
+                    }
                     return;
                 }
                 if (f.op === 32764) {
@@ -1152,8 +1354,10 @@ var init_native_client = __esm({
                     this.uin = uin;
                     if (uin && !this.expectedUin)
                         this.expectedUin = uin;
-                    if (this.isLoggedIn)
+                    if (this.isLoggedIn) {
+                        this.stage = "ready";
                         this.emit("ready");
+                    }
                     this.emit("identity", { valid: !!uin });
                     return;
                 }
@@ -1198,7 +1402,7 @@ var init_native_client = __esm({
                         error ? reject(error) : resolve(result);
                     };
                     const timer = setTimeout(() => finish2(Error("NERONET_REPLY_TIMEOUT_NOT_RETRIED")), replyTimeoutMs);
-                    this.pending.set(id, { acked: false, reply: null, finish: finish2 });
+                    this.pending.set(id, { acked: false, reply: null, finish: finish2, cmd, startedAt: Date.now() });
                     this.socket.write(frame, (error) => {
                         if (error)
                             finish2(Error("NERONET_NATIVE_WRITE_FAILED"));
@@ -1214,10 +1418,14 @@ var init_native_client = __esm({
                     throw Error("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE");
                 this.businessPaused = Boolean(paused);
             }
+            pendingSnapshot(now2 = Date.now()) {
+                return [...this.pending.entries()].slice(0, 16).map(([requestId, p2]) => ({ requestId, cmd: commandLabel(p2.cmd), acked: !!p2.acked, replied: !!p2.reply, waitedMs: Math.max(0, now2 - (p2.startedAt ?? now2)) }));
+            }
             fail(reason) {
                 if (this.closed)
                     return;
                 this.closed = true;
+                this.failure = { reason, stage: this.stage, socketError: this.socketError, pending: this.pendingSnapshot(), utc: (new Date()).toISOString() };
                 for (const p2 of [...this.pending.values()])
                     p2.finish(Error(reason));
                 this.socket?.destroy();
@@ -2118,7 +2326,7 @@ var require_protobuf = __commonJS({
                         "use strict";
                         module2.exports = fetch2;
                         var asPromise = require2(1), inquire2 = require2(7);
-                        var fs34 = inquire2("fs");
+                        var fs35 = inquire2("fs");
                         function fetch2(filename, options, callback) {
                             if (typeof options === "function") {
                                 callback = options;
@@ -2128,8 +2336,8 @@ var require_protobuf = __commonJS({
                                 options = {};
                             if (!callback)
                                 return asPromise(fetch2, this, filename, options);
-                            if (!options.xhr && fs34 && fs34.readFile)
-                                return fs34.readFile(filename, function fetchReadFileCallback(err2, contents) {
+                            if (!options.xhr && fs35 && fs35.readFile)
+                                return fs35.readFile(filename, function fetchReadFileCallback(err2, contents) {
                                     return err2 && typeof XMLHttpRequest !== "undefined" ? fetch2.xhr(filename, options, callback) : err2 ? callback(err2) : callback(null, options.binary ? contents : contents.toString("utf8"));
                                 });
                             return fetch2.xhr(filename, options, callback);
@@ -2360,13 +2568,13 @@ var require_protobuf = __commonJS({
                         }
                     }, {}], 8: [function (require2, module2, exports2) {
                         "use strict";
-                        var path33 = exports2;
-                        var isAbsolute = (path33.isAbsolute = function isAbsolute2(path34) {
-                            return /^(?:\/|\w+:)/.test(path34);
+                        var path34 = exports2;
+                        var isAbsolute = (path34.isAbsolute = function isAbsolute2(path35) {
+                            return /^(?:\/|\w+:)/.test(path35);
                         });
-                        var normalize = (path33.normalize = function normalize2(path34) {
-                            path34 = path34.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
-                            var parts = path34.split("/"), absolute = isAbsolute(path34), prefix = "";
+                        var normalize = (path34.normalize = function normalize2(path35) {
+                            path35 = path35.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+                            var parts = path35.split("/"), absolute = isAbsolute(path35), prefix = "";
                             if (absolute)
                                 prefix = parts.shift() + "/";
                             for (var i = 0; i < parts.length;) {
@@ -2385,7 +2593,7 @@ var require_protobuf = __commonJS({
                             }
                             return prefix + parts.join("/");
                         });
-                        path33.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+                        path34.resolve = function resolve(originPath, includePath, alreadyNormalized) {
                             if (!alreadyNormalized)
                                 includePath = normalize(includePath);
                             if (isAbsolute(includePath))
@@ -3544,16 +3752,16 @@ var require_protobuf = __commonJS({
                             object2.onRemove(this);
                             return clearCache(this);
                         };
-                        Namespace.prototype.define = function define2(path33, json2) {
-                            if (util.isString(path33))
-                                path33 = path33.split(".");
-                            else if (!Array.isArray(path33))
+                        Namespace.prototype.define = function define2(path34, json2) {
+                            if (util.isString(path34))
+                                path34 = path34.split(".");
+                            else if (!Array.isArray(path34))
                                 throw TypeError("illegal path");
-                            if (path33 && path33.length && path33[0] === "")
+                            if (path34 && path34.length && path34[0] === "")
                                 throw Error("path must be relative");
                             var ptr = this;
-                            while (path33.length > 0) {
-                                var part = path33.shift();
+                            while (path34.length > 0) {
+                                var part = path34.shift();
                                 if (ptr.nested && ptr.nested[part]) {
                                     ptr = ptr.nested[part];
                                     if (!(ptr instanceof Namespace))
@@ -3575,61 +3783,61 @@ var require_protobuf = __commonJS({
                                     nested[i++].resolve();
                             return this.resolve();
                         };
-                        Namespace.prototype.lookup = function lookup(path33, filterTypes, parentAlreadyChecked) {
+                        Namespace.prototype.lookup = function lookup(path34, filterTypes, parentAlreadyChecked) {
                             if (typeof filterTypes === "boolean") {
                                 parentAlreadyChecked = filterTypes;
                                 filterTypes = undefined;
                             }
                             else if (filterTypes && !Array.isArray(filterTypes))
                                 filterTypes = [filterTypes];
-                            if (util.isString(path33) && path33.length) {
-                                if (path33 === ".")
+                            if (util.isString(path34) && path34.length) {
+                                if (path34 === ".")
                                     return this.root;
-                                path33 = path33.split(".");
+                                path34 = path34.split(".");
                             }
-                            else if (!path33.length)
+                            else if (!path34.length)
                                 return this;
-                            if (path33[0] === "")
-                                return this.root.lookup(path33.slice(1), filterTypes);
-                            var found = this.get(path33[0]);
+                            if (path34[0] === "")
+                                return this.root.lookup(path34.slice(1), filterTypes);
+                            var found = this.get(path34[0]);
                             if (found) {
-                                if (path33.length === 1) {
+                                if (path34.length === 1) {
                                     if (!filterTypes || filterTypes.indexOf(found.constructor) > -1)
                                         return found;
                                 }
-                                else if (found instanceof Namespace && (found = found.lookup(path33.slice(1), filterTypes, true)))
+                                else if (found instanceof Namespace && (found = found.lookup(path34.slice(1), filterTypes, true)))
                                     return found;
                             }
                             else
                                 for (var i = 0; i < this.nestedArray.length; ++i)
-                                    if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i].lookup(path33, filterTypes, true)))
+                                    if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i].lookup(path34, filterTypes, true)))
                                         return found;
                             if (this.parent === null || parentAlreadyChecked)
                                 return null;
-                            return this.parent.lookup(path33, filterTypes);
+                            return this.parent.lookup(path34, filterTypes);
                         };
-                        Namespace.prototype.lookupType = function lookupType(path33) {
-                            var found = this.lookup(path33, [Type]);
+                        Namespace.prototype.lookupType = function lookupType(path34) {
+                            var found = this.lookup(path34, [Type]);
                             if (!found)
-                                throw Error("no such type: " + path33);
+                                throw Error("no such type: " + path34);
                             return found;
                         };
-                        Namespace.prototype.lookupEnum = function lookupEnum(path33) {
-                            var found = this.lookup(path33, [Enum]);
+                        Namespace.prototype.lookupEnum = function lookupEnum(path34) {
+                            var found = this.lookup(path34, [Enum]);
                             if (!found)
-                                throw Error("no such Enum '" + path33 + "' in " + this);
+                                throw Error("no such Enum '" + path34 + "' in " + this);
                             return found;
                         };
-                        Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path33) {
-                            var found = this.lookup(path33, [Type, Enum]);
+                        Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path34) {
+                            var found = this.lookup(path34, [Type, Enum]);
                             if (!found)
-                                throw Error("no such Type or Enum '" + path33 + "' in " + this);
+                                throw Error("no such Type or Enum '" + path34 + "' in " + this);
                             return found;
                         };
-                        Namespace.prototype.lookupService = function lookupService(path33) {
-                            var found = this.lookup(path33, [Service]);
+                        Namespace.prototype.lookupService = function lookupService(path34) {
+                            var found = this.lookup(path34, [Service]);
                             if (!found)
-                                throw Error("no such Service '" + path33 + "' in " + this);
+                                throw Error("no such Service '" + path34 + "' in " + this);
                             return found;
                         };
                         Namespace._configure = function (Type_, Service_, Enum_) {
@@ -3667,12 +3875,12 @@ var require_protobuf = __commonJS({
                             },
                             fullName: {
                                 get: function () {
-                                    var path33 = [this.name], ptr = this.parent;
+                                    var path34 = [this.name], ptr = this.parent;
                                     while (ptr) {
-                                        path33.unshift(ptr.name);
+                                        path34.unshift(ptr.name);
                                         ptr = ptr.parent;
                                     }
-                                    return path33.join(".");
+                                    return path34.join(".");
                                 }
                             }
                         });
@@ -5773,14 +5981,14 @@ var require_protobuf = __commonJS({
                             Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
                             return enm;
                         };
-                        util.setProperty = function setProperty(dst, path33, value) {
-                            function setProp(dst2, path34, value2) {
-                                var part = path34.shift();
+                        util.setProperty = function setProperty(dst, path34, value) {
+                            function setProp(dst2, path35, value2) {
+                                var part = path35.shift();
                                 if (part === "__proto__" || part === "prototype") {
                                     return dst2;
                                 }
-                                if (path34.length > 0) {
-                                    dst2[part] = setProp(dst2[part] || {}, path34, value2);
+                                if (path35.length > 0) {
+                                    dst2[part] = setProp(dst2[part] || {}, path35, value2);
                                 }
                                 else {
                                     var prevValue = dst2[part];
@@ -5792,10 +6000,10 @@ var require_protobuf = __commonJS({
                             }
                             if (typeof dst !== "object")
                                 throw TypeError("dst must be an object");
-                            if (!path33)
+                            if (!path34)
                                 throw TypeError("path must be specified");
-                            path33 = path33.split(".");
-                            return setProp(dst, path33, value);
+                            path34 = path34.split(".");
+                            return setProp(dst, path34, value);
                         };
                         Object.defineProperty(util, "decorateRoot", {
                             get: function () {
@@ -7721,14 +7929,14 @@ function mentionOf(t) {
     }
     return { pb, mention: pb };
 }
-function legacyImageUrl(path33) {
-    if (!path33)
+function legacyImageUrl(path34) {
+    if (!path34)
         return "";
-    if (/^https?:\/\//i.test(path33))
-        return path33;
-    if (!path33.startsWith("/"))
+    if (/^https?:\/\//i.test(path34))
+        return path34;
+    if (!path34.startsWith("/"))
         return "";
-    return (path33.includes("rkey") || path33.includes("fileid") ? "https://multimedia.nt.qq.com.cn" : "http://gchat.qpic.cn") + path33;
+    return (path34.includes("rkey") || path34.includes("fileid") ? "https://multimedia.nt.qq.com.cn" : "http://gchat.qpic.cn") + path34;
 }
 function usableUrl(url) {
     try {
@@ -7764,9 +7972,9 @@ function legacyImage(img, group) {
     if (md52?.length !== 16)
         return null;
     const md5Hex = hexOf(md52).toUpperCase();
-    const path33 = group ? img.origUrl ?? "" : img.origUrl || img.bigUrl || "";
+    const path34 = group ? img.origUrl ?? "" : img.origUrl || img.bigUrl || "";
     const subType = img.pbRes?.subType ?? 0;
-    return { nt: false, file: img.filePath || md5Hex, url: legacyImageUrl(path33) || (!path33 ? imageUrlFromMd5(md5Hex) : ""), fileSize: (group ? img.size : img.fileLen) ?? 0, md5Hex, subType, summary: summaryOf(subType, img.pbRes?.summary) };
+    return { nt: false, file: img.filePath || md5Hex, url: legacyImageUrl(path34) || (!path34 ? imageUrlFromMd5(md5Hex) : ""), fileSize: (group ? img.size : img.fileLen) ?? 0, md5Hex, subType, summary: summaryOf(subType, img.pbRes?.summary) };
 }
 function ntMedia(pbElem, kind) {
     const info = tryDecode(MsgInfoIn, pbElem);
@@ -9042,10 +9250,10 @@ async function ntv2MediaUrl(transport, kind, scene, params) {
     const body = await invokeOidb(transport, { command: s.command, subCommand: 200, reserved: 1, request: RichMediaRequest, response: RichMediaResponse }, ntv2DownloadRequest(kind, scene, params));
     if (body.respHead?.retCode)
         throw failed2(`server refused (${body.respHead.retCode} ${body.respHead.message ?? ""})`.trim());
-    const domain = body.download?.info?.domain ?? "", path33 = body.download?.info?.urlPath ?? "";
-    if (!domain || !path33)
+    const domain = body.download?.info?.domain ?? "", path34 = body.download?.info?.urlPath ?? "";
+    if (!domain || !path34)
         throw failed2("download response has no URL");
-    return `https://${domain}${path33}${body.download?.rKeyParam ?? ""}`;
+    return `https://${domain}${path34}${body.download?.rKeyParam ?? ""}`;
 }
 async function groupFileUrl(transport, groupId, fileId, busId = 102) {
     const body = await invokeOidb(transport, { command: 1750, subCommand: 2, reserved: 1, request: GroupFileRequest, response: GroupFileResponse }, { download: { groupUin: Number(groupId), appId: 7, busId, fileId: String(fileId) } });
@@ -9730,9 +9938,9 @@ var init_highway_http_decoder = __esm({
     "highway-http-decoder.mjs"() {
     }
 });
-function postHighwayFrame(socket, host, path33, body, { idleMs = 3e4, totalMs = 12e4, maxHeaderBytes = 65536, maxBodyBytes = 8 * 1024 * 1024, signal } = {}) {
+function postHighwayFrame(socket, host, path34, body, { idleMs = 3e4, totalMs = 12e4, maxHeaderBytes = 65536, maxBodyBytes = 8 * 1024 * 1024, signal } = {}) {
     return new Promise((resolve, reject) => {
-        if (![idleMs, totalMs, maxHeaderBytes, maxBodyBytes].every((n2) => Number.isSafeInteger(n2) && n2 > 0) || /[\r\n]/.test(host + path33))
+        if (![idleMs, totalMs, maxHeaderBytes, maxBodyBytes].every((n2) => Number.isSafeInteger(n2) && n2 > 0) || /[\r\n]/.test(host + path34))
             return reject(Error("NERONET_HIGHWAY_INVALID_EXCHANGE"));
         const decoder = createHighwayResponseDecoder({ maxHeaderBytes, maxBodyBytes });
         let done = false, responseReady = false, pendingWrites = body.length ? 2 : 1, received = 0, chunks = [], idle, total;
@@ -9809,7 +10017,7 @@ function postHighwayFrame(socket, host, path33, body, { idleMs = 3e4, totalMs = 
         signal?.addEventListener("abort", abort, { once: true });
         arm();
         total = setTimeout(() => finish2("NERONET_HIGHWAY_RESPONSE_TOTAL_TIMEOUT"), totalMs);
-        const request = `POST ${path33} HTTP/1.1\r
+        const request = `POST ${path34} HTTP/1.1\r
 Host: ${host}\r
 Connection: keep-alive\r
 Accept-Encoding: identity\r
@@ -9929,7 +10137,7 @@ function buildExtend({ uKey, ipv4s = [], msgInfoBody = [] }, sha1, fileIndex = 0
         hash: { fileSha1: Array.isArray(sha1) ? sha1 : [sha1] }
     });
 }
-async function postFrame(server, path33, frame, conn) {
+async function postFrame(server, path34, frame, conn) {
     if (!conn.socket || conn.socket.destroyed || conn.server !== server) {
         conn.socket?.destroy();
         conn.socket = await connectHighwayTransport(server.host, server.port, HIGHWAY.connectTimeoutMs);
@@ -9938,7 +10146,7 @@ async function postFrame(server, path33, frame, conn) {
         conn.server = server;
     }
     try {
-        return Buffer.from(await postHighwayFrame(conn.socket, server.host, path33, frame, { idleMs: HIGHWAY.idleMs, totalMs: Math.max(1, conn.deadline - Date.now()) }));
+        return Buffer.from(await postHighwayFrame(conn.socket, server.host, path34, frame, { idleMs: HIGHWAY.idleMs, totalMs: Math.max(1, conn.deadline - Date.now()) }));
     }
     catch (e) {
         conn.socket?.destroy();
@@ -9982,12 +10190,12 @@ var init_highway = __esm({
         sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
         md5 = (b) => crypto5.createHash("md5").update(b).digest();
         HighwayClient = class {
-            constructor(transport, { post = postFrame, sleep: pause = sleep2 } = {}) {
+            constructor(transport, { post = postFrame, sleep: pause2 = sleep2 } = {}) {
                 this.transport = transport;
                 this.post = post;
                 this.active = new Set();
                 this.closed = false;
-                this.sleep = pause;
+                this.sleep = pause2;
             }
             close() {
                 this.closed = true;
@@ -10045,7 +10253,7 @@ var init_highway = __esm({
                     throw stopped();
                 const session = await this.session();
                 await reviewHighwayEndpoints(session.servers);
-                const path33 = `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`;
+                const path34 = `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`;
                 const conn = { socket: null, server: null, deadline: Date.now() + HIGHWAY.uploadTimeoutMs, cancelled: false };
                 if (this.closed)
                     throw stopped();
@@ -10072,7 +10280,7 @@ var init_highway = __esm({
                                     throw stopped();
                                 if (Date.now() > conn.deadline)
                                     throw new HighwayError("timeout", `upload exceeded ${HIGHWAY.uploadTimeoutMs} ms at ${offset}/${size}`);
-                                body = await this.post(session.servers[server], path33, packFrame(head, chunk2), conn);
+                                body = await this.post(session.servers[server], path34, packFrame(head, chunk2), conn);
                             }
                             catch (e) {
                                 if (e instanceof HighwayError)
@@ -11204,9 +11412,9 @@ var init_forward = __esm({
                 }
                 const actions = result.action ?? [];
                 const piggyback = new Map(actions.filter((a) => a.actionCommand && a.actionCommand !== "MultiMsg").map((a) => [a.actionCommand, a.actionData?.msgBody ?? []]));
-                const main5 = actions.find((a) => a.actionCommand === "MultiMsg")?.actionData?.msgBody ?? [];
+                const main6 = actions.find((a) => a.actionCommand === "MultiMsg")?.actionData?.msgBody ?? [];
                 const limits = { cardBudget: { left: FORWARD.maxCardBytes }, nodesLeft: FORWARD.maxNodes };
-                const nodes = this.decodeBodies(main5, resId, piggyback, limits);
+                const nodes = this.decodeBodies(main6, resId, piggyback, limits);
                 const layers = this.#collectLayers(resId, nodes, piggyback, limits);
                 if (nodes.length)
                     this.cache.set(resId, layers);
@@ -11481,8 +11689,8 @@ var init_lib = __esm({
                 throw b;
             }, ea = import.meta.url, v = "", fa, w;
             if (t) {
-                var fs34 = require2("fs"), ha = require2("path");
-                ea.startsWith("file:") && (v = ha.dirname(require2("url").fileURLToPath(ea)) + "/"), w = (a) => (a = y(a) ? new URL(a) : a, fs34.readFileSync(a)), fa = async (a) => (a = y(a) ? new URL(a) : a, fs34.readFileSync(a, void 0)), process.argv.slice(2), u = (a, b) => {
+                var fs35 = require2("fs"), ha = require2("path");
+                ea.startsWith("file:") && (v = ha.dirname(require2("url").fileURLToPath(ea)) + "/"), w = (a) => (a = y(a) ? new URL(a) : a, fs35.readFileSync(a)), fa = async (a) => (a = y(a) ? new URL(a) : a, fs35.readFileSync(a, void 0)), process.argv.slice(2), u = (a, b) => {
                     throw process.exitCode = a, b;
                 };
             }
@@ -18467,7 +18675,7 @@ function traceExport(entries, meta) {
         lines.push(...entries.map((e) => e.line));
     return lines.join("\n") + "\n";
 }
-var LOG_LEVELS, WEIGHT, LABEL, Ring, SENSITIVE, ASSIGN, plain, Logger;
+var LOG_LEVELS, WEIGHT, LABEL, Ring, SENSITIVE, ASSIGN, plain2, Logger;
 var init_logger = __esm({
     "upper/logging/logger.mjs"() {
         init_file_transport();
@@ -18490,7 +18698,7 @@ var init_logger = __esm({
         };
         SENSITIVE = /(token|secret|passw(or)?d|authorization|cookie|apikey|api_key|key|sig|ticket)$/i;
         ASSIGN = /(["']?)([A-Za-z_][A-Za-z0-9_.-]*)\1(\s*[:=]\s*)("([^"\\]|\\.)*"|'[^']*'|[^\s,;&}\])]+)/g;
-        plain = (s) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, "");
+        plain2 = (s) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, "");
         Logger = class {
             constructor({ level = levelFromEnv(), fileLevel = "debug", file = null, console: toConsole = true, now: now2 = () => new Date() } = {}) {
                 this.level = level;
@@ -18535,7 +18743,7 @@ var init_logger = __esm({
                 const message2 = level === "trace" ? raw : redact(raw);
                 const d = this.now();
                 const ts = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n2) => String(n2).padStart(2, "0")).join(":");
-                const line = plain(`${ts} ${LABEL[level].padEnd(5)} ${(uin !== void 0 ? `[${uin}]` : "").padEnd(12)} [${scope}] ${message2}`);
+                const line = plain2(`${ts} ${LABEL[level].padEnd(5)} ${(uin !== void 0 ? `[${uin}]` : "").padEnd(12)} [${scope}] ${message2}`);
                 const entry = { id: this.nextId++, time: d.toISOString(), level, scope, ...uin !== void 0 ? { uin } : {}, message: message2, line };
                 if (toConsole) {
                     (level === "trace" ? this.traceRing : this.ring).push(entry);
@@ -19204,6 +19412,25 @@ function checkCredentialState(v) {
 function fresh(password, mustChange) {
     const salt = crypto17.randomBytes(16), t = nowIso();
     return { passwordHash: hash2(password, salt).toString("hex"), passwordSalt: salt.toString("hex"), mustChangePassword: mustChange, generatedAt: t, updatedAt: t };
+}
+function storedPasswordMatches(configDir, password) {
+    let state;
+    try {
+        const { totp, ...rest } = JSON.parse(fs20.readFileSync(path19.join(configDir, "webui.json"), "utf8"));
+        state = checkCredentialState(rest);
+    }
+    catch {
+        return null;
+    }
+    if (typeof password !== "string" || !password)
+        return false;
+    try {
+        const got = hash2(password, Buffer.from(state.passwordSalt, "hex")), want = Buffer.from(state.passwordHash, "hex");
+        return got.length === want.length && crypto17.timingSafeEqual(got, want);
+    }
+    catch {
+        return false;
+    }
 }
 var PASSWORD_RULES, passwordRules, strongPassword, hash2, nowIso, Credentials;
 var init_credentials = __esm({
@@ -21510,7 +21737,25 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
         sessions.clear();
         clearAvatarCookie(ctx);
         log.info("password updated; all sessions invalidated");
-        ctx.reply(200, { success: true, requireRelogin: true });
+        let initialPasswordFile2 = "absent", notice;
+        try {
+            const cleared = app.bootstrap?.onPasswordChanged?.();
+            if (cleared?.removed) {
+                initialPasswordFile2 = "removed";
+                log.info("first-start password file removed");
+            }
+            else if (cleared?.existed) {
+                initialPasswordFile2 = "failed";
+                log.warn("first-start password file could not be removed (%s)", cleared.errorCode ?? "unknown");
+            }
+        }
+        catch {
+            initialPasswordFile2 = "failed";
+            log.warn("first-start password file could not be removed");
+        }
+        if (initialPasswordFile2 === "failed")
+            notice = "密码已修改。旧的初始密码文件没有删除成功，请手动删除数据目录里的 webui-initial-password.txt";
+        ctx.reply(200, { success: true, requireRelogin: true, initialPasswordFile: initialPasswordFile2, ...notice ? { message: notice } : {} });
     });
     const endOtherSessions = (keep) => {
         for (const t of sessions.keys())
@@ -21976,15 +22221,15 @@ async function sendMail({ host, port: port3, secure, user, pass, from, to, subje
         }
         const u = user?.trim() ?? "";
         if (u) {
-            const plain2 = c.auth.has("PLAIN"), login = c.auth.has("LOGIN");
+            const plain3 = c.auth.has("PLAIN"), login = c.auth.has("LOGIN");
             let done = false;
-            if (plain2 || !login) {
+            if (plain3 || !login) {
                 try {
                     await s.cmd(`AUTH PLAIN ${Buffer.from(`\0${u}\0${pass ?? ""}`, "utf8").toString("base64")}`, (x) => x === 235, "AUTH");
                     done = true;
                 }
                 catch (e) {
-                    if (plain2 && !login || e.responseCode === 535)
+                    if (plain3 && !login || e.responseCode === 535)
                         throw e;
                 }
             }
@@ -22535,9 +22780,61 @@ var init_diagnostics = __esm({
         stamp = (v) => typeof v === "string" && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(v) ? v : null;
     }
 });
-var gateway_exports = {};
+var bootstrap_password_exports = {};
+__export(bootstrap_password_exports, {
+    INITIAL_PASSWORD_FILE: () => INITIAL_PASSWORD_FILE,
+    bootstrapState: () => bootstrapState,
+    clearInitialPassword: () => clearInitialPassword,
+    initialPasswordFile: () => initialPasswordFile,
+    main: () => main3
+});
 import fs31 from "node:fs";
 import path30 from "node:path";
+function bootstrapState(home3) {
+    const file = initialPasswordFile(home3);
+    let password;
+    try {
+        password = fs31.readFileSync(file, "utf8").trim();
+    }
+    catch {
+        return { file, exists: false, active: false, pending: false };
+    }
+    const match = password ? storedPasswordMatches(path30.join(home3, "config"), password) : false;
+    return { file, exists: true, active: match === true, pending: match === null };
+}
+function clearInitialPassword(home3) {
+    const file = initialPasswordFile(home3);
+    if (!fs31.existsSync(file))
+        return { removed: false, existed: false };
+    try {
+        fs31.rmSync(file, { force: true });
+    }
+    catch (error) {
+        return { removed: false, existed: true, errorCode: /^[A-Z0-9_]{1,32}$/.test(error?.code ?? "") ? error.code : "REMOVE_FAILED" };
+    }
+    return fs31.existsSync(file) ? { removed: false, existed: true, errorCode: "STILL_PRESENT" } : { removed: true, existed: true };
+}
+function main3(argv2 = process.argv.slice(2)) {
+    const i = argv2.indexOf("--home"), home3 = i >= 0 ? argv2[i + 1] : null;
+    if (!home3) {
+        console.error("usage: bootstrap-state --home DIR");
+        process.exitCode = 2;
+        return;
+    }
+    const state = bootstrapState(path30.resolve(home3));
+    console.log(JSON.stringify({ initialPasswordActive: state.active, initialPasswordPending: state.pending, file: state.file }));
+}
+var INITIAL_PASSWORD_FILE, initialPasswordFile;
+var init_bootstrap_password = __esm({
+    "upper/management/bootstrap-password.mjs"() {
+        init_credentials();
+        INITIAL_PASSWORD_FILE = "webui-initial-password.txt";
+        initialPasswordFile = (home3) => path30.join(home3, INITIAL_PASSWORD_FILE);
+    }
+});
+var gateway_exports = {};
+import fs32 from "node:fs";
+import path31 from "node:path";
 import http5 from "node:http";
 import crypto24 from "node:crypto";
 async function stop(reason) {
@@ -22578,12 +22875,23 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
     if (!managementHosts.includes(runtime.webuiHost))
         throw Error("NeroNet management address is not allowed by the deployment profile");
     const env = { ...process.env };
-    if (!fs31.existsSync(path30.join(configDir, "webui.json"))) {
+    const operatorPassword = typeof env.NERONET_WEBUI_BOOTSTRAP_PASSWORD === "string" && env.NERONET_WEBUI_BOOTSTRAP_PASSWORD.length >= 8;
+    if (!fs32.existsSync(path31.join(configDir, "webui.json")) && operatorPassword) {
+        clearInitialPassword(home2);
+    }
+    else if (!fs32.existsSync(path31.join(configDir, "webui.json"))) {
         const initial = crypto24.randomBytes(24).toString("base64url");
-        fs31.writeFileSync(path30.join(home2, "webui-initial-password.txt"), initial + "\n", { mode: 384 });
+        fs32.writeFileSync(initialPasswordFile(home2), initial + "\n", { mode: 384 });
         env.NERONET_WEBUI_BOOTSTRAP_PASSWORD = initial;
     }
-    const controlPath = path30.join(home2, "runtime-control.json");
+    else {
+        const boot = bootstrapState(home2);
+        if (boot.exists && !boot.active) {
+            const cleared = clearInitialPassword(home2);
+            record2(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-already-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
+        }
+    }
+    const controlPath = path31.join(home2, "runtime-control.json");
     const info = () => ({
         pid,
         name: "QQ",
@@ -22605,7 +22913,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         const previous = client.businessPaused;
         client.setBusinessPaused(paused);
         try {
-            fs31.writeFileSync(controlPath, JSON.stringify({ paused }) + "\n");
+            fs32.writeFileSync(controlPath, JSON.stringify({ paused }) + "\n");
         }
         catch (e) {
             client.setBusinessPaused(previous);
@@ -22615,7 +22923,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         record2({ businessPaused: paused, pendingNative: client.pending.size, callbackCodePinned: true });
         return info();
     };
-    if (fs31.existsSync(controlPath) && JSON.parse(fs31.readFileSync(controlPath, "utf8")).paused)
+    if (fs32.existsSync(controlPath) && JSON.parse(fs32.readFileSync(controlPath, "utf8")).paused)
         client.setBusinessPaused(true);
     const diagnostics = createDiagnostics({ readRuntime });
     const notificationStore = new NotificationStore(configDir);
@@ -22643,6 +22951,12 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         logger,
         logFiles,
         storage,
+        bootstrap: { onPasswordChanged: () => {
+                const cleared = clearInitialPassword(home2);
+                if (cleared.existed)
+                    record2(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
+                return cleared;
+            } },
         notifications: { store: notificationStore, manager: notifications },
         debug: {
             uin: String(client.uin),
@@ -22652,7 +22966,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
                 debugObservers.add(fn);
                 return () => debugObservers.delete(fn);
             },
-            uploadDir: path30.join(home2, "data", "upper", "tmp", "webui-upload")
+            uploadDir: path31.join(home2, "data", "upper", "tmp", "webui-upload")
         },
         noticesDir: noticesDirectory,
         clientRoot: webuiDirectory,
@@ -22679,7 +22993,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         }
     }, { signal: lifecycle.signal, tls: tls4 });
 }
-var pidArg, homeArg2, generationStop, pid, home2, deployment2, MILESTONE, metadataLog2, record2, accountFile, bound, client, core, servers, health, management, logger, logFiles, notifications, onebotApply, debugObservers, debugInvoke, stopTimer, closing2, networkReady, lifecycle, onSigint, onSigterm, checkStop, accountMismatch;
+var pidArg, homeArg2, generationStop, epochArg, qqStartedArg, pid, generationInfo, home2, deployment2, MILESTONE, metadataLog2, record2, accountFile, bound, client, core, servers, health, management, logger, logFiles, notifications, onebotApply, debugObservers, debugInvoke, stopTimer, closing2, networkReady, lifecycle, onSigint, onSigterm, checkStop, accountMismatch, transportFault;
 var init_gateway = __esm({
     async "upper/gateway.mjs"() {
         init_product();
@@ -22710,18 +23024,20 @@ var init_gateway = __esm({
         init_action_policy();
         init_layout_release();
         init_process_selection();
-        [pidArg, homeArg2, generationStop] = process.argv.slice(2);
+        init_bootstrap_password();
+        [pidArg, homeArg2, generationStop, epochArg, qqStartedArg] = process.argv.slice(2);
         pid = Number(pidArg);
         if (generationStop && !/^gateway-stop-[a-f0-9-]+$/.test(generationStop))
             throw Error("Invalid generation marker");
+        generationInfo = { epoch: /^\d{1,9}$/.test(epochArg ?? "") ? Number(epochArg) : null, qqStarted: /^[\dT:.\-Z+]{10,40}$/.test(qqStartedArg ?? "") ? qqStartedArg : null };
         if (!Number.isSafeInteger(pid) || pid < 1 || !homeArg2)
             throw Error("Usage: upper/gateway QQ_PID INDEPENDENT_HOME");
-        home2 = path30.resolve(homeArg2);
+        home2 = path31.resolve(homeArg2);
         deployment2 = validateDeploymentPaths(loadDeploymentProfile(), { home: home2 });
-        fs31.mkdirSync(home2, { recursive: true });
+        fs32.mkdirSync(home2, { recursive: true });
         process.chdir(home2);
         MILESTONE = /^(applicationStarted|stopped|oneBotConfigReloaded|businessPaused|oneBotReverseConnected|networkState)$/;
-        metadataLog2 = new BoundedJsonl(path30.join(home2, "gateway-metadata.jsonl"), { onFailure: (error) => {
+        metadataLog2 = new BoundedJsonl(path31.join(home2, "gateway-metadata.jsonl"), { onFailure: (error) => {
                 try {
                     logger?.emit("warn", "Upper", void 0, [`gateway-metadata.jsonl write failed: ${String(error?.code ?? error?.message ?? error).slice(0, 120)}`]);
                 }
@@ -22736,14 +23052,14 @@ var init_gateway = __esm({
             const level = /fail|error|unsupported|ignored|skipped/i.test(text.slice(0, 120)) ? "warn" : MILESTONE.test(key) ? "info" : "debug";
             logger.emit(level, "Upper", client?.uin ? Number(client.uin) : void 0, [text.length > 400 ? text.slice(0, 400) + "…" : text]);
         };
-        accountFile = path30.join(home2, "account-binding.json");
-        bound = fs31.existsSync(accountFile) ? JSON.parse(fs31.readFileSync(accountFile, "utf8")) : null;
+        accountFile = path31.join(home2, "account-binding.json");
+        bound = fs32.existsSync(accountFile) ? JSON.parse(fs32.readFileSync(accountFile, "utf8")) : null;
         client = new NativeClient(pid, { expectedUin: bound?.uin, timeoutMs: 3e4 });
         closing2 = false;
         networkReady = false;
         lifecycle = applicationLifecycle({ interruptStartup: () => client.close(), cleanup: async (reason) => {
                 try {
-                    record2({ stopping: true, reason, pendingNative: client.pending.size });
+                    record2({ stopping: true, reason, pendingNative: client.failure ? client.failure.pending.length : client.pending.size, pendingRequests: client.failure ? client.failure.pending : client.pendingSnapshot() });
                 }
                 catch {
                 }
@@ -22778,7 +23094,7 @@ var init_gateway = __esm({
             void stop("SIGTERM");
         };
         checkStop = () => {
-            if (fs31.existsSync(path30.join(home2, "STOP")) || generationStop && fs31.existsSync(path30.join(home2, generationStop)))
+            if (fs32.existsSync(path31.join(home2, "STOP")) || generationStop && fs32.existsSync(path31.join(home2, generationStop)))
                 void stop("STOP");
         };
         process.on("SIGINT", onSigint);
@@ -22786,13 +23102,36 @@ var init_gateway = __esm({
         stopTimer = setInterval(checkStop, 500);
         checkStop();
         accountMismatch = false;
+        transportFault = false;
         process.on("exit", () => {
             if (accountMismatch && !process.exitCode)
                 process.exitCode = GATEWAY_EXIT_ACCOUNT_MISMATCH;
+            else if (transportFault)
+                process.exitCode = GATEWAY_EXIT_TRANSPORT_FAULT;
         });
         client.on("closed", (reason) => {
             if (reason === "NERONET_ACCOUNT_MISMATCH")
                 accountMismatch = true;
+            if (TRANSPORT_FAULTS.has(reason) && !closing2) {
+                transportFault = true;
+                try {
+                    record2({
+                        nativeTransportFault: true,
+                        reason,
+                        pid,
+                        ...generationInfo,
+                        stage: client.failure?.stage ?? null,
+                        socketError: client.failure?.socketError ?? null,
+                        applicationReady: lifecycle.ready,
+                        accountBound: !!client.uin,
+                        networkState: client.msf,
+                        pendingNative: client.failure?.pending.length ?? 0,
+                        pendingRequests: client.failure?.pending ?? []
+                    });
+                }
+                catch {
+                }
+            }
             void stop(reason);
         });
         client.on("network", (raw) => {
@@ -22810,13 +23149,13 @@ var init_gateway = __esm({
             await client.connect();
             lifecycle.checkpoint();
             if (!bound)
-                fs31.writeFileSync(accountFile, JSON.stringify({ uin: client.uin, enrolledPid: pid }) + "\n", { flag: "wx" });
-            const configDir = path30.join(home2, "config");
-            fs31.mkdirSync(configDir, { recursive: true });
+                fs32.writeFileSync(accountFile, JSON.stringify({ uin: client.uin, enrolledPid: pid }) + "\n", { flag: "wx" });
+            const configDir = path31.join(home2, "config");
+            fs32.mkdirSync(configDir, { recursive: true });
             const runtimeConfig = new RuntimeConfig(configDir);
             const runtime = runtimeConfig.effective();
             logger = createLogger({ file: logFiles = new FileTransport({
-                    directory: process.env.NERONET_LOG_DIR || process.env.NERONET_LOG_DIR || path30.join(home2, "logs"),
+                    directory: process.env.NERONET_LOG_DIR || process.env.NERONET_LOG_DIR || path31.join(home2, "logs"),
                     maxTotalMb: runtime.logMaxTotalMb,
                     retainDays: runtime.logRetainDays,
                     perUinEnabled: runtime.logPerUin,
@@ -22831,14 +23170,14 @@ var init_gateway = __esm({
                 record2({ actionPolicy: policy.file, profiles: policy.profiles, extraActionsEnabled: policy.extraActions });
             const captureDir = process.env.NERONET_UPPER_CAPTURE_DIR;
             let captured = 0;
-            const capture = captureDir && path30.isAbsolute(captureDir) && fs31.existsSync(captureDir) ? (body, reason) => {
+            const capture = captureDir && path31.isAbsolute(captureDir) && fs32.existsSync(captureDir) ? (body, reason) => {
                 if (captured < 50)
-                    fs31.writeFileSync(path30.join(captureDir, `${Date.now()}-${++captured}-${reason}.bin`), body);
+                    fs32.writeFileSync(path31.join(captureDir, `${Date.now()}-${++captured}-${reason}.bin`), body);
             } : null;
             if (capture)
                 record2({ upperCaptureEnabled: true });
-            const index = new SqliteMessageStore(path30.join(home2, "data", "upper", "messages.sqlite"));
-            const images = new ImageCache({ dir: path30.join(home2, "data", "neronet-images"), log: (e) => record2(e) });
+            const index = new SqliteMessageStore(path31.join(home2, "data", "upper", "messages.sqlite"));
+            const images = new ImageCache({ dir: path31.join(home2, "data", "neronet-images"), log: (e) => record2(e) });
             try {
                 const removed = await images.cleanTemps();
                 if (removed)
@@ -22864,15 +23203,15 @@ var init_gateway = __esm({
                     }
                 }
             };
-            const observed = (origin) => async (action, params, echo) => {
+            const observed2 = (origin) => async (action, params, echo) => {
                 const t0 = Date.now();
                 const response = await policyDispatch(action, params, echo);
                 if (debugObservers.size)
                     observe2({ kind: "action", action: String(action), params: params ?? {}, response, ms: Date.now() - t0, origin });
                 return response;
             };
-            const dispatch = observed("onebot");
-            debugInvoke = observed("webui");
+            const dispatch = observed2("onebot");
+            debugInvoke = observed2("webui");
             const statusCommand = new StatusCommand(config.statusCommand, {
                 product: product_default.name,
                 version: product_default.version,
@@ -22992,12 +23331,12 @@ var package_check_exports = {};
 __export(package_check_exports, {
     REQUIRED_FILES: () => REQUIRED_FILES,
     SUMS_FILE: () => SUMS_FILE,
-    main: () => main3,
+    main: () => main4,
     parseSums: () => parseSums,
     verifyPackage: () => verifyPackage
 });
-import fs32 from "node:fs";
-import path31 from "node:path";
+import fs33 from "node:fs";
+import path32 from "node:path";
 import crypto25 from "node:crypto";
 function parseSums(text) {
     const rows = [], seen = new Set();
@@ -23018,34 +23357,34 @@ function parseSums(text) {
     return rows;
 }
 function verifyPackage(root, { nativeDirectory: nativeDirectory2 } = {}) {
-    root = fs32.realpathSync(root);
-    const sums = path31.join(root, SUMS_FILE);
-    if (!fs32.existsSync(sums))
+    root = fs33.realpathSync(root);
+    const sums = path32.join(root, SUMS_FILE);
+    if (!fs33.existsSync(sums))
         throw Error("NERONET_PACKAGE_MANIFEST_MISSING");
-    const rows = parseSums(fs32.readFileSync(sums, "utf8"));
+    const rows = parseSums(fs33.readFileSync(sums, "utf8"));
     const seen = new Set(rows.map((r) => r.path.toLowerCase()));
     for (const required of REQUIRED_FILES)
         if (!seen.has(required))
             throw Error("NERONET_PACKAGE_REQUIRED_FILE_MISSING: " + required);
     let bytes = 0;
     for (const row of rows) {
-        const file = path31.resolve(root, row.path);
+        const file = path32.resolve(root, row.path);
         let real;
         try {
-            real = fs32.realpathSync(file);
+            real = fs33.realpathSync(file);
         }
         catch {
             throw Error("NERONET_PACKAGE_FILE_MISMATCH: " + row.path);
         }
-        if (!real.startsWith(root + path31.sep) || fs32.lstatSync(file).isSymbolicLink() || !fs32.statSync(file).isFile())
+        if (!real.startsWith(root + path32.sep) || fs33.lstatSync(file).isSymbolicLink() || !fs33.statSync(file).isFile())
             throw Error("NERONET_PACKAGE_UNSAFE_ENTRY");
-        const b = fs32.readFileSync(file);
+        const b = fs33.readFileSync(file);
         if (sha(b) !== row.sha256)
             throw Error("NERONET_PACKAGE_FILE_MISMATCH: " + row.path);
         bytes += b.length;
     }
-    const nativeManifest2 = loadNativeManifest(path31.join(root, "native/native-manifest.json"));
-    verifyNativeArtifacts(nativeManifest2, nativeDirectory2 ? fs32.realpathSync(nativeDirectory2) : path31.join(root, "native"));
+    const nativeManifest2 = loadNativeManifest(path32.join(root, "native/native-manifest.json"));
+    verifyNativeArtifacts(nativeManifest2, nativeDirectory2 ? fs33.realpathSync(nativeDirectory2) : path32.join(root, "native"));
     return {
         passed: true,
         product: product_default.name,
@@ -23056,7 +23395,7 @@ function verifyPackage(root, { nativeDirectory: nativeDirectory2 } = {}) {
         scope: "File integrity only; not a publisher signature, QQ login, or readiness"
     };
 }
-function main3(args = process.argv.slice(2)) {
+function main4(args = process.argv.slice(2)) {
     try {
         const [root = packageRoot, nativeDirectory2, ...extra] = args;
         if (extra.length)
@@ -23091,7 +23430,7 @@ var init_package_check = __esm({
         ]);
         sha = (b) => crypto25.createHash("sha256").update(b).digest("hex");
         if (isMainModule(import.meta.url))
-            main3();
+            main4();
     }
 });
 var default_profile_exports = {};
@@ -23099,18 +23438,18 @@ __export(default_profile_exports, {
     PROFILE_FILE_NAME: () => PROFILE_FILE_NAME,
     buildDefaultProfile: () => buildDefaultProfile,
     ensureDefaultProfile: () => ensureDefaultProfile,
-    main: () => main4
+    main: () => main5
 });
-import fs33 from "node:fs";
-import path32 from "node:path";
+import fs34 from "node:fs";
+import path33 from "node:path";
 function buildDefaultProfile({ packageRoot: packageRoot2, qqExecutable }) {
-    const root = path32.resolve(packageRoot2), parent = path32.dirname(root);
+    const root = path33.resolve(packageRoot2), parent = path33.dirname(root);
     if (parent === root)
         throw Error("NERONET_PACKAGE_AT_DRIVE_ROOT");
     return { schema: 1, generated: true, mode: "portable", allowedComputerName: null, qqExecutable, installRoot: parent, homeRoot: root, portableData: true, managementHosts: ["127.0.0.1", "::1", "localhost"] };
 }
 async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, findQQ = runningQQExecutable } = {}) {
-    const home3 = path32.join(path32.resolve(packageRoot2), PORTABLE_DATA_DIRECTORY), file = path32.join(home3, PROFILE_FILE_NAME);
+    const home3 = path33.join(path33.resolve(packageRoot2), PORTABLE_DATA_DIRECTORY), file = path33.join(home3, PROFILE_FILE_NAME);
     const existing = readJson2(file);
     if (existing && existing.generated !== true) {
         const profile2 = validateProfile(existing);
@@ -23121,7 +23460,7 @@ async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, f
         qqExecutable = await findQQ();
     }
     catch (error) {
-        const same = existing && existing.homeRoot === path32.resolve(packageRoot2) && existing.installRoot === path32.dirname(path32.resolve(packageRoot2));
+        const same = existing && existing.homeRoot === path33.resolve(packageRoot2) && existing.installRoot === path33.dirname(path33.resolve(packageRoot2));
         if (!(same && /^NERONET_NO_QQ_PROCESS/.test(error.message)))
             throw error;
         validateDeploymentPaths(validateProfile(existing), { packageRoot: packageRoot2, home: home3 });
@@ -23132,15 +23471,15 @@ async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, f
     const text = JSON.stringify(profile, null, 2) + "\n";
     let written = false;
     if (!existing || JSON.stringify(existing, null, 2) + "\n" !== text) {
-        fs33.mkdirSync(home3, { recursive: true });
+        fs34.mkdirSync(home3, { recursive: true });
         const temporary = file + "." + process.pid + ".tmp";
-        fs33.writeFileSync(temporary, text);
-        fs33.renameSync(temporary, file);
+        fs34.writeFileSync(temporary, text);
+        fs34.renameSync(temporary, file);
         written = true;
     }
     return { file, home: home3, qqExecutable, written, generated: true };
 }
-async function main4(args = process.argv.slice(2), options = {}) {
+async function main5(args = process.argv.slice(2), options = {}) {
     try {
         if (args.length && (args.length !== 2 || args[0] !== "--bot-pid" || !/^[1-9]\d{0,9}$/.test(args[1])))
             throw Error("NERONET_DEFAULT_PROFILE_ARGUMENTS");
@@ -23162,7 +23501,7 @@ var init_default_profile = __esm({
         PROFILE_FILE_NAME = "deployment.json";
         readJson2 = (file) => {
             try {
-                return JSON.parse(fs33.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+                return JSON.parse(fs34.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
             }
             catch (e) {
                 if (e.code === "ENOENT")
@@ -23171,7 +23510,7 @@ var init_default_profile = __esm({
             }
         };
         if (isMainModule(import.meta.url))
-            main4();
+            main5();
     }
 });
 init_product();
@@ -23194,6 +23533,9 @@ switch (command) {
         break;
     case "default-profile":
         await (await Promise.resolve().then(() => (init_default_profile(), default_profile_exports))).main();
+        break;
+    case "bootstrap-state":
+        (await Promise.resolve().then(() => (init_bootstrap_password(), bootstrap_password_exports))).main();
         break;
     case "version":
         console.log(`${product_default.name} ${product_default.version}`);

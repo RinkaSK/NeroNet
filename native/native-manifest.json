@@ -1,26 +1,26 @@
 {
   "schema": 2,
-  "buildEvidenceSha256": "3bc44f3684301aea8134e7ba1e1cfde0b816b49e500c768620d25c3e974aa275",
+  "buildEvidenceSha256": "5d40399e87724a1bd7d39422fdb40f9092c118ddd1b58e1dec996df5c3a17b86",
   "artifacts": [
     {
+      "name": "neronet.binding",
+      "sha256": "b19eb53443296d2bf0ef35ed3328e6fadc876bc6d7ceb34a93fde6f79f83b151",
+      "bytes": 4413
+    },
+    {
       "name": "neronet_live_binding.dll",
-      "sha256": "cf0303308dc7c044378f9c30b7d8231256f5592e8bcbcb62ff28c9c2085ad8ce",
-      "bytes": 436736
+      "sha256": "549ea0f45949c0180d965aa33f36be78ada09028fb9b57361ac1b5d92cdb0de7",
+      "bytes": 439296
+    },
+    {
+      "name": "neronet_native_host.exe",
+      "sha256": "30e1b05799131874cea5de194dacc777b0c3585d8bfddb31bee40cba93edf82d",
+      "bytes": 289280
     },
     {
       "name": "neronet_receive_consumer.dll",
       "sha256": "1061329d265babf35defac955a9c113bb1915d3a34ddc968ae848e8abd71a9d9",
       "bytes": 118784
-    },
-    {
-      "name": "neronet_native_host.exe",
-      "sha256": "c189693201163ff0d963816ad701e4a1e867cdd046cc9f58bfea76a6f925d665",
-      "bytes": 286208
-    },
-    {
-      "name": "neronet.binding",
-      "sha256": "b19eb53443296d2bf0ef35ed3328e6fadc876bc6d7ceb34a93fde6f79f83b151",
-      "bytes": 4413
     }
   ]
 }

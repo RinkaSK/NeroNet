@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img alt="版本" src="https://img.shields.io/badge/version-1.5.1-a83650">
+  <img alt="版本" src="https://img.shields.io/badge/version-1.5.2-a83650">
   <img alt="平台" src="https://img.shields.io/badge/platform-Windows%20x64-555">
   <img alt="协议" src="https://img.shields.io/badge/OneBot-v11-555">
   <img alt="许可" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-555">
@@ -39,6 +39,7 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 - **默认收紧**：默认只开放少量动作，按接入的客户端启用对应的动作档案；踢人、禁言等管理动作需要逐个显式开放。
 - **管理界面**：在浏览器里查看运行状态、配置 OneBot 服务、看日志、调试动作、备份配置。默认只允许本机访问，必须登录。
 - **认准账号**：每个数据目录绑定一个机器人账号；QQ 登录的不是这个账号时，NeroNet 不会使用它。
+- **自动恢复**：机器人 QQ 重新登录、或者与 QQ 的连接意外中断后，NeroNet 会自动重新接入，不需要手动重启。
 
 ## 下载
 
@@ -46,8 +47,8 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 
 | 文件 | 大小 | 适合 |
 |---|---|---|
-| `NeroNet-1.5.1-win-x64-with-node.zip` | 约 36 MB | **推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
-| `NeroNet-1.5.1-win-x64.zip` | 约 3 MB | 已经安装了 Node.js 24（x64）的电脑 |
+| `NeroNet-1.5.2-win-x64-with-node.zip` | 约 36 MB | **推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
+| `NeroNet-1.5.2-win-x64.zip` | 约 3 MB | 已经安装了 Node.js 24（x64）的电脑 |
 
 两个包只差一个 `node.exe`。Releases 页面列出了两个压缩包的 SHA-256；解压后包内每个文件的 SHA-256 在 `SHA256SUMS.txt` 里，启动时会自动核对。
 
@@ -62,7 +63,7 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 
 ## 快速开始
 
-1. 下载 `NeroNet-1.5.1-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
+1. 下载 `NeroNet-1.5.2-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
 2. 登录机器人 QQ。
 3. 双击 `start.bat`。窗口里会显示接入的 QQ 进程、当前状态和管理界面地址：
 
@@ -70,7 +71,7 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
    NeroNet 已启动。状态：已就绪
      机器人 QQ 进程：1234（电脑上唯一运行的 QQ）
      管理界面：http://127.0.0.1:5099
-     初始密码：D:\NeroNet\data\webui-initial-password.txt（首次登录后请修改）
+     初始密码：D:\NeroNet\data\webui-initial-password.txt（首次登录后请修改，修改后这个文件会自动删除）
      数据目录：D:\NeroNet\data
      停止：运行 stop.bat
    ```
@@ -95,6 +96,8 @@ NeroNet 不会在多个 QQ 之间自己挑选，启动时会报错并列出进�
 
 机器人 QQ 退出后重新登录，NeroNet 会自动重新接入，不需要重启 NeroNet。接入后会核对账号，登录的不是绑定的机器人账号时不会使用。
 
+NeroNet 与 QQ 之间的连接意外中断时，也会在几秒到十几秒内自动恢复，期间管理界面和 OneBot 服务暂时不可用。中断那一刻正在发送的消息不会自动重发。
+
 ## 接入机器人框架
 
 | 框架 | 项目主页 | 接入指南 |
@@ -107,7 +110,7 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 
 ## 测试情况
 
-- **QQ 版本**：主要测试使用的是 Windows 版 QQ 9.9.25 和 9.9.37（9.9.37 是目前的最新版）。1.5.1 对 QQ 9.9.30 和 9.9.32 做了抽查更新，优化了对不同 QQ 版本的通用性。只列出这几个版本，不代表其他版本一定不能用：NeroNet 启动时会检查 QQ，能正常接入就可以使用；遇到不支持的 QQ 会明确提示，不会带着问题运行。遇到问题时，可以先把 QQ 和 NeroNet 都更新到最新版本再试，或者[提交 issue](../../issues)。
+- **QQ 版本**：目前适配 Windows 版 QQ 9.9.25、9.9.30、9.9.32 和 9.9.37（9.9.37 是目前的最新版），其中 9.9.25 和 9.9.37 测试得最充分。只列出这几个版本，不代表其他版本一定不能用：NeroNet 启动时会检查 QQ，能正常接入就可以使用；遇到不支持的 QQ 会明确提示，不会带着问题运行。遇到问题时，可以先把 QQ 和 NeroNet 都更新到最新版本再试，或者[提交 issue](../../issues)。
 - **稳定性**：没有做过长时间连续运行的专门测试。在开发和测试过程中，没有出现过因 QQ 风控或其他原因被强制下线的情况。
 - 不支持的消息类型、未测试的场景等细节见 [已知限制](docs/KNOWN_LIMITS.md)。
 
@@ -121,7 +124,9 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 | 提示“NeroNet 已经在运行” | 已经在后台运行了，直接打开管理界面即可；要重启，先运行 `stop.bat` |
 | 状态一直是“等待 QQ 完成登录” | 在 QQ 窗口里完成登录；NeroNet 会在登录后自动就绪 |
 | 接入被拒绝 | 这个 QQ 版本可能不在支持范围内，见“测试情况” |
-| 忘记管理界面密码 | 停止 NeroNet，删除 `data\config\webui.json` 后重新启动，会生成新的初始密码 |
+| 提示“这个 QQ 里还留着另一个版本的 NeroNet 组件” | 换了 NeroNet 版本后没有退出过 QQ。正常退出机器人 QQ 再重新登录，NeroNet 会自动接入，不需要重新启动 NeroNet |
+| 管理界面和 OneBot 服务断开了几秒到十几秒，然后自己恢复 | NeroNet 与 QQ 之间的连接中断后会自动恢复。中断时正在发送的消息不会自动重发，见 [部署说明第 2 节](docs/DEPLOY.md) |
+| 忘记管理界面密码 | 停止 NeroNet，删除 `data\config\webui.json` 后重新启动，会生成新的初始密码（写在 `data\webui-initial-password.txt`） |
 | 客户端调用动作返回 `retcode 1404` | 这个动作没有开放，在 `data\config\neronet-actions.json` 中加入后重启 NeroNet |
 
 ## 更新

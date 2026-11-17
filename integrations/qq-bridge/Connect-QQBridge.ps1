@@ -29,5 +29,7 @@ if($Uin){$arguments+=@('--uin',$Uin)}
 if($Stickers){$arguments+='--stickers'}
 if($Check){$arguments+='--check'}
 if($ShowToken){$arguments+='--show-token'}
+# The tool words its hints for this script: -ShowToken here, --show-token when it is run with node.
+$env:NERONET_TOOL_ENTRY='powershell'
 & $NodePath @arguments
-if($LASTEXITCODE){throw 'connect-qqbridge failed; nothing was started or restarted'}
+if($LASTEXITCODE){throw '配置没有完成（原因见上面一行）。没有启动或重启任何程序'}

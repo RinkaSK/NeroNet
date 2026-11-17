@@ -316,13 +316,28 @@ function ensureLocalModeFile() {
   log(`state/mode.json created with mode=reserved2 (fallback if DSH settings are not available)`);
 }
 
-// qq-mode-console / qq-agent-presets 以 link: 依赖注册进 profile package.json 后，DSH 首次启动
-// 需要先安装一次才能解析这些 bundle（否则 cold start 报 "cannot resolve profile bundle"）。
-// dsh CLI 可用时自动执行。
+// qq-mode-console / qq-agent-presets 以 link: 依赖注册进 profile package.json 后，`dsh plugin install`
+// 会让 DSH 自己再物化一遍这些 bundle。它不是必需的：本脚本已经建好了 DSH 解析 bundle 所需的两层
+// 链接（见 ensureBundle），最终是否可用由 verifyProfile() 判定，而不是由这个命令的退出码判定。
+//   - 找不到 dsh 命令：按接入指南把 DSH 装在单独目录、或使用桌面客户端时都是这样，属正常，跳过。
+//   - 命令存在但失败：记录下来，交给 verifyProfile() 判断是否真的缺东西。
+// 返回 'ok' | 'skipped' | 'no-cli' | 'failed'。
+function dshCliAvailable() {
+  const windows = process.platform === 'win32';
+  const r = windows
+    ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'where dsh.cmd'], { encoding: 'utf8', timeout: 15000, windowsHide: true })
+    : spawnSync('sh', ['-c', 'command -v dsh'], { encoding: 'utf8', timeout: 15000 });
+  return !r.error && r.status === 0;
+}
+
 function autoInstallProfileBundles() {
   if (process.env.QQ_BRIDGE_SKIP_DSH_INSTALL === '1') {
     log('auto-install skipped: QQ_BRIDGE_SKIP_DSH_INSTALL=1');
-    return;
+    return 'skipped';
+  }
+  if (!dshCliAvailable()) {
+    log(`PATH 中没有 dsh 命令，已跳过 dsh plugin --profile ${PROFILE} install。DSH 装在单独目录或使用桌面客户端时属于正常情况；所需的链接已由本脚本建立。`);
+    return 'no-cli';
   }
   const windows = process.platform === 'win32';
   // Node cannot spawn npm's .cmd shim directly. Keep the shell command constant;
@@ -340,15 +355,47 @@ function autoInstallProfileBundles() {
     ...(windows ? { env: { ...process.env, QQ_BRIDGE_SETUP_PROFILE: PROFILE } } : {}),
   });
   if (r.error) {
-    log(`auto-install failed to start/complete（${r.error.code || r.error.message}）。`);
-    log(`若 DSH 启动报“cannot resolve profile bundle”，请手动执行：dsh plugin --profile ${PROFILE} install`);
-    return;
+    log(`dsh plugin --profile ${PROFILE} install 没有完成（${r.error.code || r.error.message}）。`);
+    return 'failed';
   }
   if (r.status === 0) {
     log(`dsh plugin --profile ${PROFILE} install: OK`);
-  } else {
-    log(`dsh plugin --profile ${PROFILE} install 返回退出码 ${r.status}（若 DSH 启动报 bundle 解析失败，请手动重跑该命令）`);
+    return 'ok';
   }
+  const tail = String(r.stderr || r.stdout || '').trim().split(/\r?\n/).slice(-3).join(' | ').slice(0, 300);
+  log(`dsh plugin --profile ${PROFILE} install 返回退出码 ${r.status}${tail ? `：${tail}` : ''}`);
+  return 'failed';
+}
+
+// 安装结果以最终状态为准：逐项检查 profile 里 DSH 实际需要的东西。任何一项缺失都是真实的安装失败。
+function verifyProfile() {
+  const profileDir = path.join(DSH_HOME, 'profiles', PROFILE);
+  const problems = [];
+  const sameDir = (a, b) => { try { return fs.realpathSync(a).toLowerCase() === fs.realpathSync(b).toLowerCase(); } catch { return false; } };
+  // 1. bundle：两层链接都指向本仓库，且入口文件可读。
+  for (const name of BUNDLE_NAMES) {
+    const repoDir = name === 'qq-agent-presets' ? BUNDLE_DIR : path.join(REPO_ROOT, 'plugins', name);
+    const pluginLink = path.join(DSH_HOME, 'plugins', name), moduleLink = path.join(profileDir, 'node_modules', name);
+    if (!sameDir(pluginLink, repoDir)) problems.push(`bundle ${name}：${pluginLink} 没有指向 ${repoDir}`);
+    if (!sameDir(moduleLink, repoDir)) problems.push(`bundle ${name}：${moduleLink} 没有指向 ${repoDir}`);
+    if (!fs.existsSync(path.join(moduleLink, 'package.json'))) problems.push(`bundle ${name}：从 profile 读不到它的 package.json`);
+  }
+  // 2. profile package.json：依赖和 bundle 列表。
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(profileDir, 'package.json'), 'utf8'));
+    for (const name of BUNDLE_NAMES) {
+      if (!String(pkg.dependencies?.[name] ?? '').startsWith('link:')) problems.push(`profile package.json 缺少依赖 ${name}`);
+      if (!pkg.dsh?.profile?.bundles?.includes(name)) problems.push(`profile package.json 的 bundles 中缺少 ${name}`);
+    }
+  } catch (e) { problems.push(`profile package.json 读不到或不是合法 JSON（${e.code || e.message}）`); }
+  // 3. preset：生成的 patch 文件齐全。
+  for (const name of PRESETS) { try { if (!fs.statSync(patchFileFor(name)).size) problems.push(`preset ${name} 的 patch 文件是空的`); } catch { problems.push(`缺少 preset ${name} 的 patch 文件`); } }
+  // 4. 工具（MCP 服务）：三个条目都在 cordis.patch.yml 里，脚本文件存在。
+  let patchText = '';
+  try { patchText = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8'); } catch { problems.push('profile 中没有 cordis.patch.yml'); }
+  for (const id of MANAGED_MCP_IDS) if (patchText && !patchText.includes(`id: ${id}`)) problems.push(`cordis.patch.yml 中缺少 MCP 条目 ${id}`);
+  for (const script of ['mcp-onebot-safe.js', 'mcp-host-server.js', 'mcp-web-search-safe.js']) if (!fs.existsSync(path.join(REPO_ROOT, 'src', script))) problems.push(`缺少工具脚本 src/${script}`);
+  return problems;
 }
 
 // Validate the existing YAML before changing any presets or configuration.
@@ -360,5 +407,11 @@ for (const name of BUNDLE_NAMES) links[name] = ensureBundle(name);
 patchProfilePackage(links);
 reportLegacyPresetDir();
 ensureLocalModeFile();
-autoInstallProfileBundles();
-log('Done. Restart DSH (or reload the profile) so the new presets/MCP take effect.');
+const installResult = autoInstallProfileBundles();
+const problems = verifyProfile();
+if (problems.length) {
+  for (const problem of problems) console.error(`[setup-dsh] 缺失：${problem}`);
+  fatal(`profile ${PROFILE} 的安装不完整（${problems.length} 项，见上）。请修正后重新运行本脚本。`);
+}
+log(`检查通过：profile ${PROFILE} 的 bundle 链接、package.json、preset 和 MCP 条目都已就位${installResult === 'failed' ? '（dsh plugin install 没有成功，但 DSH 加载所需的内容齐全）' : ''}。`);
+log('Done. 请重启 DSH（或重新加载 profile）使新的 preset 和 MCP 生效；启动后 DSH 日志里不应出现 "cannot resolve profile bundle"，并请在 QQ 里实际发一条消息确认能回复。');

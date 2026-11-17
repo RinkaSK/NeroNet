@@ -66,7 +66,7 @@ $policy=$checked.json|ConvertFrom-Json
 # -BotPid is optional when exactly one QQ is running: that one is the bot.
 # -AdminPid is optional: another QQ process on this computer that must never be attached to.
 if($BotPid -lt 0 -or $AdminPid -lt 0){throw '进程号必须是正数'}
-$botSelection='用 -BotPid 指定'
+$botSelection='由 -BotPid 指定'
 if(!$BotPid){
  $query=@('bot-process','--profile',$DeploymentProfile);if($AdminPid){$query+=@('--exclude',"$AdminPid")}
  $found=Invoke-App $query
@@ -76,7 +76,9 @@ if(!$BotPid){
   throw ('查找机器人 QQ 进程失败：'+$found.text)
  }
  $BotPid=[int](($found.json|ConvertFrom-Json).pid)
- $botSelection='电脑上唯一运行的 QQ'
+ # Say how the process was chosen: the only QQ on this computer, or the only one left once the
+ # -AdminPid process is set aside (then two QQ are running, and "the only one" would be wrong).
+ $botSelection=if($AdminPid){'排除 -AdminPid 指定的 QQ（进程 '+$AdminPid+'）后，剩下的唯一一个 QQ'}else{'电脑上唯一运行的 QQ'}
 }
 if($AdminPid -and $AdminPid -eq $BotPid){throw '-AdminPid 必须是另一个 QQ 进程，不能和 -BotPid 相同'}
 $selected=@($BotPid);if($AdminPid){$selected+=$AdminPid}
@@ -119,7 +121,16 @@ function Get-LastRecord {
  $file=Join-Path $h 'supervisor-metadata.jsonl'
  if(!(Test-Path -LiteralPath $file)){return $null}
  $rows=@(Get-Content -LiteralPath $file -Tail 12 -Encoding UTF8 | ForEach-Object {try{$_|ConvertFrom-Json}catch{}})
- $rows | Where-Object {$_.waiting -or $_.startupRejected -or $_.supervisorFailed -or $_.startupGuardBlocked -or $_.gatewayEnded} | Select-Object -Last 1
+ $rows | Where-Object {$_.waiting -or $_.startupRejected -or $_.supervisorFailed -or $_.startupGuardBlocked -or $_.gatewayEnded -or $_.recoveryBlocked -or $_.recoveryExhausted} | Select-Object -Last 1
+}
+# Was a QQ refused in this run because another NeroNet build is still loaded in it? The record that
+# follows it is only "waiting for the bot", which would hide the reason the operator needs.
+function Test-BuildMismatch {
+ $file=Join-Path $h 'supervisor-metadata.jsonl'
+ if(!(Test-Path -LiteralPath $file)){return $false}
+ $rows=@(Get-Content -LiteralPath $file -Tail 12 -Encoding UTF8 | ForEach-Object {try{$_|ConvertFrom-Json}catch{}})
+ $begin=-1;for($i=0;$i -lt $rows.Count;$i++){if($rows[$i].selectedProcesses){$begin=$i}}
+ [bool](@($rows | Select-Object -Skip ($begin+1) | Where-Object {$_.startupRejected -and $_.reason -eq 'NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ'}).Count)
 }
 $state='starting';$deadline=(Get-Date).AddSeconds([Math]::Max(0,$WaitSeconds))
 while((Get-Date) -lt $deadline){
@@ -129,29 +140,38 @@ while((Get-Date) -lt $deadline){
  if($ready -and $ready.ready){$state='ready';break}
 }
 $last=Get-LastRecord
+# A component of another NeroNet build is still loaded in that QQ: it is not called, QQ must be restarted.
+$buildMismatch='NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ'
+$buildMismatchText='这个 QQ 里还留着另一个版本的 NeroNet 组件，不能直接接入。请正常退出机器人 QQ 再重新登录；重新登录后 NeroNet 会自动接入'
 if($state -eq 'ended'){
  $detail=if(Test-Path -LiteralPath $errorLog){((Get-Content -LiteralPath $errorLog -Tail 6 -Encoding UTF8) -join ' ').Trim()}else{''}
- $reason=if($last.startupRejected){'接入 QQ 被拒绝：'+$last.reason}elseif($last.startupGuardBlocked){'上一次启动的结果没有确认，请先正常退出并重新登录机器人 QQ'}else{$detail}
+ $reason=if($last.startupRejected -and $last.reason -eq $buildMismatch){$buildMismatchText}elseif($last.startupRejected){'接入 QQ 被拒绝：'+$last.reason}elseif($last.startupGuardBlocked){'上一次启动的结果没有确认，请先正常退出并重新登录机器人 QQ'}else{$detail}
  throw ('NeroNet 没有启动成功。'+$reason+'（记录在 '+$h+'）')
 }
 $status=switch($state){
  'ready'{'已就绪'}
  default{
   if($last.waiting -eq 'account-login'){'正在启动：等待 QQ 完成登录'}
+  elseif($last.waiting -and (Test-BuildMismatch)){'等待中：'+$buildMismatchText}
   elseif($last.startupRejected -and $last.reason -eq 'account-mismatch'){'等待中：这个 QQ 登录的不是数据目录绑定的机器人账号，已跳过它。请登录机器人账号'}
   elseif($last.waiting -eq 'waiting-for-bot'){'等待中：没有找到机器人 QQ，请登录机器人账号'}
   elseif($last.waiting -eq 'ambiguous-bot-process'){'等待中：有多个 QQ，无法确定哪个是机器人，请停止后用 -BotPid 重新启动'}
+  elseif($last.startupRejected -and $last.reason -eq $buildMismatch){'等待中：'+$buildMismatchText}
   elseif($last.startupRejected){'接入 QQ 被拒绝：'+$last.reason+'（这个版本的 QQ 可能不在支持范围内，见 docs\KNOWN_LIMITS.md）'}
   elseif($last.waiting){'正在启动：'+$last.waiting}
   else{'正在启动，还没有就绪'}
  }
 }
-$passwordFile=Join-Path $h 'webui-initial-password.txt'
+# The first-start password is mentioned only while it is still the password that opens the
+# management interface (the application checks it against the stored credentials).
+$boot=$null
+try{$bootResult=Invoke-App @('bootstrap-state','--home',$h);if(!$bootResult.code -and $bootResult.json){$boot=$bootResult.json|ConvertFrom-Json}}catch{}
 Write-Host ''
 Write-Host ('NeroNet 已启动。状态：'+$status)
 Write-Host ('  机器人 QQ 进程：'+$BotPid+'（'+$botSelection+'）')
 Write-Host  '  管理界面：http://127.0.0.1:5099'
-if(Test-Path -LiteralPath $passwordFile){Write-Host ('  初始密码：'+$passwordFile+'（首次登录后请修改）')}
+if($boot -and $boot.initialPasswordActive){Write-Host ('  初始密码：'+$boot.file+'（首次登录后请修改，修改后这个文件会自动删除）')}
+elseif($boot -and $boot.initialPasswordPending){Write-Host ('  初始密码：就绪后写入 '+$boot.file)}
 Write-Host ('  数据目录：'+$h)
 Write-Host  '  停止：运行 stop.bat'
 if($state -ne 'ready'){Write-Host '  NeroNet 在后台继续运行，就绪后即可使用；状态也可以在管理界面查看。'}
