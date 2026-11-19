@@ -1,6 +1,6 @@
 # NeroNet × AstrBot 接入指南
 
-适用版本：NeroNet 1.5.2；AstrBot 4.x（测试使用 AstrBot v4.29.4 和 v4.30.0-alpha.1）。
+适用版本：NeroNet 1.6.0；AstrBot 4.x（测试使用 AstrBot v4.29.4 和 v4.30.0-alpha.1）。
 
 本目录的文件：本指南、`Connect-AstrBot.ps1`（一步配置脚本）和它调用的 `connect-astrbot.mjs`。
 
@@ -120,11 +120,19 @@ AstrBot 用 Docker 跑在同一台电脑上时，地址写 `ws://127.0.0.1:6199/
 
 `send_msg`、`get_stranger_info`、`get_group_info`、`get_group_member_list`、`get_group_list`、`get_friend_list`、`get_forward_msg`、`send_group_forward_msg`、`send_private_forward_msg`、`send_forward_msg`、`get_group_file_url`、`get_private_file_url`、`get_version_info`、`get_record`、`can_send_image`、`can_send_record`、`delete_msg`、`set_msg_emoji_like`、`send_poke`、`group_poke`、`friend_poke`、`get_group_msg_history`、`get_friend_msg_history`、`upload_group_file`、`upload_private_file`
 
-档案**不含管理类动作**，例如踢人、禁言、设置管理员、改群名片、删好友、读取 Cookie 或凭据。确实需要的插件，把动作逐个写进 `extraActions`，然后重启 NeroNet：
+档案**不含管理类动作**。踢人、禁言、设置管理员、改群名片、删好友、读取 Cookie 或凭据等动作，NeroNet 目前没有实现，写进 `extraActions` 也会返回 `retcode 1404`。NeroNet 已经实现、但不在档案里的动作，可以逐个写进 `extraActions`，然后重启 NeroNet：
 
 ```json
-{"profiles":["astrbot"],"extraActions":["set_group_ban"]}
+{"profiles":["astrbot"],"extraActions":["mark_msg_as_read"]}
 ```
+
+QQ 空间的动作在单独的 `qzone` 档案里，`astrbot` 档案不包含。使用空间插件时把它加进 `profiles`，然后重启 NeroNet：
+
+```json
+{"profiles":["astrbot","qzone"]}
+```
+
+开启后，插件可以调用 `send_qzone_msg`、`delete_qzone_msg`、`get_qzone_msg_list`、`get_qzone_msg_detail`、`set_qzone_msg_right`，不需要填写 Cookie。参数和错误编号见 [部署说明第 10 节](../../docs/DEPLOY.md)。
 
 调用未开放的动作时，NeroNet 返回 `retcode 1404`（wording 为 `NERONET_ACTION_NOT_SUPPORTED`；插件请按 retcode 判断），插件里表现为 `ActionFailed`。NeroNet 日志会写一条「action … is not enabled (from astrbot)」，管理界面「API 终端 → 实时活动」也会显示这次调用。按这些记录判断是否要开放该动作。
 
@@ -166,16 +174,18 @@ AstrBot 用 Docker 跑在同一台电脑上时，地址写 `ws://127.0.0.1:6199/
 | `astrbot_plugin_meting`（点歌） | NeroNet 侧正常；搜歌需要外网，测试环境中返回插件的错误提示 |
 | `astrbot_plugin_qq_tools`（大模型工具） | 已加载；能否调用撤回等工具取决于所用模型的工具调用能力 |
 | `astrbot_plugin_anti_revoke`、`astrbot_plugin_link_resolver` | 已加载；动作均在档案内 |
+| `astrbot_plugin_qzone_bridge` v2.1.0（QQ 空间桥接，未修改） | 通过（需要开启 `qzone` 档案）：在插件的管理页面发表文字、图片、指定好友可见的说说并删除；图片不合格时插件显示 NeroNet 返回的原因。NeroNet 1.6.0、AstrBot v4.29.4、QQ 9.9.36 |
 | `astrbot_plugin_meme_manager` | 已加载；与 AstrBot 测试版本的人格功能存在兼容问题，属插件与 AstrBot 之间的问题 |
 
 插件只要调用档案内的动作，就不需要额外配置。群分析插件会在 `get_stranger_info` 之后再尝试非标准动作 `get_user_info` 来获取头像。NeroNet 不提供 `get_user_info`，返回 1404，不影响报告生成。
 
 ## 10. 已知限制
 
-- **测试所用版本**：本指南的测试在 NeroNet 1.3.0 至 1.4.x 的构建和 QQ 9.9.25 上完成。之后在 NeroNet 1.5.1、AstrBot v4.29.4 和 QQ 9.9.37 上按“全新安装”重新测试了：一步配置、`astrbot` 档案的动作、私聊和群聊对话（指令、唤醒前缀、@ 机器人）、收图、两边各自重启后的自动重连；1.5.2 上回归了一步配置和私聊指令。插件市场的测试没有重做。NeroNet 支持的 QQ 版本见 `docs\KNOWN_LIMITS.md`。
+- **测试所用版本**：本指南的测试在 NeroNet 1.3.0 至 1.4.x 的构建和 QQ 9.9.25 上完成。之后在 NeroNet 1.5.1、AstrBot v4.29.4 和 QQ 9.9.37 上按“全新安装”重新测试了：一步配置、`astrbot` 档案的动作、私聊和群聊对话（指令、唤醒前缀、@ 机器人）、收图、两边各自重启后的自动重连；1.5.2 上回归了一步配置和私聊指令；1.6.0 上回归了指令和对话。插件市场的测试没有重做。NeroNet 支持的 QQ 版本见 `docs\KNOWN_LIMITS.md`。
 - **长时间运行**：没有做过长时间连续运行的专门测试。在开发和测试过程中，没有出现过因 QQ 风控或其他原因被强制下线的情况。
 - **插件**：AstrBot 插件市场有一千多个插件，不可能逐个保证。档案按 AstrBot 核心和 61 个热门插件的实际调用确定，并对 9 个插件做了实装测试。需要管理动作或非标准动作的插件，按第 6 节处理。
-- **管理动作**：踢人、禁言等动作默认关闭。开放之后，请自行在测试群验证。
+- **管理动作**：踢人、禁言等群管理动作目前没有实现，需要这些功能的插件无法使用。
+- **QQ 空间插件**：只测试了上表中的 `astrbot_plugin_qzone_bridge`，它通过 NeroNet 的空间动作工作。自己读取 Cookie（`get_cookies`、`get_credentials`）再访问空间的插件，例如自动点赞类插件，不能使用：NeroNet 不提供 Cookie。该插件由大模型自动发说说的功能没有测试。
 - **大模型工具调用**：「撤回」「戳一戳」这类由大模型自己决定调用的工具，是否真的执行取决于所用模型。小模型可能只用文字回答「已撤回」而没有实际调用；这与 NeroNet 无关，对应的动作本身已测试通过。
 - **跨机器部署**：AstrBot 在其他电脑或 Docker 中时，NeroNet 走的代码路径与同机部署相同，区别只在连接地址。测试环境中两台机器之间不能直接连接，因此跨机器场景是用两项测试来确认的：NeroNet 连接 AstrBot 的局域网地址（非回环地址）且 AstrBot 监听 0.0.0.0；文件和视频经 `callback_api_base` 链接下载。没有在两台真实的机器之间测试。
 - **合并转发**：

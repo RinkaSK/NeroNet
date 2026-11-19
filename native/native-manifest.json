@@ -1,26 +1,43 @@
 {
-  "schema": 2,
-  "buildEvidenceSha256": "5d40399e87724a1bd7d39422fdb40f9092c118ddd1b58e1dec996df5c3a17b86",
+  "schema": 3,
+  "controlAbi": 8,
+  "buildEvidenceSha256": "66eeef24ebd997a831a088034c494d3ec6a25e826cd80dc665538e4daefabfd3",
+  "bindingRuleId": "48cea7a033e73cc88fc182d90198bf06453f61926e60826e573f21f17dd6b6b3",
   "artifacts": [
     {
+      "name": "licenses/Capstone-LICENSE.txt",
+      "bytes": 1687,
+      "sha256": "65e9ed46a59976eda8f5bd1ea79a680dea38dd299c760bc9a8d87a764ef5029b"
+    },
+    {
+      "name": "licenses/Capstone-LLVM-LICENSE.txt",
+      "bytes": 3331,
+      "sha256": "dfdca2d7fdbabfd937f9dc41b7f61647b0e6cb1f9ee767ecb4520f979ebe91da"
+    },
+    {
+      "name": "licenses/NOTICE.md",
+      "bytes": 545,
+      "sha256": "f9d01104ae75ff4493d4d30ba07e49455a7df69ec140043d9bee839c4fe8f148"
+    },
+    {
       "name": "neronet.binding",
-      "sha256": "b19eb53443296d2bf0ef35ed3328e6fadc876bc6d7ceb34a93fde6f79f83b151",
-      "bytes": 4413
+      "bytes": 4413,
+      "sha256": "b19eb53443296d2bf0ef35ed3328e6fadc876bc6d7ceb34a93fde6f79f83b151"
     },
     {
       "name": "neronet_live_binding.dll",
-      "sha256": "549ea0f45949c0180d965aa33f36be78ada09028fb9b57361ac1b5d92cdb0de7",
-      "bytes": 439296
+      "bytes": 453632,
+      "sha256": "f63d7fb980d8358117bb4e8f0c31bf81d1e9a3c8ba68e11ec3e4ebfef32c524c"
     },
     {
       "name": "neronet_native_host.exe",
-      "sha256": "30e1b05799131874cea5de194dacc777b0c3585d8bfddb31bee40cba93edf82d",
-      "bytes": 289280
+      "bytes": 2932736,
+      "sha256": "2a0c7d1b47e1876c8f86d22f5e46d170fff8614e44de972852ad72ea82973b6b"
     },
     {
       "name": "neronet_receive_consumer.dll",
-      "sha256": "1061329d265babf35defac955a9c113bb1915d3a34ddc968ae848e8abd71a9d9",
-      "bytes": 118784
+      "bytes": 118784,
+      "sha256": "1061329d265babf35defac955a9c113bb1915d3a34ddc968ae848e8abd71a9d9"
     }
   ]
 }

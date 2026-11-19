@@ -1,6 +1,6 @@
 # NeroNet 部署与更新
 
-适用版本：1.5.2。示例中的路径和进程号请换成实际值。
+适用版本：1.6.0。示例中的路径和进程号请换成实际值。
 
 ## 1. 准备
 
@@ -55,6 +55,13 @@ NeroNet 已启动。状态：已就绪
 - 用 `stop.bat` 停止的 NeroNet 不会自动恢复；恢复过程中运行 `stop.bat` 也会立即停止。
 - 恢复时如果登录的不是绑定的机器人账号，或者 QQ 还没登录完，NeroNet 按第 2、3 节的规则保持等待。
 
+接入 QQ 失败时：
+
+- 启动窗口会显示这次失败的原因、QQ 的版本、组件返回的原始结果和处理建议。组件没有给出具体原因时，窗口会如实写“原因尚未确认”。
+- 一次接入的结果不能确认时（例如组件没有确认已经清理完成），NeroNet 会对这个 QQ 进程启用保护，在它退出之前不再接入。保护记录是 `data` 目录里的 `native-startup-unresolved.json`，其中也保存了当时的原因。
+- 解除保护的方法是正常退出这个 QQ 进程：在 QQ 主菜单里选“退出”，只关闭窗口或只退出账号时进程可能还在。QQ 进程退出后保护自动解除，不需要手动删除文件。如果失败的原因没有处理，重新登录后会再次得到同样的结果。
+- 反馈问题时，请提供启动窗口显示的内容，以及 `data\supervisor-metadata.jsonl` 里这次启动的记录（同一次启动的记录带有相同的 `runId`）。不要发送密码、令牌、数据库和聊天内容。
+
 ## 3. 电脑上有多个 QQ
 
 NeroNet 不会在多个 QQ 之间自己挑选，启动会报错并列出进程号。这时用参数启动（在 NeroNet 文件夹里打开 PowerShell）：
@@ -104,6 +111,8 @@ Get-Process QQ | Where-Object { try { $_.Modules.ModuleName -contains 'wrapper.n
 
 备份时备份整个数据目录。其中有令牌和聊天内容，请按敏感数据保管。
 
+数据目录之外，NeroNet 还会把识别 QQ 程序文件的结果保存在当前 Windows 用户的 `%LOCALAPPDATA%\NeroNet\binding-cache` 里（不含账号和聊天数据）。删除它只会让下次接入时重新识别一次。
+
 ## 5. 更新和回退
 
 NeroNet 只支持完整包更新，没有在线更新。
@@ -119,7 +128,7 @@ NeroNet 只支持完整包更新，没有在线更新。
 
 回退：停止新版本，正常退出并重新登录机器人 QQ，回到旧文件夹启动。更新前请保留旧文件夹；消息库和图片引用不保证跨版本通用，回退时使用更新前的那份 `data`。
 
-QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝接入。建议关闭 QQ 的自动更新，更新 QQ 之前先确认 NeroNet 是否支持新版本。
+QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几秒，最长几分钟，启动窗口会显示“正在识别当前 QQ”），识别成功就照常接入。识别不了时会显示原因，这时 NeroNet 不会接入这个 QQ。用于正式服务的机器人，建议关闭 QQ 的自动更新，先在测试环境确认新版本可用再更新。
 
 ## 6. 环境变量
 
@@ -179,7 +188,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
    $node    = 'C:\Tools\node-v24.22.1-win-x64\node.exe'
    $profile = 'C:\NeroNet-config\deployment.json'
    .\scripts\Test-NeroNet.ps1 -NodePath $node
-   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.5.2'
+   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.6.0'
    ```
 
    安装脚本把文件复制到一个新目录并再次核对。目标目录已存在时拒绝执行，不会覆盖旧版本。
@@ -187,7 +196,7 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
 3. 启动和停止：
 
    ```powershell
-   Set-Location 'C:\NeroNet\1.5.2'
+   Set-Location 'C:\NeroNet\1.6.0'
    .\scripts\Start-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -HomeDirectory 'C:\NeroNet-data\bot'
    .\scripts\Stop-NeroNet.ps1 -HomeDirectory 'C:\NeroNet-data\bot'
    ```
@@ -195,3 +204,58 @@ QQ 自身更新后，新版本可能不在已适配范围内，NeroNet 会拒绝
    每个机器人使用自己的数据目录。`-BotPid`、`-AdminPid` 的用法与第 3 节相同。更新时把新版本安装到新目录，用同一份部署配置和数据目录启动；`-NativeDirectory` 只能指向与当前包的清单完全一致的 Native 组件。
 
 `scripts\Test-NeroNet.ps1` 证明文件完整，不是发布者签名。
+
+## 10. QQ 空间
+
+QQ 空间的动作默认不开放。在数据目录的 `config\neronet-actions.json` 的 `profiles` 中加入 `qzone`，然后正常重启 NeroNet：
+
+```json
+{"profiles":["astrbot","qzone"]}
+```
+
+不需要填写 Cookie，NeroNet 用已登录的机器人 QQ 取得空间的登录态。
+
+| 动作 | 参数 | 返回 |
+|---|---|---|
+| `send_qzone_msg` | `content` 正文（必填）；`images` 图片数组，最多 9 张，可以是 `base64://`、`http(s)://`、`file://` 或本地路径；`ugc_right` 查看权限，默认 1；`target_uins` QQ 号数组，权限为 16 或 128 时必填 | `{tid, time}` |
+| `delete_qzone_msg` | `tid` | 无 |
+| `get_qzone_msg_list` | `target_uin`（省略为机器人自己）、`pos`（默认 0）、`num`（1 到 40，默认 20） | `{total, pos, num, msglist}` |
+| `get_qzone_msg_detail` | `tid`、`target_uin`、`pos`、`num`（评论分页） | `{tid, uin, content, time, images, comment_num, comments, ugc_right}` |
+| `set_qzone_msg_right` | `tid`、`ugc_right`、`target_uins` | `{tid, ugc_right, target_uins, confirmed}` |
+
+查看权限 `ugc_right`：1 所有人可见，4 好友可见，16 只有 `target_uins` 中的好友可见，64 仅自己可见，128 `target_uins` 中的好友不可见。
+
+**注意：`send_qzone_msg` 不传 `ugc_right` 时是所有人可见。** 试用时建议明确传 `ugc_right: 64`（仅自己可见），确认无误后再放开。
+
+失败时返回的 `wording` 以错误编号开头，后面是原因、出错的阶段和处理办法：
+
+| 错误编号 | 含义 |
+|---|---|
+| `NERONET_QZONE_PARAM_INVALID` | 参数不正确（`retcode 1400`） |
+| `NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE` | 机器人 QQ 不在线 |
+| `NERONET_WEB_CREDENTIALS_UNAVAILABLE` | 没有取得空间的登录态 |
+| `NERONET_QZONE_AUTH_EXPIRED` | QQ 空间不接受当前登录态（已自动刷新过一次） |
+| `NERONET_QZONE_VERIFICATION_REQUIRED` | QQ 空间要求人工验证，需要用机器人账号手动完成 |
+| `NERONET_QZONE_PERMISSION_DENIED` | 没有权限 |
+| `NERONET_QZONE_RATE_LIMITED` | QQ 空间提示操作频繁，过一段时间再试 |
+| `NERONET_QZONE_POST_NOT_FOUND` | 说说不存在或已经删除 |
+| `NERONET_QZONE_DELETE_NOT_CONFIRMED` | QQ 空间接受了删除请求，但说说仍然存在；过一会儿再删一次 |
+| `NERONET_QZONE_UPLOAD_FAILED` | 某一张图片读取或上传失败，说说没有发表；提示里写明是第几张 |
+| `NERONET_QZONE_OUTCOME_UNKNOWN` | 请求已发出但没有收到结果，可能已经生效；NeroNet 不会自动重发，请先到空间核对 |
+| `NERONET_QZONE_NETWORK_FAILED` | 连接 QQ 空间失败 |
+| `NERONET_QZONE_RESPONSE_INVALID` | QQ 空间的响应无法识别 |
+| `NERONET_QZONE_REMOTE_ERROR` | QQ 空间返回的其他错误，提示里带有原始的 code 和 subcode |
+| `NERONET_QZONE_BUSY` | 同时等待处理的空间请求太多 |
+| `NERONET_SESSION_CHANGED` | NeroNet 正在停止或账号会话已变化，结果没有交付 |
+
+使用时注意：
+
+- 每条说说最多 9 张图片，单张不超过 10 MiB，合计不超过 40 MiB，正文不超过 10000 字。这些是 NeroNet 自己的限制，不是 QQ 空间公布的上限。
+- 任何一张图片失败，整条说说都不会发表；这时已经上传的图片会留在机器人账号的空间相册里，NeroNet 不能代为删除。
+- 发表、删除、修改权限的请求发出后如果没有收到结果（超时、断线），会返回 `NERONET_QZONE_OUTCOME_UNKNOWN`，NeroNet 不会自动重发，请先到空间核对。
+- 删除后 NeroNet 会读回确认。测试中遇到过一次：带图说说发表 4 秒后删除，QQ 空间返回成功但说说还在。遇到这种情况 NeroNet 会等一下再删一次，仍然存在时返回 `NERONET_QZONE_DELETE_NOT_CONFIRMED`。
+- 修改权限时 QQ 空间要求重新提交整条说说，NeroNet 会先读取原文再提交，并在修改后读回确认。
+- 说说列表每页最多 40 条。测试账号上，列表的第一条线路一直返回“使用人数过多”，NeroNet 会改用第二条线路；两条线路都不可用时返回 `NERONET_QZONE_RATE_LIMITED`。
+- QQ 空间要求人工验证时，NeroNet 会返回 `NERONET_QZONE_VERIFICATION_REQUIRED`，不会绕过验证。
+- QQ 空间的登录态只保存在内存里，停止、掉线后作废，不写入日志、运行记录和备份。
+- NeroNet 访问 QQ 空间时使用和下载图片相同的网络设置（包括代理）。

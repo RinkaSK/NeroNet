@@ -49,7 +49,7 @@ var init_product = __esm({
     "product.json"() {
         product_default = {
             name: "NeroNet",
-            version: "1.5.2",
+            version: "1.6.0",
             slug: "neronet",
             copyrightHolder: "NeroNet 项目组",
             ownershipStatement: "Copyright 2026 NeroNet 项目组 · PolyForm Noncommercial 1.0.0"
@@ -234,6 +234,452 @@ var init_native_start_policy = __esm({
     "native-start-policy.mjs"() {
     }
 });
+var ROWS, NATIVE_ERRORS, NATIVE_ERRORS_BY_CODE;
+var init_native_error_catalog = __esm({
+    "native-error-catalog.mjs"() {
+        ROWS = [
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_IMAGE_FILE_UNAVAILABLE", 10001, "无法读取 QQ 映像文件", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_DIGEST_INIT_FAILED", 10002, "无法初始化 QQ 映像摘要计算", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_DIGEST_READ_FAILED", 10003, "读取或计算 QQ 映像摘要失败", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_DIGEST_FAILED", 10004, "无法完成 QQ 映像摘要计算", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_ADDRESS_NOT_IN_MAPPED_IMAGE", 10005, "绑定地址不属于可读取的 QQ 映像", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_ADDRESS_CROSSES_REGION", 10006, "绑定地址范围跨越可读取内存区域", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_SECTION_PERMISSION_MISMATCH", 10007, "绑定地址的内存权限与预期不符", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_EMPTY_BINDING_DESCRIPTOR", 10008, "绑定条目为空", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_FORMAT_UNSUPPORTED", 10009, "绑定条目格式不受支持", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_DESCRIPTOR_TOO_LARGE", 10010, "绑定条目超过大小限制", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_FIELD_SYNTAX", 10011, "绑定字段语法错误", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_DUPLICATE_BINDING_FIELD", 10012, "绑定条目包含重复字段", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_INVALID_BINDING_HASH", 10013, "绑定条目的摘要格式错误", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_UNKNOWN_BINDING_FIELD", 10014, "绑定条目包含未知字段", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_INVALID_BINDING_INTEGER", 10015, "绑定条目的数值格式错误", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_INCOMPLETE_BINDING_DESCRIPTOR", 10016, "绑定条目字段不完整或读取失败", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_UNSUPPORTED_BINDING_ABI_FAMILY", 10017, "绑定条目的接口族或固定槽位不受支持", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_CORESERVICE_HAS_NO_LEGACY_SESSION_MESSENGER_FIELDS", 10018, "Core 绑定条目错误地包含传统会话字段", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_REQUIRED_BINDING_INTEGER_IS_ZERO", 10019, "绑定条目的必需数值缺失", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_CORESERVICE_ROUTE_INTERFACE_CONTRACT_MISSING", 10020, "Core 绑定条目缺少路由或接收接口契约", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_INCOMPLETE_SERVICE_ROUTE_GUARD", 10021, "服务路由字段与初始化标记不成对", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_SERVICE_ROUTE_GUARD_OUTSIDE_IMAGE", 10022, "服务路由地址超出 QQ 映像范围", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_OBJECT_FIELD_INVALID", 10023, "绑定条目的对象偏移不符合范围或对齐要求", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_RVA_OUTSIDE_IMAGE", 10024, "绑定条目的代码或数据地址超出映像范围", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_TOO_LARGE", 10025, "绑定目录超过大小限制", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_READ_FAILED", 10026, "读取绑定目录失败", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_EMPTY_BINDING_CATALOG", 10027, "绑定目录为空或未成功打开", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_FORMAT_UNSUPPORTED", 10028, "绑定目录格式不受支持", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_LINE_TOO_LONG", 10029, "绑定目录中的行超过长度限制", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_NESTING_COUNT_INVALID", 10030, "绑定目录的嵌套格式或条目数量错误", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_UNEXPECTED_TERMINATOR", 10031, "绑定目录出现多余的结束标记", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_DUPLICATE_IMAGE_FAMILY_BINDING", 10032, "同一 QQ 映像和服务族存在重复绑定", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_CONFLICTING_IMAGE_ROUTE_CONTRACTS", 10033, "同一 QQ 映像存在冲突的路由契约", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_TEXT_OUTSIDE_ENTRY", 10034, "绑定目录含有条目以外的内容", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_ENTRY_TOO_LARGE", 10035, "绑定目录中的单条记录超过大小限制", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_CATALOG_INCOMPLETE", 10036, "绑定目录缺少结束标记或没有有效条目", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_ROUTE_READER_UNAVAILABLE", 10037, "服务路由读取器未配置", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_QQ_SERVICE_ROUTE_UNINITIALIZED_OR_UNSUPPORTED", 10038, "QQ 服务路由尚未初始化或路由值不受支持", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_INCOMPLETE_ROUTE_CONTRACT", 10039, "服务路由契约不完整", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_CONFLICTING_ROUTE_SELECTOR", 10040, "同一映像的服务路由选择配置冲突", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_AMBIGUOUS_ACTIVE_SERVICE_BINDING", 10041, "当前服务匹配到多条绑定，已拒绝选择", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_QQ_IMAGE_NOT_ADMITTED", 10042, "当前 QQ 映像未收录在此包的绑定目录中", "当前包没有此映像条目；使用已验证构建，或等待补齐并验证绑定；反复登录不能补齐条目"],
+            ["NERONET_SERVICE_FAMILY_NOT_ADMITTED", 10043, "此包没有当前 QQ 实际服务族的绑定", "核实当前实际服务族；需补齐并验证此服务族绑定，不得强制修改 QQ 路由"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_MODULE_ABSENT", 10044, "QQ 模块基址不可用", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_OWN_MODULE_UNAVAILABLE", 10045, "无法取得 Native 组件模块信息", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_MODULE_PATH_UNAVAILABLE", 10046, "无法取得 Native 或 QQ 模块路径", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_QQ_SERVICE_ROUTE_READ_FAILED", 10047, "读取 QQ 服务路由状态失败", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_PE_HEADER_MISMATCH", 10048, "QQ 模块的 PE 文件头不符合要求", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_BINDING_DESCRIPTOR_BINDING_MAPPED_PE_MISMATCH", 10049, "QQ 模块架构或映像大小与绑定条目不符", "检查绑定文件完整性、格式和实际映像身份；不要绕过校验；导出此项诊断给维护者"],
+            ["NERONET_LIVE_PROVIDER_MODULE_FILE_UNAVAILABLE", 10050, "无法读取正在使用的 QQ 模块文件", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_SHA256_UNAVAILABLE", 10051, "系统摘要算法不可用", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_SHA256_CREATE_FAILED", 10052, "无法创建摘要计算对象", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_SHA256_FAILED", 10053, "QQ 模块摘要计算失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_PROCESS_PATH_UNAVAILABLE", 10054, "无法取得 QQ 进程路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_UNEXPECTED_PROCESS_IMAGE", 10055, "当前进程不是预期的 QQ 可执行文件", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_WRAPPER_IS_NOT_ALREADY_LOADED", 10056, "QQ 进程尚未加载通信模块", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_MODULE_PATH_UNAVAILABLE", 10057, "无法取得 QQ 通信模块路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_WRAPPER_OUTSIDE_SELECTED_QQ_INSTALLATION", 10058, "通信模块不属于所选 QQ 安装目录", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_MODULE_CHANGED_AFTER_DESCRIPTOR_VALIDATION", 10059, "绑定校验后 QQ 模块文件发生变化", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_DESCRIPTOR_DOES_NOT_MATCH_SELECTED_SERVICE_FAMILY", 10060, "绑定条目与 QQ 当前服务路由不符或路由未就绪", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_EXISTING_SERVICE_UNAVAILABLE", 10061, "已有 QQ 服务对象缺失或类型校验不通过", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_EXISTING_SESSION_MESSENGER_UNAVAILABLE", 10062, "已有 QQ 会话或消息对象尚不可用", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_MODULE_PIN_FAILED", 10063, "无法持有 QQ 模块以保证调用期间有效", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_GETTER_FAILED_EXISTING_SERVICE_IDENTITY_CHECK", 10064, "取得的 QQ 服务未通过身份检查", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_MSF_STATUS_SERVICE_IDENTITY_MISMATCH", 10065, "查询在线状态时 QQ 服务对象身份不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_MSF_STATUS_ABI_MISMATCH", 10066, "查询在线状态的接口与绑定契约不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_IDENTITY_SERVICE_MISMATCH", 10067, "读取账号状态时 QQ 服务对象身份不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_IDENTITY_OBJECT_TYPE_MISMATCH", 10068, "账号检查所用的会话或消息对象类型不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_KIND1_BINDING_ABSENT", 10069, "消息发送绑定条目不可用", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_PROVIDER_CORE_COMMAND_TRANSPORT_SLOT_MISMATCH", 10070, "Core 消息发送槽位与绑定契约不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_EXECUTOR_MSF_EXECUTOR_CALLABLE_CAPACITY_MISMATCH", 10071, "QQ 执行器的任务存储参数不符合约定", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_EXECUTOR_NATIVE_EXECUTOR_INPUTS", 10072, "Native 执行器输入不完整", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_EXECUTOR_MSF_EXECUTOR_HOLDER_MISSING", 10073, "QQ 执行器持有对象尚不可用", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_EXECUTOR_MSF_EXECUTOR_MISSING", 10074, "QQ 执行器对象或控制块尚不可用", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_OUTPUT_QUEUE_REJECTED", 10075, "输出编码失败或输出队列拒绝接收", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_FOREIGN_CALLBACKS_OR_LOCAL_COMPLETION_STILL_OUTSTANDING_RETAINED_FOR_LATER_CLOSE", 10076, "仍有回调或任务未排空，保留组件等待后续清理", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_SUBSCRIPTION_LEASE_RELEASE", 10077, "接收订阅的服务持有释放未成功", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_SERVICE_RELEASE_INCOMPLETE", 10078, "服务释放任务未成功完成或仍未返回", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_RUNTIME_MUST_BE_FULLY_STOPPED_BEFORE_REOPEN", 10079, "上一个运行实例尚未完全停止，不能重新初始化", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_IPC_CREATE_FAILED", 10080, "创建 NeroNet 本地通信管道失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_SELF_PIN_FAILED", 10081, "无法固定 Native 代码以保证回调期间有效", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_ACCOUNT_OR_SESSION_INVALIDATED_FRESH_QQ_PROCESS_REQUIRED", 10082, "原账号或会话已失效，需要退出并重新启动 QQ", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_SESSION_GENERATION_CHANGED_FRESH_QQ_PROCESS_REQUIRED", 10083, "QQ 会话实例已更换，需要退出并重新启动 QQ", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_SUBSCRIPTION_REOPEN_REJECTED", 10084, "已有接收订阅无法重新开启", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_RUNTIME_REAL_REGISTRATION_FAILED", 10085, "接收注册任务失败、未释放或未取得订阅对象", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_RUNTIME_NOT_STARTED", 10086, "Native 运行实例尚未建立", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_SEND_INVALID_OWN_FRAME", 10087, "发送数据不符合内部帧格式", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_SEND_NOT_THE_AUTHORIZED_MESSAGE_COMMAND", 10088, "单次发送探针只允许规定的消息命令和参数", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_CORESERVICE_ACCOUNT_OWNERSHIP_IS_NOT_COHERENT", 10089, "Core 账号持有关系不一致", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_CORESERVICE_CONTEXT_MISSING", 10090, "Core 上下文对象或控制块缺失", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_SESSION_CHANGED_BEFORE_LEASE", 10091, "持有前 QQ 会话或消息对象已不可用", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_SESSION_MESSENGER_TYPE_MISMATCH", 10092, "QQ 会话或消息对象类型与绑定不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_LIVE_ACCOUNT_IDENTITY_IS_NOT_COHERENT", 10093, "运行账号身份关系不一致", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_TASKMANAGER_MISSING", 10094, "诊断所需的任务管理对象不存在", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_TASKMANAGER_TABLE_UNREADABLE", 10095, "诊断所需的任务表不可读取", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_TASKMANAGER_TABLE_RANGE", 10096, "诊断所需的任务表范围不足", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_NATIVE_CALLABLE_OUTSTANDING", 10097, "取得对象的执行任务仍被 QQ 持有", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_LIVE_LEASE_ACQUISITION_FAILED", 10098, "取得并持有 QQ 对象的任务未成功完成", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_CORESERVICE_CONTEXT_REPLACED_LEASE_RETAINED", 10099, "Core 上下文发生替换，原持有暂时保留", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_SESSION_GENERATION_CHANGED_LEASES_RETAINED", 10100, "QQ 会话发生替换，原持有暂时保留", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_RELEASE_CALLABLE_OUTSTANDING", 10101, "释放对象的执行任务仍被 QQ 持有", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_LIVE_BINDING_PROBE_LIVE_LEASE_RELEASE_FAILED", 10102, "QQ 对象持有释放任务未成功完成", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_INVALID_NATIVE_STRING", 10103, "收到的 Native 字符串长度或指针不合法", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_MISSING_NATIVE_PUSH", 10104, "收到的 Push 对象或控制块缺失", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_DUPLICATE_FIXTURE", 10105, "诊断 Push 样本重复", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_NO_BODY_HOLDER", 10106, "收到的 Push 缺少包体持有对象", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_BAD_BODY_RANGE", 10107, "收到的 Push 包体范围不合法或超过上限", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_PUSH_SOURCE_OR_COMMAND_MISMATCH", 10108, "收到的 Push 来源或命令不符合注册要求", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_PUSH_REGISTRATION_INPUT_REJECTED", 10109, "接收注册参数不完整或命令格式不合法", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_CANNOT_RETAIN_OWN_RESIDENT_CODE", 10110, "无法保留接收回调代码", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_RESIDENT_MODULE_PATH_UNAVAILABLE", 10111, "无法取得接收回调组件路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_OWN_CONSUMER_DLL_CONTRACT_REJECTED", 10112, "接收消费组件加载或接口检查失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_PUSH_REGISTRATION_SLOT_MISMATCH", 10113, "接收注册接口槽位与绑定契约不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_PUSH_COMMAND_ALLOCATION_FAILED", 10114, "分配接收订阅命令容器失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_LEGACY_LOCAL_PUSH_FIXTURE_IS_UNAVAILABLE_FOR_THIS_IMAGE", 10115, "此映像不支持旧版诊断 Push 样本", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_TARGET_PATH_UNAVAILABLE", 10116, "无法取得诊断目标模块路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_SESSION_TYPE_MISMATCH", 10117, "诊断目标会话类型不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_SESSION_DEFAULT_PUSH_HANDLER_MISMATCH", 10118, "诊断所需的默认 Push 处理接口不符", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_TARGET_PUSH_FIXTURE_CAPTURE_FAILED", 10119, "未取得有效的诊断 Push 样本", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_MISSING_FIXTURE_OWNER", 10120, "诊断 Push 样本持有对象缺失", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_DISPATCHPUSH_SLOT_MISMATCH", 10121, "诊断 Push 分派接口不符合约定", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_PUSH_SUBSCRIPTION_CONSUMER_RELOAD_FAILED", 10122, "接收消费组件重新加载失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_SYSTEM_EXPORT_UNAVAILABLE", 10123, "无法取得系统远程调用入口", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_REMOTE_SYSTEM_MODULE_UNAVAILABLE", 10124, "目标进程缺少对应的系统模块", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_CREATEREMOTETHREAD_FAILED", 10125, "无法在所选 QQ 进程创建执行线程", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_THREAD_DID_NOT_FINISH_LEAVE_REMOTE_ALLOCATION_MODULE_INTACT", 10126, "等待 QQ 内执行线程超时或失败，执行结果未确认", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_THREAD_RESULT_UNAVAILABLE", 10127, "无法取得 QQ 内执行线程的返回值", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_USAGE_NERONET_NATIVE_HOST_PID_DLL_RETIRE_REJECTED_NO_LEASES_SEND_FRAME_FILE", 10128, "Native 启动器参数数量不正确", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_UNKNOWN_SEND_ACTION", 10129, "Native 启动器的发送操作参数不受支持", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_DEPLOYMENT_SETTING_MISSING", 10130, "Native 部署路径配置缺失或长度超限", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_ABSOLUTE_DEPLOYMENT_PATH_REQUIRED", 10131, "Native 部署路径必须是绝对路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_CONFIGURED_QQ_IMAGE_REJECTED", 10132, "配置的 QQ 程序文件名不正确", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_RUNNER_PATH_UNAVAILABLE", 10133, "无法取得 Native 启动器自身路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_NATIVE_INSTALLATION_MISMATCH", 10134, "Native 启动器与 DLL 的安装目录或文件名不匹配", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_INVALID_PID", 10135, "指定的 QQ 进程编号无效", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_TARGET_ACCESS_FAILED", 10136, "无法取得 QQ 进程访问权限", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_TARGET_PROCESS_IMAGE_REJECTED", 10137, "无法核实目标程序路径，或目标不是所选 QQ 程序", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_TARGET_LACKS_EXISTING_WRAPPER", 10138, "未找到 QQ 已加载的通信模块，或模块枚举失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_UNKNOWN_ACTION", 10139, "Native 启动器操作参数不受支持", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_REJECTED_RUN_RETIREMENT_PRECONDITIONS_NOT_PROVEN", 10140, "诊断组件退役所需的安全条件未得到证明", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_NO_TEST_DLL_TO_RETIRE", 10141, "没有找到可退役的诊断组件", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_EXISTING_TEST_DLL_PRESERVED_INVESTIGATE_PREVIOUS_RUN", 10142, "诊断组件已驻留，当前操作拒绝覆盖", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_LOADED_DLL_DIFFERS_FROM_REQUESTED_BUILD_NO_CROSS_BUILD_RVA_CALLS", 10143, "QQ 中驻留的是另一目录的 Native 组件", "正常退出目标 QQ 进程，再使用同一套构建重新启动；不能热换驻留 DLL"],
+            ["NERONET_NERONET_NATIVE_HOST_RUNTIME_NOT_LOADED", 10144, "QQ 进程尚未加载 NeroNet Native 组件", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_PROBE_EXPORT_INSPECTION_FAILED", 10145, "无法检查 Native DLL 的导出入口", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ", 10146, "QQ 中驻留的 Native 构建与当前文件不一致", "正常退出目标 QQ 进程，再使用同一套构建重新启动；不能热换驻留 DLL"],
+            ["NERONET_NERONET_NATIVE_HOST_PROBE_EXPORT_MISSING", 10147, "Native DLL 缺少所请求的导出入口", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_REQUEST_MUST_BE_A_LOCAL_REVIEWED_QHP_FILE", 10148, "单次发送请求不是同目录的规定帧文件", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_REQUEST_LENGTH", 10149, "单次发送请求文件为空或超过容量限制", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_REQUEST_READ", 10150, "读取单次发送请求文件失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_REQUEST_ALREADY_ATTEMPTED_NO_AUTOMATIC_RETRY", 10151, "请求尝试标记创建失败，可能已尝试过此请求", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_TEST_DLL_PATH_ALLOCATION_FAILED", 10152, "无法在目标进程分配或写入 Native DLL 路径", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_TEST_DLL_DID_NOT_LOAD", 10153, "请求加载后未找到 Native DLL", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_NATIVE_BUILD_INSPECTION_FAILED", 10154, "无法检查 Native 构建信息", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_RUNTIME_RECORD_ALLOCATION", 10155, "无法在 QQ 进程分配或写入运行控制记录", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_RUNTIME_RESULT_READ", 10156, "无法完整读取 QQ 进程中的运行控制结果", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_SEND_RECORD_ALLOCATION_FAILED", 10157, "无法在 QQ 进程分配或写入单次发送记录", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_SEND_RESULT_READ_FAILED", 10158, "无法完整读取单次发送结果", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_INVALID_OWN_OUTPUT_LENGTH", 10159, "单次发送返回的输出长度超过记录容量", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_PRIVATE_RESULT_ALLOCATION_FAILED", 10160, "无法在 QQ 进程分配或写入诊断结果记录", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NERONET_NATIVE_HOST_PRIVATE_RESULT_READ_FAILED", 10161, "无法完整读取诊断结果记录", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_FOREIGN_PROVIDER_PROVIDER_REQUIRES_GETTER_REAL_LIFETIME_PIN_AND_CLASSIFIER", 10162, "Provider 缺少取得接口、模块持有或身份检查器", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_FOREIGN_PROVIDER_PROVIDER_GETTER_RETURNED_ANOTHER_RESULT_RECORD", 10163, "QQ 服务取得接口返回了意外的结果记录", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_FOREIGN_PROVIDER_PROVIDER_OBJECT_HAS_NO_OWNED_CONTROL_RECORD", 10164, "QQ 服务对象缺少可持有的控制块", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_DELIVERY_C_INPUT_PREPARATION_FAILED", 10165, "构造消息命令和包体容器失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_INVALID_SHORT_STRING", 10166, "回调短字符串长度不合法", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_UNSUPPORTED_CALLBACK_STRING", 10167, "回调字符串长度或指针不符合约定", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_INVALID_CALLBACK_RANGE", 10168, "回调字节容器的范围不合法", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_EXACTLY_ONE_VALIDATED_CALLABLE_HOST_DOMAIN_AND_DIAGNOSTICS_REQUIRED", 10169, "发送目标绑定、生命周期或诊断配置不完整", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_INVALID_PROVIDER_LEASE", 10170, "发送所持的 Provider 身份或生命周期无效", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_NO_REPLY_DISPATCH_NOT_ENABLED_BY_THIS_VERIFIED_SLICE", 10171, "当前发送边界未开放无回调模式", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_MISSING_COMPLETION", 10172, "需要回执的发送缺少完成上下文", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_KIND1_ABI_DELIVERY_C_TARGET_REJECTED", 10173, "Native 发送桥拒绝调用目标", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_SEND_ADAPTER_CONTROL_ENCODING", 10174, "内部发送控制帧编码失败", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_SEND_ADAPTER_SEND_ADAPTER_REQUIRES_DECODED_OP2", 10175, "发送适配器收到非发送类型的帧", "记录失败阶段与详细状态，交由维护者排查；是否可重试取决于明确的调用及清理证据"],
+            ["NERONET_NATIVE_INTERNAL_EXCEPTION", 20001, "发生尚未分类的 Native 异常", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_NATIVE_OUT_OF_MEMORY", 20002, "Native 内存分配失败", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_NATIVE_FILESYSTEM_ERROR", 20003, "Native 文件系统操作失败", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_TARGET_PATH_QUERY_FAILED", 20004, "无法查询所选进程的可执行文件路径", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_TARGET_PATH_MISMATCH", 20005, "所选进程不属于配置的 QQ 安装", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_TARGET_MODULE_ENUMERATION_FAILED", 20006, "无法枚举所选 QQ 的模块", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_TARGET_WRAPPER_NOT_LOADED", 20007, "所选 QQ 尚未加载 wrapper.node", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_LOCATOR_MISSING", 20008, "随包绑定定位程序不存在", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_LOCATOR_LAUNCH_FAILED", 20009, "无法启动或管理绑定定位子进程", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_SCAN_TIMEOUT", 20010, "绑定结构定位超过时间限制", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_SCAN_RESULT_INVALID", 20011, "绑定定位结果格式无效", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CANDIDATES_AMBIGUOUS", 20012, "当前映像缺少必需的绑定目标", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_REQUIRED_TARGET_ABSENT", 20013, "绑定目标存在多个候选，无法唯一选择", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_EVIDENCE_INSUFFICIENT", 20014, "绑定候选未满足规定证据条件", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CORE_IDENTITY_AMBIGUOUS", 20015, "CoreService 身份不能唯一确认", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_PE_PARSE_FAILED", 20016, "QQ 模块不是可解析的 x64 PE", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CONTRACT_MISMATCH", 20017, "绑定结构契约检查未通过", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_FILE_IO_FAILED", 20018, "绑定定位所需文件读写失败", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_SCANNER_INTERNAL_ERROR", 20019, "绑定定位程序发生尚未分类的内部错误", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_IMAGE_CHANGED_DURING_SCAN", 20020, "定位过程中 QQ 模块文件发生变化", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_REQUIRED_TARGET_SET_INVALID", 20021, "定位目标报告的字段结构无效", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_EXECUTOR_ACTION_FAILED", 20022, "QQ 执行器中的操作失败，未提供更具体异常", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_REMOTE_WAIT_FAILED", 20023, "等待远程执行线程时系统调用失败", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CACHE_UNAVAILABLE", 20024, "无法准备绑定缓存目录", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CATALOG_PATH_INVALID", 20025, "显式绑定目录路径无效", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_LOCATOR_INTEGRITY_MISMATCH", 20026, "随包绑定定位组件缺失或内容被更改", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_QQ_ROUTE_NOT_INITIALIZED", 20027, "QQ 尚未初始化服务路由", "等待 QQ 完成登录和初始化；仅在完整结果证明未进入 QQ 调用、无需排空或已排空后重新尝试。不要删除保护文件强行重试。"],
+            ["NERONET_QQ_ROUTE_INITIALIZING", 20028, "QQ 正在初始化服务路由", "等待 QQ 完成登录和初始化；仅在完整结果证明未进入 QQ 调用、无需排空或已排空后重新尝试。不要删除保护文件强行重试。"],
+            ["NERONET_QQ_ROUTE_VALUE_UNSUPPORTED", 20029, "QQ 服务路由值超出已支持范围", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CATALOG_MISSING", 20030, "绑定目录文件不存在", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_BINDING_CATALOG_UNREADABLE", 20031, "绑定目录文件无法读取", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_SERVICE_NOT_CREATED", 20032, "QQ 尚未创建当前路由的 Service 对象", "等待 QQ 完成登录和初始化；仅在完整结果证明未进入 QQ 调用、无需排空或已排空后重新尝试。不要删除保护文件强行重试。"],
+            ["NERONET_SERVICE_CONTROL_MISSING", 20033, "Service 对象缺少引用计数控制块", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_SERVICE_TYPE_MISMATCH", 20034, "Service 或其控制块类型与绑定不符", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_SESSION_NOT_CREATED", 20035, "Service 尚未持有 Session 对象", "等待 QQ 完成登录和初始化；仅在完整结果证明未进入 QQ 调用、无需排空或已排空后重新尝试。不要删除保护文件强行重试。"],
+            ["NERONET_MESSENGER_NOT_CREATED", 20036, "Service 尚未持有 Messenger 对象", "等待 QQ 完成登录和初始化；仅在完整结果证明未进入 QQ 调用、无需排空或已排空后重新尝试。不要删除保护文件强行重试。"],
+            ["NERONET_QQ_ROUTE_CHANGED", 20037, "QQ 服务路由在绑定选择后发生变化", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_IPC_ACCESS_DENIED", 20038, "创建 Native IPC 管道时权限被拒绝", "核查本账号是否已有应用实例及管道所有者；不要为了重试关闭其他实例或强卸载驻留 DLL。"],
+            ["NERONET_IPC_ALREADY_IN_USE", 20039, "Native IPC 管道名称已被占用", "核查本账号是否已有应用实例及管道所有者；不要为了重试关闭其他实例或强卸载驻留 DLL。"],
+            ["NERONET_EXECUTOR_REJECTED", 20040, "QQ 执行器拒绝任务", "检查 callback、Runtime 和清理结果；未确认释放前保留未知状态保护。不要自动补发业务消息。"],
+            ["NERONET_EXECUTOR_NOT_INVOKED", 20041, "QQ 执行器未调用任务", "检查 callback、Runtime 和清理结果；未确认释放前保留未知状态保护。不要自动补发业务消息。"],
+            ["NERONET_EXECUTOR_CALLABLE_PENDING", 20042, "QQ 仍持有执行器回调，尚未释放", "检查 callback、Runtime 和清理结果；未确认释放前保留未知状态保护。不要自动补发业务消息。"],
+            ["NERONET_SUBSCRIPTION_OWNER_MISSING", 20043, "接收注册返回后未取得订阅所有者", "检查 callback、Runtime 和清理结果；未确认释放前保留未知状态保护。不要自动补发业务消息。"],
+            ["NERONET_QQ_EXECUTABLE_SETTING_MISSING", 20044, "未设置 NERONET_QQ_EXECUTABLE", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_NATIVE_ROOT_SETTING_MISSING", 20045, "未设置 NERONET_NATIVE_ROOT", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_DEPLOYMENT_SETTING_TOO_LONG", 20046, "Native 部署配置路径超过长度限制", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_TARGET_ACCESS_DENIED", 20047, "打开所选 QQ 进程时权限被拒绝", "保留首因、阶段和系统错误；按该具体原因检查，不能仅凭错误码决定重试。"],
+            ["NERONET_REMOTE_PATH_ALLOCATION_FAILED", 20048, "无法在目标进程中分配 DLL 路径内存", "查看 systemError 和具体阶段，核查目标是否退出或访问被拒；确认未执行控制调用后才重新尝试。"],
+            ["NERONET_REMOTE_PATH_WRITE_FAILED", 20049, "无法向目标进程完整写入 DLL 路径", "查看 systemError 和具体阶段，核查目标是否退出或访问被拒；确认未执行控制调用后才重新尝试。"],
+            ["NERONET_REMOTE_CONTROL_ALLOCATION_FAILED", 20050, "无法在目标进程中分配控制记录内存", "查看 systemError 和具体阶段，核查目标是否退出或访问被拒；确认未执行控制调用后才重新尝试。"],
+            ["NERONET_REMOTE_CONTROL_WRITE_FAILED", 20051, "无法向目标进程完整写入控制记录", "查看 systemError 和具体阶段，核查目标是否退出或访问被拒；确认未执行控制调用后才重新尝试。"],
+            ["NERONET_REMOTE_CONTROL_READ_FAILED", 20052, "无法从目标进程完整读取控制结果", "检查 callback、Runtime 和清理结果；未确认释放前保留未知状态保护。不要自动补发业务消息。"],
+            ["NERONET_BINDING_CACHE_LOCK_CREATE_FAILED", 20053, "无法创建绑定缓存协调锁", "查看 systemError，检查当前 Windows 用户及命名对象权限。"],
+            ["NERONET_BINDING_CACHE_LOCK_TIMEOUT", 20054, "等待其他绑定识别任务释放缓存锁超时", "查看是否有本账号的另一次准备正在运行；取消重复准备，保留正在运行的任务。"],
+            ["NERONET_BINDING_CACHE_LOCK_WAIT_FAILED", 20055, "等待绑定缓存协调锁时系统调用失败", "保留 systemError，核查当前进程的协调锁和系统状态。"],
+            ["NERONET_BINDING_NNPE___INIT___CHECK_01", 30001, "无法解析 PE 映像", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE___INIT___CHECK_02", 30002, "仅支持 PE32+ AMD64 映像", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE___INIT___CHECK_03", 30003, "PE 不含节表", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE___INIT___CHECK_04", 30004, "PE 节的原始数据不完整", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_READ_CHECK_01", 30005, "RVA 或读取长度为负数", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_FUNCTIONS_CHECK_01", 30006, "缺少 .pdata，无法取得函数范围", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_DISASM_FUNCTION_CHECK_01", 30007, "函数范围无效或超过限制", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_DISASM_FUNCTION_CHECK_02", 30008, "函数范围没有完整的文件原始字节", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_RIP_REF_INDEX_CHECK_01", 30009, "扫描目标缺少 .text 节", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_STORE_INDEX_CHECK_01", 30010, "数据引用扫描缺少 .text 节", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_NNPE_CALL_INDEX_CHECK_01", 30011, "调用索引扫描缺少 .text 节", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_UNIQUE_CHECK_01", 30012, "目标值未能唯一确定", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR___INIT___CHECK_01", 30013, "目标报告的映像摘要不匹配", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR___INIT___CHECK_02", 30014, "定位工作目录已存在，要求新的证据目录", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BODY_CHECK_01", 30015, "叶函数代码范围无法确定", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BODY_CHECK_02", 30016, "叶函数指令不能完整解码", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BODY_CHECK_03", 30017, "目标函数缺少要求的 .pdata 记录", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_SLOT_CHECK_01", 30018, "虚函数槽位无效", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_01", 30019, "定位结果未唯一选定目标", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_02", 30020, "Push 子对象不能唯一关联到注册槽位", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_03", 30021, "Session 所有者写入方式不受支持", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_04", 30022, "Session 所有者目标偏移未得到证明", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_05", 30023, "引用对的释放 ABI 不受支持", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_06", 30024, "缺少从零基数强引用释放的 ABI 证据", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_07", 30025, "缺少弱引用释放尾部证据", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_08", 30026, "缺少弱引用计数或虚析构 ABI 证据", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_09", 30027, "Service 寄存器来源不满足规则", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_10", 30028, "状态对象或状态返回链不满足规则", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_DESCRIPTOR_BUILD_CHECK_11", 30029, "Getter 前部含未支持的副作用", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_01", 30030, "CoreService RTTI 未唯一确定", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_02", 30031, "CoreService 现有引用对访问器未唯一确定", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_03", 30032, "Core 访问器没有关联到已识别路由", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_04", 30033, "Core 初始化的 this 来源不满足规则", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_05", 30034, "Core 上下文赋值形状不满足规则", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_06", 30035, "Core 状态映射不受支持", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_07", 30036, "缺少 Core 四参数命令接口", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_08", 30037, "Core 接收注册目标未唯一确定", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_09", 30038, "Core 接收注册的 this 来源发生变化", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_10", 30039, "Core 注册表偏移超出结构核验范围", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_11", 30040, "Core 注册查询的参数发生变化", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"],
+            ["NERONET_BINDING_BUILD_CORE_DESCRIPTOR_BUILD_CHECK_12", 30041, "Core 与传统分支的回调容器操作不一致", "当前模块不满足此项结构规则；保留模块版本、摘要及该项诊断交维护者核验，不强行选择地址。"]
+        ];
+        NATIVE_ERRORS = new Map(ROWS.map(([errorId, detailCode, message2, advice]) => [errorId, Object.freeze({ errorId, detailCode, message: message2, advice })]));
+        NATIVE_ERRORS_BY_CODE = new Map([...NATIVE_ERRORS.values()].map((entry) => [entry.detailCode, entry]));
+    }
+});
+function identity(row) {
+    if (row.schema !== 1 || !whole(row.detailCode) || typeof row.errorId !== "string" || typeof row.stage !== "string" || !STAGE.test(row.stage))
+        return null;
+    if (row.errorId === "" ? row.detailCode !== 0 : !ERROR_ID.test(row.errorId) || row.detailCode === 0)
+        return null;
+    const known = row.errorId ? NATIVE_ERRORS.get(row.errorId) : null;
+    if (known && known.detailCode !== row.detailCode)
+        return null;
+    return { errorId: row.errorId || null, detailCode: row.detailCode, stage: row.stage, registered: !!known };
+}
+function controlReport(row) {
+    const id = identity(row);
+    if (!id || row.controlAbi !== CONTROL_ABI || ![0, 1, 2].includes(row.operation) || !bit(row.controlCompleted) || !whole(row.controlReturn) || !bit(row.qqCallStarted) || !bit(row.runtimePresent) || ![0, 1, 2, 3, 4].includes(row.cleanupState) || !whole(row.legacyCode) || !whole(row.legacyPhase) || row.legacyPhase > 6 || typeof row.dllLoaded !== "boolean")
+        return null;
+    return {
+        kind: "control",
+        ...id,
+        operation: OPERATIONS[row.operation],
+        controlCompleted: row.controlCompleted === 1,
+        controlReturn: row.controlReturn,
+        qqCall: row.qqCallStarted === 1 ? "invoked" : "not-invoked",
+        runtimePresent: row.runtimePresent === 1,
+        cleanup: CLEANUP[row.cleanupState],
+        legacyCode: row.legacyCode,
+        legacyPhase: row.legacyPhase,
+        dllLoaded: row.dllLoaded,
+        systemError: null
+    };
+}
+function hostReport(row) {
+    const id = identity(row);
+    if (!id || typeof row.dllLoaded !== "boolean" || typeof row.controlInvoked !== "boolean" || typeof row.controlReturned !== "boolean" || ![0, 1, 2, 3, 4].includes(row.cleanupState) || !(row.systemError === null || whole(row.systemError)) || !whole(row.controlReturn) || has(row, "controlCompleted") || has(row, "operation"))
+        return null;
+    return {
+        kind: "host",
+        ...id,
+        operation: null,
+        controlCompleted: false,
+        controlReturn: row.controlReturn,
+        qqCall: row.controlInvoked ? "unknown" : "not-invoked",
+        runtimePresent: null,
+        cleanup: CLEANUP[row.cleanupState],
+        legacyCode: null,
+        legacyPhase: null,
+        dllLoaded: row.dllLoaded,
+        controlInvoked: row.controlInvoked,
+        controlReturned: row.controlReturned,
+        systemError: row.systemError
+    };
+}
+function readNativeReport(rows) {
+    const list = Array.isArray(rows) ? rows.filter((row2) => row2 && typeof row2 === "object") : [];
+    const found = list.filter((row2) => row2.nativeFailure === true), system = list.filter((row2) => row2.nativeSystemError === true);
+    if (!found.length)
+        return system.length ? { valid: false } : null;
+    if (found.length !== 1 || system.length > 1)
+        return { valid: false };
+    const row = found[0], report2 = has(row, "error") ? hostReport(row) : controlReport(row);
+    if (!report2)
+        return { valid: false };
+    if (system.length) {
+        const extra = system[0];
+        if (extra.domain !== "win32" || !whole(extra.systemError) || extra.detailCode !== report2.detailCode || report2.systemError !== null && report2.systemError !== extra.systemError)
+            return { valid: false };
+        report2.systemError = extra.systemError;
+    }
+    return { valid: true, report: report2 };
+}
+function controlProvesNoRuntime(result, report2, pid2, operation2) {
+    if (!complete(result) || report2.kind !== "control" || report2.operation !== operation2 || !report2.controlCompleted || report2.runtimePresent || report2.qqCall !== "not-invoked" || report2.cleanup !== "not-required" || !report2.dllLoaded)
+        return false;
+    if (report2.controlReturn !== report2.legacyCode || !sameBuild(result.rows) || result.rows.some((row) => row && has(row, "error")))
+        return false;
+    const run = one(result.rows, "liveRuntime"), health2 = one(result.rows, "lifecycleHealth");
+    if (!run || !health2)
+        return false;
+    if (run.pid !== pid2 || run.action !== OPERATIONS.indexOf(operation2) || run.code !== report2.legacyCode || run.phase !== report2.legacyPhase || run.phase !== 0)
+        return false;
+    if (![run.registered, run.connected, run.targetCalls, run.callbackCreated, run.contextsLive].every((v) => v === 0 || v === void 0))
+        return false;
+    if (health2.pendingCallbacks !== 0 || health2.executorJobs !== 0)
+        return false;
+    return true;
+}
+function hostProvesNothingDone(result, report2) {
+    return complete(result) && report2.kind === "host" && !report2.dllLoaded && !report2.controlInvoked && !report2.controlReturned && report2.cleanup === "not-required" && count(result.rows, "liveRuntime") === 0 && count(result.rows, "lifecycleHealth") === 0;
+}
+function provesNothingStarted(result, report2, pid2) {
+    return controlProvesNoRuntime(result, report2, pid2, "start") || hostProvesNothingDone(result, report2);
+}
+function provesNoRuntime(result, report2, pid2, operation2) {
+    if (controlProvesNoRuntime(result, report2, pid2, operation2) && report2.errorId === "NERONET_RUNTIME_NOT_STARTED")
+        return true;
+    return hostProvesNothingDone(result, report2) && report2.errorId === "NERONET_NERONET_NATIVE_HOST_RUNTIME_NOT_LOADED";
+}
+function retryClass(report2) {
+    return report2?.errorId && WAITING_FOR_QQ.has(report2.errorId) ? "wait-for-qq" : "after-correction";
+}
+function readPreparation(rows) {
+    const out = [];
+    for (const row of Array.isArray(rows) ? rows : []) {
+        if (!row || row.bindingPreparation !== true)
+            continue;
+        if (row.schema !== 1 || !PREPARATION_STATES.includes(row.state) || typeof row.imageSha256 !== "string" || !/^[a-f0-9]{64}$/.test(row.imageSha256) || typeof row.runtimeVerified !== "boolean")
+            return null;
+        out.push({ state: row.state, imageSha256: row.imageSha256, runtimeVerified: row.runtimeVerified, cacheHit: row.cacheHit === true });
+    }
+    return out;
+}
+function readRuleFailures(rows) {
+    const out = [];
+    for (const row of Array.isArray(rows) ? rows : []) {
+        if (!row || row.bindingRuleFailure !== true || row.schema !== 1 || typeof row.rule !== "string" || !/^[A-Z][A-Z0-9_]{0,47}$/.test(row.rule) || !whole(row.detailCode))
+            continue;
+        if (out.length < 8 && !out.some((known) => known.rule === row.rule))
+            out.push({ rule: row.rule, detailCode: row.detailCode });
+    }
+    return out;
+}
+function reportSummary(report2) {
+    if (!report2)
+        return null;
+    return {
+        kind: report2.kind,
+        errorId: report2.errorId,
+        detailCode: report2.detailCode,
+        stage: report2.stage,
+        operation: report2.operation,
+        controlCompleted: report2.controlCompleted,
+        controlReturn: report2.controlReturn,
+        qqCall: report2.qqCall,
+        runtimePresent: report2.runtimePresent,
+        cleanup: report2.cleanup,
+        legacyCode: report2.legacyCode,
+        legacyPhase: report2.legacyPhase,
+        dllLoaded: report2.dllLoaded,
+        systemError: report2.systemError,
+        registered: report2.registered
+    };
+}
+var CONTROL_ABI, ERROR_ID, STAGE, OPERATIONS, CLEANUP, whole, bit, has, complete, one, count, sameBuild, WAITING_FOR_QQ, PREPARATION_STATES;
+var init_native_diagnostics = __esm({
+    "native-diagnostics.mjs"() {
+        init_native_error_catalog();
+        CONTROL_ABI = 8;
+        ERROR_ID = /^NERONET_[A-Z0-9_]{3,120}$/;
+        STAGE = /^[a-z0-9][a-z0-9\-]{0,47}$/;
+        OPERATIONS = ["start", "status", "stop"];
+        CLEANUP = ["absent", "not-required", "drained", "pending", "unknown"];
+        whole = (v) => Number.isSafeInteger(v) && v >= 0;
+        bit = (v) => v === 0 || v === 1;
+        has = (row, key) => Object.hasOwn(row, key);
+        complete = (result) => result && result.transport === "exited" && !result.malformed && Array.isArray(result.rows);
+        one = (rows, key) => {
+            const found = rows.filter((row) => row && row[key] === true);
+            return found.length === 1 ? found[0] : null;
+        };
+        count = (rows, key) => rows.filter((row) => row && row[key] === true).length;
+        sameBuild = (rows) => {
+            const checks = rows.filter((row) => row && row.nativeBuildCheck === true);
+            return checks.length === 0 || checks.length === 1 && checks[0].match === "same" && checks[0].controlAbi === CONTROL_ABI;
+        };
+        WAITING_FOR_QQ = new Set(["NERONET_QQ_ROUTE_NOT_INITIALIZED"]);
+        PREPARATION_STATES = Object.freeze(["known-catalog", "discovering", "structurally-validated"]);
+    }
+});
 function parseDriverResult(stdout, error = null) {
     const rows = [];
     let malformed = false;
@@ -264,7 +710,7 @@ function plain(row, nested = false) {
         if (typeof value === "boolean" || typeof value === "number" && Number.isFinite(value))
             out[key] = value;
         else if (typeof value === "string" && IDENTIFIER_FIELDS.has(key))
-            out[key] = /^[A-Za-z0-9_.\-]{1,48}$/.test(value) ? value : "(text)";
+            out[key] = /^[A-Za-z0-9_.\-]{0,128}$/.test(value) ? value : "(text)";
         else if (!nested && NESTED_FIELDS.has(key) && value && typeof value === "object" && !Array.isArray(value))
             out[key] = plain(value, true);
     }
@@ -275,21 +721,39 @@ function diagnosticRows(rows) {
 }
 function reportsBuildMismatch(result) {
     try {
-        const text = JSON.stringify(result?.rows ?? []);
-        return text.includes(BUILD_MISMATCH) || OTHER_BUILD_LOADED.test(text);
+        const text2 = JSON.stringify(result?.rows ?? []);
+        return text2.includes(BUILD_MISMATCH) || OTHER_BUILD_LOADED.test(text2);
     }
     catch {
         return false;
     }
 }
 function driverErrors(rows) {
-    return (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object" && Object.hasOwn(row, "error")).slice(0, 4).map((row) => ({ error: typeof row.error === "string" && /^[A-Za-z0-9_ ;,.\-]{1,96}$/.test(row.error) ? row.error : "(text)", win32: Number.isSafeInteger(row.win32) ? row.win32 : null }));
+    return (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object" && Object.hasOwn(row, "error")).slice(0, 4).map((row) => ({ error: typeof row.error === "string" && /^[A-Za-z0-9_ ;,.\-]{1,128}$/.test(row.error) ? row.error : "(text)", win32: Number.isSafeInteger(row.win32) ? row.win32 : null }));
+}
+function startCause(result, decision) {
+    const rows = Array.isArray(result?.rows) ? result.rows : [], runs = rows.filter((x) => x?.liveRuntime === true), reported = readNativeReport(rows);
+    const exit = Number.isInteger(result?.exit) ? result.exit : typeof result?.exit === "string" && /^[A-Z0-9_]{1,24}$/.test(result.exit) ? result.exit : null;
+    return {
+        classification: decision.kind,
+        reason: decision.reason ?? null,
+        exit,
+        transport: result?.transport ?? null,
+        legacy: runs.length === 1 && Number.isInteger(runs[0].code) && Number.isInteger(runs[0].phase) ? { code: runs[0].code, phase: runs[0].phase } : null,
+        errors: driverErrors(rows),
+        failure: reported?.valid ? reportSummary(reported.report) : null,
+        reportInvalid: reported ? reported.valid === false : false,
+        cleanup: null
+    };
 }
 function classifyStart(result, pid2) {
     if (result.transport === "not-started")
         return { kind: "not-started", reason: "driver-launch-failed" };
     if (reportsBuildMismatch(result))
         return { kind: "build-mismatch", reason: BUILD_MISMATCH };
+    const reported = readNativeReport(result.rows);
+    if (reported?.valid && provesNothingStarted(result, reported.report, pid2))
+        return { kind: "rejected", reason: reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", report: reported.report };
     if (result.transport !== "exited" || result.malformed)
         return { kind: "unresolved", reason: "driver-result-incomplete" };
     const runtimeRows = result.rows.filter((x) => x.liveRuntime === true), healthRows = result.rows.filter((x) => x.lifecycleHealth === true);
@@ -314,10 +778,11 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         }
     };
     const key = `${target.pid}:${target.started}`;
+    let cause2 = { classification: "unresolved", reason: "driver-call-threw-without-result", exit: null, transport: null, legacy: null, errors: [], failure: null, cleanup: null };
     const retain = (reason) => {
-        markUnresolved({ target, reason });
+        markUnresolved({ target, reason, cause: cause2 });
         record3({ nativeStartupUnresolved: true, pid: target.pid, processKey: key, reason, businessRequestsRetried: 0 });
-        return { kind: "blocked", reason };
+        return { kind: "blocked", reason, cause: cause2, guarded: true, guardReason: reason };
     };
     let before;
     try {
@@ -336,11 +801,14 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         return retain("driver-call-threw-without-result");
     }
     const decision = classifyStart(result, target.pid);
-    record3({ nativeStart: true, pid: target.pid, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, rows: diagnosticRows(result.rows), errors: driverErrors(result.rows) });
+    cause2 = startCause(result, decision);
+    record3({ nativeStart: true, pid: target.pid, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, rows: diagnosticRows(result.rows), errors: driverErrors(result.rows), ...cause2.failure && decision.kind !== "ready" && decision.kind !== "login-wait" ? { failure: cause2.failure } : {} });
     if (decision.kind === "not-started")
-        return { kind: "blocked", reason: decision.reason };
+        return { kind: "rejected", reason: decision.reason, cause: cause2, retry: "after-correction" };
     if (decision.kind === "build-mismatch")
-        return { kind: "blocked", reason: decision.reason };
+        return { kind: "blocked", reason: decision.reason, cause: cause2 };
+    if (decision.kind === "rejected")
+        return { kind: "rejected", reason: decision.reason, cause: cause2, retry: retryClass(decision.report) };
     if (decision.kind === "unresolved")
         return retain(decision.reason);
     let observed2;
@@ -381,17 +849,21 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         catch {
             released = false;
         }
-        if (!released)
+        if (!released) {
+            cause2 = { ...cause2, cleanup: "unconfirmed" };
             retain("native-startup-drain-unconfirmed");
-        else
+        }
+        else {
+            cause2 = { ...cause2, cleanup: "confirmed" };
             record3({ nativeStartupReleased: true, pid: target.pid, targetExists: true });
+        }
         return released;
     })();
     if (decision.kind === "login-wait")
         return { kind: stopRequested2() ? "stopped" : "login-wait", alreadyDrained: true };
     if (decision.kind === "failed" || stopRequested2()) {
         const closed = await release();
-        return { kind: closed ? stopRequested2() ? "stopped" : "failed" : "blocked", reason: decision.reason, closed };
+        return { kind: closed ? stopRequested2() ? "stopped" : "failed" : "blocked", reason: decision.reason, closed, cause: cause2, guarded: !closed, ...closed ? {} : { guardReason: "native-startup-drain-unconfirmed" } };
     }
     return { kind: "ready", release };
 }
@@ -399,11 +871,12 @@ var DIAGNOSTIC_ROWS, IDENTIFIER_FIELDS, NESTED_FIELDS, BUILD_MISMATCH, OTHER_BUI
 var init_native_start_transaction = __esm({
     "native-start-transaction.mjs"() {
         init_native_start_policy();
-        DIAGNOSTIC_ROWS = ["liveRuntime", "lifecycleHealth", "runtimeIdentity", "workerExit", "nativeExecutorDiagnostics", "nativePipeDiagnostics", "nativeBuildCheck"];
-        IDENTIFIER_FIELDS = new Set(["reason", "operation", "match", "stage"]);
+        init_native_diagnostics();
+        DIAGNOSTIC_ROWS = ["liveRuntime", "lifecycleHealth", "runtimeIdentity", "workerExit", "nativeExecutorDiagnostics", "nativePipeDiagnostics", "nativeBuildCheck", "nativeFailure", "nativeSystemError", "bindingPreparation", "bindingRuleFailure"];
+        IDENTIFIER_FIELDS = new Set(["reason", "operation", "match", "stage", "state", "domain", "errorId", "error", "imageSha256", "rule", "engine"]);
         NESTED_FIELDS = new Set(["last", "firstFailure"]);
         BUILD_MISMATCH = "NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ";
-        OTHER_BUILD_LOADED = /loaded DLL differs from requested build/i;
+        OTHER_BUILD_LOADED = /loaded DLL differs from requested build|LOADED_DLL_DIFFERS_FROM_REQUESTED_BUILD/i;
     }
 });
 function classifyDrain(result, pid2, action) {
@@ -411,6 +884,9 @@ function classifyDrain(result, pid2, action) {
         return { kind: "unresolved", reason: BUILD_MISMATCH };
     if (!result || result.transport !== "exited" || result.malformed || !Array.isArray(result.rows))
         return { kind: "unresolved", reason: "driver-result-incomplete" };
+    const reported = readNativeReport(result.rows);
+    if (reported?.valid && (action === "stop" || action === "status") && provesNoRuntime(result, reported.report, pid2, action))
+        return { kind: "closed", reason: "runtime-not-started", noRuntime: true, report: reportSummary(reported.report) };
     const runs = result.rows.filter((x) => x.liveRuntime === true), health2 = result.rows.filter((x) => x.lifecycleHealth === true);
     if (runs.length !== 1 || health2.length !== 1 || result.rows.some((x) => Object.hasOwn(x, "error")))
         return { kind: "unresolved", reason: "missing-or-ambiguous-native-result" };
@@ -467,7 +943,7 @@ async function drainNative({ pid: pid2, observe: observe2, invoke, record: recor
         const decision = classifyDrain(result, pid2, action);
         emit({ control: true, pid: pid2, action, classification: decision.kind, reason: decision.reason ?? null, exit: result?.exit ?? null, transport: result?.transport ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result?.rows), errors: driverErrors(result?.rows) });
         if (decision.kind === "closed")
-            return finish2(true, "native-drain-confirmed", true);
+            return finish2(true, decision.noRuntime ? "native-runtime-not-started" : "native-drain-confirmed", true);
         if (decision.kind !== "pending")
             return finish2(false, decision.reason, true);
         pendingObserved ||= decision.snapshot.pendingCallbacks > 0;
@@ -481,6 +957,7 @@ var uint;
 var init_native_drain_transaction = __esm({
     "native-drain-transaction.mjs"() {
         init_native_start_transaction();
+        init_native_diagnostics();
         uint = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 4294967295;
     }
 });
@@ -744,8 +1221,8 @@ import path5 from "node:path";
 function startupGuard(home3) {
     const file = path5.join(home3, "native-startup-unresolved.json");
     return {
-        mark({ target, reason }) {
-            const entry = { schema: 1, target: { pid: target.pid, started: target.started }, reason, utc: (new Date()).toISOString(), automaticRetry: false };
+        mark({ target, reason, cause: cause2 = null }) {
+            const entry = { schema: 1, target: { pid: target.pid, started: target.started }, reason, utc: (new Date()).toISOString(), automaticRetry: false, ...cause2 && typeof cause2 === "object" ? { cause: cause2 } : {} };
             const temp = file + ".tmp";
             fs4.writeFileSync(temp, JSON.stringify(entry, null, 2) + "\n");
             fs4.renameSync(temp, file);
@@ -763,7 +1240,7 @@ function startupGuard(home3) {
             if (entry.schema !== 1 || !Number.isInteger(entry.target?.pid) || typeof entry.target?.started !== "string")
                 return { blocked: true, reason: "invalid-startup-guard" };
             if (processes.some((p2) => processKey(p2) === processKey(entry.target)))
-                return { blocked: true, reason: entry.reason, target: entry.target };
+                return { blocked: true, reason: entry.reason, target: entry.target, ...typeof entry.utc === "string" ? { since: entry.utc } : {}, ...entry.cause && typeof entry.cause === "object" ? { cause: entry.cause } : {} };
             fs4.renameSync(file, file + ".target-exited-" + Date.now());
             return { blocked: false, reason: "guarded-target-exited", target: entry.target };
         }
@@ -777,42 +1254,120 @@ var init_startup_guard = __esm({
 import fs5 from "node:fs";
 import path6 from "node:path";
 import { createHash } from "node:crypto";
+function safeRelativeName(name) {
+    if (typeof name !== "string" || !name || name.length > 240 || /[\\:*?"<>|\0-\x1f]/.test(name) || name.startsWith("/"))
+        return false;
+    return name.split("/").every((part) => part && part !== "." && part !== ".." && !/[. ]$/.test(part));
+}
+function validRow(row) {
+    return row && typeof row.name === "string" && /^[a-f0-9]{64}$/i.test(row.sha256) && Number.isSafeInteger(row.bytes) && row.bytes >= 1;
+}
 function validateNativeManifest(manifest) {
-    const required = manifest?.schema === 2 ? GENERIC_NATIVE_FILES : manifest?.schema === 1 ? REQUIRED_NATIVE_FILES : null;
-    if (!required || !Array.isArray(manifest.artifacts) || manifest.artifacts.length !== required.length)
-        throw Error("NERONET_NATIVE_MANIFEST_INVALID");
+    if (!manifest || !Array.isArray(manifest.artifacts))
+        throw invalid();
+    if (manifest.schema === 1 || manifest.schema === 2) {
+        const required = manifest.schema === 2 ? GENERIC_NATIVE_FILES : REQUIRED_NATIVE_FILES;
+        if (manifest.artifacts.length !== required.length)
+            throw invalid();
+        const seen2 = new Set();
+        for (const row of manifest.artifacts) {
+            if (!validRow(row) || !required.includes(row.name) || seen2.has(row.name))
+                throw invalid();
+            seen2.add(row.name);
+        }
+        return manifest;
+    }
+    if (manifest.schema !== 3)
+        throw invalid();
+    if (!Number.isSafeInteger(manifest.controlAbi) || manifest.controlAbi < 8 || !/^[a-f0-9]{64}$/i.test(manifest.buildEvidenceSha256 ?? "") || manifest.artifacts.length < GENERIC_NATIVE_FILES.length || manifest.artifacts.length > 4096)
+        throw invalid();
     const seen = new Set();
     for (const row of manifest.artifacts) {
-        if (!row || !required.includes(row.name) || seen.has(row.name) || !/^[a-f0-9]{64}$/i.test(row.sha256) || !Number.isSafeInteger(row.bytes) || row.bytes < 1)
-            throw Error("NERONET_NATIVE_MANIFEST_INVALID");
-        seen.add(row.name);
+        if (!validRow(row) || !safeRelativeName(row.name))
+            throw invalid();
+        const key = row.name.toLowerCase();
+        if (seen.has(key) || key === BUILD_SUMMARY_FILE.toLowerCase() || key === "native-manifest.json")
+            throw invalid();
+        seen.add(key);
     }
+    for (const name of GENERIC_NATIVE_FILES)
+        if (!manifest.artifacts.some((row) => row.name === name))
+            throw invalid();
     return manifest;
+}
+function plainFile(directory, name) {
+    let current2 = directory;
+    const parts = name.split("/");
+    for (let i = 0; i < parts.length; i++) {
+        current2 = path6.join(current2, parts[i]);
+        const st = fs5.lstatSync(current2, { throwIfNoEntry: false });
+        if (!st || st.isSymbolicLink() || (i < parts.length - 1 ? !st.isDirectory() : !st.isFile()))
+            return null;
+    }
+    return current2;
+}
+function listFiles(directory, prefix = "", out = []) {
+    for (const entry of fs5.readdirSync(directory, { withFileTypes: true })) {
+        const name = (prefix ? prefix + "/" : "") + entry.name, full = path6.join(directory, entry.name);
+        if (fs5.lstatSync(full).isSymbolicLink())
+            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + name);
+        if (entry.isDirectory())
+            listFiles(full, name, out);
+        else
+            out.push(name);
+    }
+    return out;
 }
 function verifyNativeArtifacts(manifest, directory) {
     validateNativeManifest(manifest);
     for (const row of manifest.artifacts) {
-        const bytes = fs5.readFileSync(path6.join(directory, row.name));
-        if (bytes.length !== row.bytes || createHash("sha256").update(bytes).digest("hex") !== row.sha256.toLowerCase())
+        const file = manifest.schema === 3 ? plainFile(directory, row.name) : path6.join(directory, row.name);
+        let bytes = null;
+        try {
+            if (file)
+                bytes = fs5.readFileSync(file);
+        }
+        catch {
+        }
+        if (!bytes || bytes.length !== row.bytes || digest(bytes) !== row.sha256.toLowerCase())
             throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + row.name);
+    }
+    if (manifest.schema === 3) {
+        let summary = null;
+        try {
+            const file = plainFile(directory, BUILD_SUMMARY_FILE);
+            if (file)
+                summary = fs5.readFileSync(file);
+        }
+        catch {
+        }
+        if (!summary || digest(summary) !== manifest.buildEvidenceSha256.toLowerCase())
+            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + BUILD_SUMMARY_FILE);
+        const listed = new Set([...manifest.artifacts.map((row) => row.name.toLowerCase()), BUILD_SUMMARY_FILE.toLowerCase(), "native-manifest.json"]);
+        for (const name of listFiles(directory))
+            if (!listed.has(name.toLowerCase()))
+                throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + name);
     }
     return true;
 }
 function loadNativeManifest(file) {
     let value;
     try {
-        value = JSON.parse(fs5.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+        value = JSON.parse(fs5.readFileSync(file, "utf8").replace(/^﻿/, ""));
     }
     catch {
         throw Error("NERONET_NATIVE_MANIFEST_MISSING_OR_UNREADABLE");
     }
     return validateNativeManifest(value);
 }
-var REQUIRED_NATIVE_FILES, GENERIC_NATIVE_FILES;
+var REQUIRED_NATIVE_FILES, GENERIC_NATIVE_FILES, BUILD_SUMMARY_FILE, invalid, digest;
 var init_native_manifest = __esm({
     "native-manifest.mjs"() {
         REQUIRED_NATIVE_FILES = Object.freeze(["neronet_native_host.exe", "neronet_live_binding.dll", "neronet_receive_consumer.dll"]);
         GENERIC_NATIVE_FILES = Object.freeze([...REQUIRED_NATIVE_FILES, "neronet.binding"]);
+        BUILD_SUMMARY_FILE = "BUILD_SUMMARY.json";
+        invalid = () => Error("NERONET_NATIVE_MANIFEST_INVALID");
+        digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
     }
 });
 var qq_processes_exports = {};
@@ -903,15 +1458,640 @@ var init_qq_processes = __esm({
             main2();
     }
 });
-var supervisor_exports = {};
+var DRIVER_TEXTS;
+var init_native_driver_texts = __esm({
+    "native-driver-texts.mjs"() {
+        DRIVER_TEXTS = new Map([
+            ["system export unavailable", "无法取得系统远程调用入口"],
+            ["remote system module unavailable", "目标进程缺少对应的系统模块"],
+            ["CreateRemoteThread failed", "无法在所选 QQ 进程创建执行线程"],
+            ["thread did not finish; leave remote allocation/module intact", "等待 QQ 内执行线程超时或失败，执行结果未确认"],
+            ["thread result unavailable", "无法取得 QQ 内执行线程的返回值"],
+            ["usage: neronet_native_host PID DLL [--retire-rejected-no-leases | --send-frame FILE]", "Native 启动器参数数量不正确"],
+            ["unknown send action", "Native 启动器的发送操作参数不受支持"],
+            ["deployment setting missing", "Native 部署路径配置缺失或长度超限"],
+            ["absolute deployment path required", "Native 部署路径必须是绝对路径"],
+            ["configured QQ image rejected", "配置的 QQ 程序文件名不正确"],
+            ["runner path unavailable", "无法取得 Native 启动器自身路径"],
+            ["Native installation mismatch", "Native 启动器与 DLL 的安装目录或文件名不匹配"],
+            ["invalid PID", "指定的 QQ 进程编号无效"],
+            ["test process access failed", "无法取得 QQ 进程访问权限"],
+            ["target process image rejected", "无法核实目标程序路径，或目标不是所选 QQ 程序"],
+            ["target lacks existing wrapper", "未找到 QQ 已加载的通信模块，或模块枚举失败"],
+            ["unknown action", "Native 启动器操作参数不受支持"],
+            ["rejected-run retirement preconditions not proven", "诊断组件退役所需的安全条件未得到证明"],
+            ["no test DLL to retire", "没有找到可退役的诊断组件"],
+            ["existing test DLL preserved; investigate previous run", "诊断组件已驻留，当前操作拒绝覆盖"],
+            ["loaded DLL differs from requested build; no cross-build RVA calls", "QQ 中驻留的是另一目录的 Native 组件"],
+            ["runtime not loaded", "QQ 进程尚未加载 NeroNet Native 组件"],
+            ["probe export inspection failed", "无法检查 Native DLL 的导出入口"],
+            ["NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ", "QQ 中驻留的 Native 构建与当前文件不一致"],
+            ["probe export missing", "Native DLL 缺少所请求的导出入口"],
+            ["request must be a local reviewed qhp file", "单次发送请求不是同目录的规定帧文件"],
+            ["request length", "单次发送请求文件为空或超过容量限制"],
+            ["request read", "读取单次发送请求文件失败"],
+            ["request already attempted; no automatic retry", "请求尝试标记创建失败，可能已尝试过此请求"],
+            ["test DLL path allocation failed", "无法在目标进程分配或写入 Native DLL 路径"],
+            ["test DLL did not load", "请求加载后未找到 Native DLL"],
+            ["Native build inspection failed", "无法检查 Native 构建信息"],
+            ["runtime record allocation", "无法在 QQ 进程分配或写入运行控制记录"],
+            ["runtime result read", "无法完整读取 QQ 进程中的运行控制结果"],
+            ["send record allocation failed", "无法在 QQ 进程分配或写入单次发送记录"],
+            ["send result read failed", "无法完整读取单次发送结果"],
+            ["invalid own output length", "单次发送返回的输出长度超过记录容量"],
+            ["private result allocation failed", "无法在 QQ 进程分配或写入诊断结果记录"],
+            ["private result read failed", "无法完整读取诊断结果记录"]
+        ]);
+    }
+});
 import fs6 from "node:fs";
 import path7 from "node:path";
-import { spawn, execFile as execFile3 } from "node:child_process";
+import { execFile as execFile3 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
+function qqBuildFromWrapperPath(file) {
+    const match = /[\\/]versions[\\/](\d+\.\d+\.\d+-\d+)[\\/]/i.exec(String(file ?? ""));
+    return match ? match[1] : null;
+}
+async function wrapperOfProcess(pid2, { run = exec3 } = {}) {
+    if (!Number.isSafeInteger(pid2) || pid2 < 1)
+        return null;
+    try {
+        const command2 = "$p=Get-Process -Id " + pid2 + " -ErrorAction SilentlyContinue; $f=$null; try{$f=@($p.Modules | Where-Object ModuleName -eq 'wrapper.node' | ForEach-Object FileName)[0]}catch{}; ConvertTo-Json -InputObject @($f | Where-Object {$_}) -Compress";
+        const { stdout } = await run(POWERSHELL2, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+        const files = JSON.parse(String(stdout).trim() || "[]");
+        return Array.isArray(files) && typeof files[0] === "string" ? files[0] : null;
+    }
+    catch {
+        return null;
+    }
+}
+async function qqBuildOfProcess(pid2, options = {}) {
+    return qqBuildFromWrapperPath(await wrapperOfProcess(pid2, options));
+}
+function localTime(iso) {
+    const at = typeof iso === "string" ? new Date(iso) : null;
+    if (!at || Number.isNaN(at.getTime()))
+        return null;
+    const two = (n2) => String(n2).padStart(2, "0");
+    return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + " " + two(at.getHours()) + ":" + two(at.getMinutes());
+}
+function cleanCause(cause2) {
+    if (!cause2 || typeof cause2 !== "object")
+        return null;
+    const legacy = cause2.legacy && whole2(cause2.legacy.code) !== null && whole2(cause2.legacy.phase) !== null ? { code: cause2.legacy.code, phase: cause2.legacy.phase } : null;
+    const errors = (Array.isArray(cause2.errors) ? cause2.errors : []).slice(0, 4).map((e) => ({ error: short(e?.error) ?? "(text)", win32: whole2(e?.win32) }));
+    const f = cause2.failure && typeof cause2.failure === "object" ? cause2.failure : null;
+    const failure2 = f && (f.errorId === null || short(f.errorId)) && whole2(f.detailCode) !== null ? { errorId: f.errorId, stage: short(f.stage), detailCode: f.detailCode, systemError: whole2(f.systemError), kind: short(f.kind), qqCall: short(f.qqCall), cleanup: short(f.cleanup) } : null;
+    const rules = (Array.isArray(cause2.rules) ? cause2.rules : []).slice(0, 8).filter((r) => typeof r?.rule === "string" && /^[A-Z][A-Z0-9_]{0,47}$/.test(r.rule)).map((r) => ({ rule: r.rule, detailCode: whole2(r.detailCode) }));
+    return { rules, ...cause2.residentIsThisBuild === true ? { residentIsThisBuild: true } : {}, classification: short(cause2.classification) ?? "unknown", reason: short(cause2.reason), exit: whole2(cause2.exit) ?? short(cause2.exit), transport: short(cause2.transport), legacy, errors, failure: failure2, cleanup: short(cause2.cleanup) };
+}
+function versionHint(qqBuild) {
+    if (!qqBuild)
+        return null;
+    const version = qqBuild.split("-")[0], list = CONFIRMED_QQ_VERSIONS.join("、");
+    return CONFIRMED_QQ_VERSIONS.includes(version) ? "当前 QQ 是 " + qqBuild + "，版本号在已确认适配的版本（" + list + "）里。" : "当前 QQ 是 " + qqBuild + "，不在已确认适配的版本（" + list + "）里，这很可能就是原因。可以把 QQ 换成其中一个版本再试。";
+}
+function describeCause(input, { qqBuild = null } = {}) {
+    const cause2 = cleanCause(input), details = [], advice = [];
+    if (!cause2)
+        return { headline: "接入 QQ 失败，原因没有记录。", details, advice, cleanStart: false };
+    const hint = versionHint(qqBuild), feedback = "请把诊断记录里这次启动的内容反馈给维护者（不要发送密码、令牌和聊天内容）。";
+    if (cause2.classification === "not-started") {
+        return {
+            headline: "接入组件 native\\neronet_native_host.exe 没能运行" + (cause2.exit !== null ? "（" + cause2.exit + "）" : "") + "。",
+            details,
+            advice: ["请确认这个文件还在，并查看安全软件有没有拦截或隔离它。这次启动没有接触 QQ，处理后直接重新运行 start.bat 即可。"],
+            cleanStart: true
+        };
+    }
+    if (cause2.classification === "build-mismatch" || cause2.reason === BUILD_MISMATCH) {
+        if (cause2.residentIsThisBuild)
+            return {
+                headline: "组件已经加载进这个 QQ 进程，但没有通过加载后的核对，这个 QQ 进程不能使用。",
+                details: ["错误：" + BUILD_MISMATCH + "；加载的就是当前这一份组件文件。"],
+                advice: ["请正常退出机器人 QQ 再重新登录。如果重新登录后仍然出现这个提示，" + feedback],
+                cleanStart: true
+            };
+        return {
+            headline: "这个 QQ 里还留着另一个版本的 NeroNet 组件，不能直接接入。",
+            details,
+            advice: ["请正常退出机器人 QQ 再重新登录。"],
+            cleanStart: true
+        };
+    }
+    if (cause2.failure) {
+        const f = cause2.failure, entry = f.errorId ? NATIVE_ERRORS.get(f.errorId) : null;
+        details.push("错误：" + (f.errorId ?? "未登记的内部异常") + "（编号 " + f.detailCode + (f.stage ? "，阶段 " + f.stage : "") + (f.systemError !== null ? "，系统码 " + f.systemError : "") + "）");
+        const cleanStart = cause2.classification === "rejected" || cause2.classification === "preparation-failed";
+        const about = f.stage === "binding-discovery" || f.stage === "binding-selection" || /^NERONET_BINDING_/.test(f.errorId ?? "");
+        if (about && qqBuild)
+            details.push("当前 QQ 是 " + qqBuild + "。");
+        if (cause2.rules.length)
+            details.push("没有通过的结构规则：" + cause2.rules.map((r) => r.rule).join("、"));
+        advice.push(FAILURE_ADVICE.get(f.errorId) ?? entry?.advice ?? feedback);
+        if (cleanStart)
+            advice.push(cause2.classification === "preparation-failed" ? "这一步只读取了 QQ 的程序文件，没有接触 QQ 进程，不需要重启 QQ。处理后重新运行 start.bat 即可。" : "这次启动在调用 QQ 之前就结束了，没有留下需要清理的东西，不需要重启 QQ。处理后重新运行 start.bat 即可。");
+        return { headline: (entry?.message ?? "接入组件报告了一个没有登记的错误") + "。", details, advice, cleanStart };
+    }
+    if (cause2.classification === "preparation-failed") {
+        const told = PREPARATION_TEXTS.get(cause2.reason) ?? "识别当前 QQ 没有成功";
+        if (qqBuild)
+            details.push("当前 QQ 是 " + qqBuild + "。");
+        details.push("记录的原因：" + (cause2.reason ?? "unknown"));
+        return { headline: told + "。", details, advice: ["这一步只读取了 QQ 的程序文件，没有接触 QQ 进程，不需要重启 QQ。可以重新运行 start.bat 再试一次；仍然失败时，" + feedback], cleanStart: true };
+    }
+    if (cause2.errors.length) {
+        const first = cause2.errors[0], meaning = DRIVER_TEXTS.get(first.error);
+        details.push("组件原文：" + first.error + (first.win32 !== null ? "；系统码 " + first.win32 + "（这一版组件给出的系统码不一定对应这一步）" : ""));
+        advice.push(DRIVER_ADVICE.get(first.error) ?? feedback);
+        return { headline: "接入 QQ 时出错：" + (meaning ?? "组件报告了一个没有登记的错误") + "。", details, advice, cleanStart: false };
+    }
+    if (cause2.classification === "failed" && cause2.legacy) {
+        details.push("组件返回：code " + cause2.legacy.code + "，phase " + cause2.legacy.phase + (cause2.exit !== null ? "，退出码 " + cause2.exit : "") + "。这一版组件没有给出具体原因。");
+        if (hint)
+            details.push(hint);
+        if (!hint || CONFIRMED_QQ_VERSIONS.includes(qqBuild.split("-")[0]))
+            advice.push(feedback);
+        return { headline: "接入组件报告启动没有完成，具体原因尚未确认。", details, advice, cleanStart: false };
+    }
+    if (cause2.reason === "driver-result-incomplete" || cause2.transport === "interrupted") {
+        return { headline: "接入组件没有在限定时间内返回完整的结果，这次接入做到了哪一步无法确认。", details, advice: [feedback], cleanStart: false };
+    }
+    details.push("记录的原因：" + (cause2.reason ?? cause2.classification));
+    return { headline: "接入组件返回的结果不完整或互相矛盾，这次接入的结果无法确认。", details, advice: [feedback], cleanStart: false };
+}
+function describeStartFailure({ cause: cause2 = null, guard: guard2 = null, qqBuild = null, home: home3 = "" }) {
+    const lines = [], pid2 = whole2(guard2?.target?.pid);
+    const guardReason = short(guard2?.reason), reasonText = GUARD_REASONS.get(guardReason);
+    if (guard2?.state === "earlier") {
+        lines.push("这个 QQ 进程" + (pid2 ? "（进程号 " + pid2 + "）" : "") + "在之前的一次启动" + (localTime(guard2.since) ? "（" + localTime(guard2.since) + "）" : "") + "里接入失败，保护还在生效，这次没有再次接入。");
+        if (cause2) {
+            const told = describeCause(cause2, { qqBuild });
+            lines.push("当时的原因：" + told.headline, ...told.details);
+            lines.push(...told.advice);
+        }
+        else
+            lines.push("当时的原因没有记录" + (reasonText ? "（保护原因：" + reasonText + "）" : guardReason ? "（保护原因：" + guardReason + "）" : "") + "。");
+        lines.push(exitAdvice(pid2), guardNote);
+    }
+    else {
+        const told = describeCause(cause2, { qqBuild });
+        lines.push(told.headline, ...told.details, ...told.advice);
+        if (guard2?.state === "created") {
+            lines.push("由于这次接入的结果不能确认，NeroNet 已对这个 QQ 进程" + (pid2 ? "（进程号 " + pid2 + "）" : "") + "启用保护：在它退出之前不会再次接入" + (reasonText ? "（" + reasonText + "）" : "") + "。");
+            lines.push("处理完上面的原因后，" + exitAdvice(pid2), guardNote);
+        }
+    }
+    if (home3)
+        lines.push("诊断记录：" + path7.join(home3, "supervisor-metadata.jsonl"));
+    return lines;
+}
+function startupReport(home3, runId2, { onChange = () => {
+} } = {}) {
+    const file = path7.join(home3, REPORT_FILE);
+    let first = null, current2 = null;
+    const write = (entry) => {
+        current2 = { schema: 1, runId: runId2, utc: (new Date()).toISOString(), ...entry };
+        try {
+            const temp = file + ".tmp";
+            fs6.writeFileSync(temp, JSON.stringify(current2, null, 2) + "\n");
+            fs6.renameSync(temp, file);
+        }
+        catch {
+        }
+        try {
+            onChange(current2);
+        }
+        catch {
+        }
+    };
+    return {
+        get first() {
+            return first;
+        },
+        get current() {
+            return current2;
+        },
+        state(name, { pid: pid2 = null, qqBuild = null, lines = [] } = {}) {
+            if (current2 && current2.state === name && current2.pid === pid2 && JSON.stringify(current2.text.slice(1)) === JSON.stringify(lines))
+                return;
+            write({ state: name, outcome: name, pid: pid2, qqBuild, guarded: false, text: [STATE_TEXTS.get(name) ?? name, ...lines] });
+        },
+        failed({ target, reason, cause: cause2 = null, guarded = false, guardReason = null, qqBuild = null, retry = "manual", nextAttemptInMs = null }) {
+            const isFirst = !first;
+            if (isFirst)
+                first = { target: { pid: target.pid, started: target.started }, reason, cause: cause2, guarded, qqBuild };
+            const guard2 = guarded ? { state: "created", reason: guardReason ?? reason, target: { pid: target.pid, started: target.started } } : null;
+            const text2 = describeStartFailure({ cause: cause2, guard: guard2, qqBuild, home: home3 });
+            const next = retry === "automatic" ? "NeroNet 仍在运行，" + (nextAttemptInMs ? "约 " + Math.max(1, Math.round(nextAttemptInMs / 1e3)) + " 秒后" : "稍后") + "会自己再试一次。" : retry === "manual" ? "NeroNet 仍在运行，但不会自己再试。处理后再运行一次 start.bat，它会让 NeroNet 重新接入；要退出请运行 stop.bat。" : "NeroNet 仍在运行：这个 QQ 进程退出、机器人账号重新登录后，会自动接入新的 QQ 进程。要退出请运行 stop.bat。";
+            text2.splice(home3 ? text2.length - 1 : text2.length, 0, next);
+            write({ state: guarded || retry === "restart-qq" ? "guarded" : "attach-failed", outcome: "attach-failed", pid: target.pid, reason, guarded, qqBuild, retry, cause: cause2, text: text2, firstFailureOfRun: isFirst });
+            return isFirst;
+        },
+        guardBlocked(state, { qqBuild = null } = {}) {
+            const text2 = describeStartFailure({ cause: state.cause ?? null, guard: { state: "earlier", reason: state.reason, target: state.target, since: state.since }, qqBuild, home: home3 });
+            text2.splice(home3 ? text2.length - 1 : text2.length, 0, "NeroNet 仍在运行：这个 QQ 进程退出、机器人账号重新登录后，会自动接入新的 QQ 进程。要退出请运行 stop.bat。");
+            write({ state: "guarded", outcome: "guard-blocked", pid: state.target?.pid ?? null, reason: state.reason ?? null, guarded: true, qqBuild, retry: "restart-qq", cause: state.cause ?? null, text: text2 });
+        },
+        clear() {
+            try {
+                fs6.rmSync(file, { force: true });
+            }
+            catch {
+            }
+        }
+    };
+}
+var exec3, POWERSHELL2, CONFIRMED_QQ_VERSIONS, GUARD_FILE, REPORT_FILE, short, whole2, DRIVER_ADVICE, FAILURE_ADVICE, PREPARATION_TEXTS, GUARD_REASONS, exitAdvice, guardNote, STATE_TEXTS, WAITING_STATES, FAILED_STATES, RETRY_FILE;
+var init_startup_failure = __esm({
+    "startup-failure.mjs"() {
+        init_native_driver_texts();
+        init_native_error_catalog();
+        init_native_start_transaction();
+        exec3 = promisify3(execFile3);
+        POWERSHELL2 = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+        CONFIRMED_QQ_VERSIONS = ["9.9.25", "9.9.30", "9.9.32", "9.9.37"];
+        GUARD_FILE = "native-startup-unresolved.json";
+        REPORT_FILE = "startup-result.json";
+        short = (value) => typeof value === "string" && /^[A-Za-z0-9_ ;,.:\-]{1,120}$/.test(value) ? value : null;
+        whole2 = (value) => Number.isSafeInteger(value) ? value : null;
+        DRIVER_ADVICE = new Map([
+            ["test process access failed", "如果 QQ 是以管理员身份运行的，NeroNet 也要以管理员身份启动（docs\\DEPLOY.md）。安全软件也可能拦截了对 QQ 进程的访问，可以查看它的拦截记录。"],
+            ["target process image rejected", "请确认用 -BotPid 指定的（或自动选中的）进程是部署配置里那个 QQ 程序的主进程。"],
+            ["target lacks existing wrapper", "QQ 可能还没有完全启动。请等 QQ 主界面出现后再试。"],
+            ["CreateRemoteThread failed", "安全软件可能拦截了这一步，可以查看它的拦截记录。"],
+            ["test DLL path allocation failed", "安全软件可能拦截了这一步，可以查看它的拦截记录。"],
+            ["test DLL did not load", "组件没有被 QQ 加载。安全软件可能拦截了这一步，可以查看它的拦截记录。"],
+            ["Native installation mismatch", "native 文件夹里的文件不是同一套。请重新解压完整的 NeroNet 包。"]
+        ]);
+        FAILURE_ADVICE = new Map([
+            ["NERONET_TARGET_ACCESS_FAILED", "如果 QQ 是以管理员身份运行的，NeroNet 也要以管理员身份启动（docs\\DEPLOY.md）。安全软件也可能拦截了对 QQ 进程的访问，可以查看它的拦截记录。"],
+            ["NERONET_QQ_ROUTE_NOT_INITIALIZED", "QQ 还没有完成启动或登录。请确认机器人账号已经登录并进入主界面；NeroNet 会自己再试。"],
+            ["NERONET_BINDING_CACHE_UNAVAILABLE", "识别结果保存在当前用户的 %LOCALAPPDATA%\\NeroNet\\binding-cache 里，这个文件夹现在无法创建或写入。请检查它的权限和磁盘空间。"],
+            ["NERONET_BINDING_CACHE_LOCK_TIMEOUT", "另一个 NeroNet 正在识别同一个 QQ 版本，等待它完成超时了。请稍后重新运行 start.bat。"]
+        ]);
+        PREPARATION_TEXTS = new Map([
+            ["binding-preparation-timeout", "识别当前 QQ 超过了时间限制，没有完成"],
+            ["binding-preparation-result-incomplete", "识别当前 QQ 的程序被中断，没有返回完整的结果"],
+            ["binding-preparation-result-invalid", "识别当前 QQ 的程序返回了无法使用的结果"]
+        ]);
+        GUARD_REASONS = new Map([
+            ["native-startup-drain-unconfirmed", "启动失败后，组件没有确认已经清理完成"],
+            ["recovery-drain-unconfirmed", "连接中断后，组件没有确认已经清理完成"],
+            ["generation-drain-unconfirmed", "停止时，组件没有确认已经清理完成"],
+            ["shutdown-process-observation-unavailable", "停止时无法查看 QQ 进程"],
+            ["unreadable-startup-guard", "保护记录文件无法读取"],
+            ["invalid-startup-guard", "保护记录文件的内容不完整"]
+        ]);
+        exitAdvice = (pid2) => "请正常退出机器人 QQ" + (pid2 ? "（进程号 " + pid2 + "）" : "") + "：在 QQ 主菜单里选“退出”。只关闭窗口或只退出账号时，QQ 进程可能还在。重新登录后再运行 start.bat。";
+        guardNote = "保护记录是 data 目录里的 " + GUARD_FILE + "，QQ 进程退出后会自动解除，不需要手动删除。";
+        STATE_TEXTS = new Map([
+            ["preparing-binding", "正在识别当前 QQ。第一次遇到一个 QQ 版本时需要一些时间（通常几秒，最长几分钟），之后会直接使用保存的结果。"],
+            ["starting", "正在接入 QQ。"],
+            ["qq-initializing", "QQ 还没有完成启动或登录，NeroNet 在等待。请确认机器人账号已经登录并进入主界面。"],
+            ["login-wait", "正在等待 QQ 完成登录。"],
+            ["waiting-for-bot", "没有找到机器人 QQ，NeroNet 在等待。请登录机器人账号。"],
+            ["recovering", "与 QQ 的连接中断，正在恢复。"],
+            ["attached", "已接入 QQ。"],
+            ["stopped", "NeroNet 已停止。"]
+        ]);
+        WAITING_STATES = Object.freeze(["preparing-binding", "starting", "qq-initializing", "login-wait", "waiting-for-bot", "recovering"]);
+        FAILED_STATES = Object.freeze(["attach-failed", "guarded"]);
+        RETRY_FILE = "RETRY";
+    }
+});
+import { spawn } from "node:child_process";
+function runDriver(exe, args, { env, controlBudgetMs = CONTROL_BUDGET_MS, discoveryBudgetMs = DISCOVERY_BUDGET_MS, signal, onPreparation = () => {
+}, spawnProcess = spawn, now: now2 = Date.now } = {}) {
+    return new Promise((resolve) => {
+        const started = now2();
+        let stdout = "", pending = "", overflow = false, settled = false, cancelled = false, timedOut = false, discovered = false, timer = null, child;
+        const finish2 = (error) => {
+            if (settled)
+                return;
+            settled = true;
+            clearTimeout(timer);
+            signal?.removeEventListener("abort", abort);
+            const parsed = parseDriverResult(stdout, error);
+            resolve({ ...parsed, malformed: parsed.malformed || overflow, cancelled, timedOut, discovered, elapsedMs: now2() - started });
+        };
+        const kill = () => {
+            try {
+                child?.kill();
+            }
+            catch {
+            }
+        };
+        const arm = (ms) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                timedOut = true;
+                kill();
+            }, Math.max(1, ms));
+        };
+        const abort = () => {
+            cancelled = true;
+            kill();
+        };
+        if (signal?.aborted) {
+            cancelled = true;
+            return finish2({ code: "ABORTED", killed: true });
+        }
+        try {
+            child = spawnProcess(exe, args, { env, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+        }
+        catch (error) {
+            return finish2({ code: error?.code ?? "SPAWN_FAILED" });
+        }
+        signal?.addEventListener("abort", abort, { once: true });
+        arm(controlBudgetMs);
+        child.stdout.setEncoding("utf8");
+        child.stdout.on("data", (chunk2) => {
+            if (stdout.length + chunk2.length > MAX_OUTPUT) {
+                overflow = true;
+                kill();
+                return;
+            }
+            stdout += chunk2;
+            pending += chunk2;
+            let at;
+            while ((at = pending.indexOf("\n")) >= 0) {
+                const line = pending.slice(0, at).trim();
+                pending = pending.slice(at + 1);
+                if (!line.includes('"bindingPreparation"'))
+                    continue;
+                let row;
+                try {
+                    row = JSON.parse(line);
+                }
+                catch {
+                    continue;
+                }
+                if (row?.bindingPreparation !== true || typeof row.state !== "string")
+                    continue;
+                if (row.state === "discovering") {
+                    discovered = true;
+                    arm(discoveryBudgetMs - (now2() - started));
+                }
+                else
+                    arm(controlBudgetMs);
+                try {
+                    onPreparation({ state: row.state });
+                }
+                catch {
+                }
+            }
+        });
+        child.on("error", (error) => finish2({ code: error?.code ?? "SPAWN_FAILED" }));
+        child.on("close", (code, sig) => {
+            if (cancelled || timedOut || overflow || sig)
+                return finish2({ code: code ?? "KILLED", killed: true, signal: sig ?? "SIGTERM" });
+            finish2(code === 0 ? null : { code });
+        });
+    });
+}
+var CONTROL_BUDGET_MS, DISCOVERY_BUDGET_MS, MAX_OUTPUT;
+var init_native_driver = __esm({
+    "native-driver.mjs"() {
+        init_native_start_transaction();
+        CONTROL_BUDGET_MS = 25e3;
+        DISCOVERY_BUDGET_MS = 62e4;
+        MAX_OUTPUT = 262144;
+    }
+});
+function cause(result, reason, report2 = null) {
+    return { classification: "preparation-failed", reason, exit: exitOf(result), transport: result?.transport ?? null, legacy: null, errors: driverErrors(result?.rows), failure: report2 ? reportSummary(report2) : null, rules: readRuleFailures(result?.rows), cleanup: "not-required" };
+}
+function classifyPreparation(result) {
+    if (result.cancelled)
+        return { kind: "cancelled" };
+    if (result.transport === "not-started")
+        return { kind: "failed", reason: "driver-launch-failed", cause: { ...cause(result, "driver-launch-failed"), classification: "not-started" } };
+    if (result.timedOut)
+        return { kind: "failed", reason: "binding-preparation-timeout", cause: cause(result, "binding-preparation-timeout") };
+    if (result.transport !== "exited" || result.malformed)
+        return { kind: "failed", reason: "binding-preparation-result-incomplete", cause: cause(result, "binding-preparation-result-incomplete") };
+    const reported = readNativeReport(result.rows);
+    if (reported?.valid)
+        return { kind: "failed", reason: reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", cause: cause(result, reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", reported.report) };
+    const steps = readPreparation(result.rows);
+    if (reported || !steps || !steps.length || result.exit !== 0 || result.rows.some((row) => row && Object.hasOwn(row, "error")))
+        return { kind: "failed", reason: "binding-preparation-result-invalid", cause: cause(result, "binding-preparation-result-invalid") };
+    const last = steps.at(-1);
+    if (last.state === "discovering" || steps.some((step) => step.imageSha256 !== last.imageSha256))
+        return { kind: "failed", reason: "binding-preparation-result-invalid", cause: cause(result, "binding-preparation-result-invalid") };
+    return { kind: "ok", state: last.state, imageSha256: last.imageSha256, runtimeVerified: last.runtimeVerified, discovered: steps.some((step) => step.state === "discovering"), cacheHit: last.cacheHit };
+}
+async function prepareBinding({ target, run, observe: observe2, loadedModule, record: record3 }) {
+    const emit = (event) => {
+        try {
+            record3(event);
+        }
+        catch {
+        }
+    };
+    let before;
+    try {
+        if (await observe2() !== "same")
+            return { kind: "target-changed" };
+        before = await loadedModule();
+    }
+    catch {
+        return { kind: "target-changed" };
+    }
+    const result = await run();
+    const decision = classifyPreparation(result);
+    emit({
+        bindingPreparation: true,
+        pid: target.pid,
+        outcome: decision.kind,
+        reason: decision.reason ?? null,
+        state: decision.state ?? null,
+        imageSha256: decision.imageSha256 ?? null,
+        runtimeVerified: decision.runtimeVerified ?? null,
+        cacheHit: decision.cacheHit ?? null,
+        discovered: result.discovered === true,
+        elapsedMs: result.elapsedMs ?? null,
+        exit: exitOf(result),
+        transport: result.transport,
+        rows: diagnosticRows(result.rows),
+        errors: driverErrors(result.rows)
+    });
+    if (decision.kind !== "ok")
+        return decision;
+    let after;
+    try {
+        if (await observe2() !== "same")
+            return { kind: "target-changed" };
+        after = await loadedModule();
+    }
+    catch {
+        return { kind: "target-changed" };
+    }
+    if (before !== after)
+        return { kind: "target-changed" };
+    return { ...decision, module: after };
+}
+var exitOf;
+var init_binding_preparation = __esm({
+    "binding-preparation.mjs"() {
+        init_native_diagnostics();
+        init_native_start_transaction();
+        exitOf = (result) => Number.isInteger(result?.exit) ? result.exit : typeof result?.exit === "string" && /^[A-Z0-9_]{1,24}$/.test(result.exit) ? result.exit : null;
+    }
+});
+function attachSlots({ automaticDelaysMs = [15e3, 6e4], waitFirstMs = 2500, waitStepMs = 500, waitMaxMs = 1e4, now: now2 = Date.now } = {}) {
+    const slots2 = new Map();
+    const of = (target) => {
+        const key = processKey(target);
+        let slot = slots2.get(key);
+        if (!slot) {
+            slot = { prepared: null, failures: 0, waits: 0, nextAt: 0, held: false };
+            slots2.set(key, slot);
+        }
+        return slot;
+    };
+    return {
+        of,
+        forget(target) {
+            slots2.delete(processKey(target));
+        },
+        waiting(target) {
+            const slot = of(target);
+            slot.waits++;
+            const delayMs = Math.min(waitFirstMs + (slot.waits - 1) * waitStepMs, waitMaxMs);
+            slot.nextAt = now2() + delayMs;
+            return delayMs;
+        },
+        failed(target) {
+            const slot = of(target);
+            slot.failures++;
+            slot.prepared = null;
+            if (slot.failures <= automaticDelaysMs.length) {
+                const delayMs = automaticDelaysMs[slot.failures - 1];
+                slot.nextAt = now2() + delayMs;
+                return { retry: "automatic", delayMs };
+            }
+            slot.held = true;
+            slot.nextAt = 0;
+            return { retry: "manual", delayMs: null };
+        },
+        retry(target) {
+            const slot = of(target);
+            slot.held = false;
+            slot.failures = 0;
+            slot.waits = 0;
+            slot.nextAt = 0;
+            slot.prepared = null;
+        },
+        attached(target) {
+            const slot = of(target);
+            slot.failures = 0;
+            slot.waits = 0;
+            slot.nextAt = 0;
+            slot.held = false;
+        }
+    };
+}
+var init_attach_policy = __esm({
+    "attach-policy.mjs"() {
+        init_process_selection();
+    }
+});
+import http from "node:http";
+function localTime2(iso) {
+    const at = new Date(iso);
+    if (Number.isNaN(at.getTime()))
+        return "";
+    const two = (n2) => String(n2).padStart(2, "0");
+    return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + " " + two(at.getHours()) + ":" + two(at.getMinutes()) + ":" + two(at.getSeconds());
+}
+function statusPage(status, productName = "NeroNet") {
+    const lines = Array.isArray(status?.text) ? status.text : ["正在启动。"];
+    return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(productName) + ' 状态</title><style>body{font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#1f2328;background:#fff}@media(prefers-color-scheme:dark){body{color:#e6edf3;background:#0d1117}}h1{font-size:1.2rem}p{margin:.45rem 0}.first{font-weight:600}.note{opacity:.7;font-size:.85rem;margin-top:1.5rem}</style></head><body><h1>' + escape(productName) + " 还没有接入 QQ</h1>" + lines.map((line, i) => "<p" + (i === 0 ? ' class="first"' : "") + ">" + escape(line) + "</p>").join("") + '<p class="note">本页每 5 秒刷新一次。接入成功后，请使用管理界面。' + (status?.utc && localTime2(status.utc) ? "状态更新于 " + escape(localTime2(status.utc)) + "。" : "") + "</p></body></html>";
+}
+function standbyServer({ status, port: port3 = READINESS_PORT, productName = "NeroNet" }) {
+    let server = null, listening = false;
+    const handler = (req, res) => {
+        const current2 = status();
+        if (req.method !== "GET" && req.method !== "HEAD") {
+            res.writeHead(405, { "content-length": "0" });
+            res.end();
+            return;
+        }
+        const url = (req.url ?? "/").split("?")[0];
+        if (url === "/status") {
+            const body2 = statusPage(current2, productName);
+            res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" });
+            res.end(req.method === "HEAD" ? void 0 : body2);
+            return;
+        }
+        if (url !== "/") {
+            res.writeHead(404, { "content-length": "0" });
+            res.end();
+            return;
+        }
+        const body = JSON.stringify({ ready: false, attached: false, state: current2?.state ?? "starting", pid: current2?.pid ?? null, reason: current2?.reason ?? null, guarded: current2?.guarded === true, text: Array.isArray(current2?.text) ? current2.text : [], utc: current2?.utc ?? null });
+        res.writeHead(503, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(req.method === "HEAD" ? void 0 : body);
+    };
+    return {
+        get listening() {
+            return listening;
+        },
+        start() {
+            if (server)
+                return Promise.resolve(listening);
+            return new Promise((resolve) => {
+                const s = http.createServer(handler);
+                server = s;
+                s.once("error", () => {
+                    if (server === s)
+                        server = null;
+                    listening = false;
+                    resolve(false);
+                });
+                s.listen(port3, "127.0.0.1", () => {
+                    listening = true;
+                    s.on("error", () => {
+                    });
+                    resolve(true);
+                });
+            });
+        },
+        stop() {
+            const s = server;
+            server = null;
+            listening = false;
+            if (!s)
+                return Promise.resolve();
+            return new Promise((resolve) => {
+                try {
+                    s.closeAllConnections?.();
+                }
+                catch {
+                }
+                s.close(() => resolve());
+            });
+        }
+    };
+}
+var READINESS_PORT, escape;
+var init_standby_server = __esm({
+    "standby-server.mjs"() {
+        READINESS_PORT = 5100;
+        escape = (text2) => String(text2).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    }
+});
+var supervisor_exports = {};
+import fs7 from "node:fs";
+import path8 from "node:path";
+import { spawn as spawn2, execFile as execFile4 } from "node:child_process";
+import { promisify as promisify4 } from "node:util";
 import { randomUUID } from "node:crypto";
 async function listGenerations() {
     const command2 = "$ErrorActionPreference='Stop'; $items=@(Get-Process | Where-Object {$_.ProcessName -eq 'QQ'} | ForEach-Object {[pscustomobject]@{pid=$_.Id;started=$_.StartTime.ToUniversalTime().ToString('o')}}); ConvertTo-Json -InputObject @($items) -Compress";
-    const { stdout } = await exec3(ps, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+    const { stdout } = await exec4(ps, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
     return JSON.parse(stdout.trim() || "[]");
 }
 async function pause(ms) {
@@ -924,13 +2104,57 @@ async function observe(target) {
 }
 function close(current2) {
     return closeGeneration(current2, {
-        markStop: () => fs6.writeFileSync(path7.join(home, current2.stopMarker), "controlled generation stop\n"),
+        markStop: () => fs7.writeFileSync(path8.join(home, current2.stopMarker), "controlled generation stop\n"),
         observe: () => observe(current2.target),
         drain: () => closeNativeWithDrain(current2.target.pid, artifacts, record, 5e3, { observe: () => observe(current2.target) }),
         record
     });
 }
-var exec3, sleep, argv, botArg, adminArg, homeArg, home, artifacts, deployment, nativeEnv, nativeManifest, metadataLog, record, ps, operation, observed, discover, selection, stopping, current, pendingStartup, lastWaiting, epoch, recovering, recovery, guard, stopRequested, generations, blocked;
+function driver2(target, action, { cancellable = false } = {}) {
+    const controller = new AbortController();
+    const watch = cancellable ? setInterval(() => {
+        if (stopRequested())
+            controller.abort();
+    }, 500) : null;
+    let slow = null;
+    return runDriver(hostExe, [String(target.pid), bindingDll, action], {
+        env: nativeEnv,
+        signal: controller.signal,
+        onPreparation: (row) => {
+            if (row.state === "discovering" && !slow)
+                slow = setTimeout(() => {
+                    record({ bindingDiscoveryRunning: true, pid: target.pid, during: action });
+                    report.state("preparing-binding", { pid: target.pid });
+                }, 3e3);
+        }
+    }).finally(() => {
+        clearInterval(watch);
+        clearTimeout(slow);
+    });
+}
+async function residentComponents(pid2) {
+    try {
+        const command2 = "$p=Get-Process -Id " + pid2 + " -ErrorAction SilentlyContinue; $f=@(); try{$f=@($p.Modules | Where-Object ModuleName -eq 'neronet_live_binding.dll' | ForEach-Object FileName)}catch{}; ConvertTo-Json -InputObject @($f) -Compress";
+        const { stdout } = await exec4(ps, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+        const files = JSON.parse(stdout.trim() || "[]");
+        return Array.isArray(files) ? files.filter((f) => typeof f === "string") : null;
+    }
+    catch {
+        return null;
+    }
+}
+function takeRetryRequest() {
+    if (!fs7.existsSync(retryFile))
+        return false;
+    try {
+        fs7.rmSync(retryFile, { force: true });
+    }
+    catch {
+        return false;
+    }
+    return true;
+}
+var exec4, sleep, argv, botArg, adminArg, homeArg, home, artifacts, deployment, nativeEnv, nativeManifest, metadataLog, runId, record, report, standby, retryFile, ps, operation, observed, discover, selection, stopping, current, pendingStartup, lastWaiting, epoch, recovering, guardNoted, recovery, guard, stopRequested, generations, blocked, slots, hostExe, bindingDll, showing, failureShown;
 var init_supervisor = __esm({
     async "supervisor.mjs"() {
         init_deployment_profile();
@@ -944,7 +2168,12 @@ var init_supervisor = __esm({
         init_native_manifest();
         init_layout_release();
         init_qq_processes();
-        exec3 = promisify3(execFile3);
+        init_startup_failure();
+        init_native_driver();
+        init_binding_preparation();
+        init_attach_policy();
+        init_standby_server();
+        exec4 = promisify4(execFile4);
         sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         argv = process.argv.slice(2);
         if (argv.length !== 2 && argv.length !== 3)
@@ -952,19 +2181,29 @@ var init_supervisor = __esm({
         [botArg, adminArg, homeArg] = argv.length === 3 ? argv : [argv[0], null, argv[1]];
         if (!homeArg)
             throw Error("Usage: supervisor BOT_PID [EXCLUDED_QQ_PID] HOME");
-        home = path7.resolve(homeArg);
-        artifacts = path7.resolve(process.env.NERONET_NATIVE_DIR ?? nativeDirectory);
+        home = path8.resolve(homeArg);
+        artifacts = path8.resolve(process.env.NERONET_NATIVE_DIR ?? nativeDirectory);
         deployment = validateDeploymentPaths(loadDeploymentProfile(), { home, artifacts });
         nativeEnv = nativeEnvironment(deployment, artifacts);
         nativeManifest = loadNativeManifest(nativeManifestFile);
         verifyNativeArtifacts(nativeManifest, artifacts);
-        fs6.mkdirSync(home, { recursive: true });
-        if (fs6.existsSync(path7.join(home, "STOP")))
+        fs7.mkdirSync(home, { recursive: true });
+        if (fs7.existsSync(path8.join(home, "STOP")))
             throw Error("Existing STOP marker: inspect prior shutdown before removing it");
-        metadataLog = new BoundedJsonl(path7.join(home, "supervisor-metadata.jsonl"));
+        metadataLog = new BoundedJsonl(path8.join(home, "supervisor-metadata.jsonl"));
+        runId = /^[A-Za-z0-9\-]{8,64}$/.test(process.env.NERONET_RUN_ID ?? "") ? process.env.NERONET_RUN_ID : randomUUID();
         record = (event) => {
-            metadataLog.append({ utc: (new Date()).toISOString(), ...event });
+            metadataLog.append({ utc: (new Date()).toISOString(), runId, ...event });
         };
+        report = startupReport(home, runId);
+        report.clear();
+        standby = standbyServer({ status: () => report.current });
+        retryFile = path8.join(home, RETRY_FILE);
+        try {
+            fs7.rmSync(retryFile, { force: true });
+        }
+        catch {
+        }
         ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
         operation = "startup";
         observed = (name, fn) => retrying(fn, { onRetry: (attempt) => record({ processObservationRetry: true, operation: name, attempt }) });
@@ -977,24 +2216,43 @@ var init_supervisor = __esm({
         lastWaiting = "";
         epoch = 0;
         recovering = null;
+        guardNoted = null;
         recovery = recoveryPolicy();
         guard = startupGuard(home);
-        stopRequested = () => stopping || fs6.existsSync(path7.join(home, "STOP"));
+        stopRequested = () => stopping || fs7.existsSync(path8.join(home, "STOP"));
         generations = () => observed("list-qq-processes", listGenerations);
         blocked = new Set();
+        slots = attachSlots();
         process.on("SIGINT", () => stopping = true);
         process.on("SIGTERM", () => stopping = true);
+        hostExe = path8.join(artifacts, "neronet_native_host.exe");
+        bindingDll = path8.join(artifacts, "neronet_live_binding.dll");
+        showing = (name) => report.current?.state === name;
+        failureShown = () => FAILED_STATES.includes(report.current?.state);
         try {
+            await standby.start();
             while (!stopRequested()) {
                 operation = "startup-guard";
                 const guardState = guard.inspect(await generations());
                 if (guardState?.blocked) {
-                    record({ startupGuardBlocked: true, ...guardState });
-                    process.exitCode = 1;
-                    break;
+                    const noted = guardState.target ? processKey(guardState.target) : guardState.reason;
+                    if (guardNoted !== noted) {
+                        const sameRun = !!report.first?.guarded && !!guardState.target && processKey(guardState.target) === processKey(report.first.target);
+                        record({ startupGuardBlocked: true, ...guardState, createdInThisRun: sameRun, waitingForProcessExit: !!guardState.target });
+                        if (!sameRun)
+                            report.guardBlocked(guardState, { qqBuild: guardState.target ? await qqBuildOfProcess(guardState.target.pid) : null });
+                        guardNoted = noted;
+                    }
+                    await pause(2e3);
+                    continue;
                 }
-                if (guardState)
+                if (guardState) {
                     record({ startupGuardResolved: true, ...guardState });
+                    guardNoted = null;
+                    lastWaiting = "";
+                    if (failureShown())
+                        report.state("waiting-for-bot");
+                }
                 operation = "discover-qq";
                 const candidates = await discover();
                 operation = "observe-generation";
@@ -1003,7 +2261,7 @@ var init_supervisor = __esm({
                     if (!await close(current))
                         break;
                     current = null;
-                    if (stopping || fs6.existsSync(path7.join(home, "STOP")))
+                    if (stopping || fs7.existsSync(path8.join(home, "STOP")))
                         break;
                 }
                 const ended = current?.exited ? classifyGatewayExit({ exitCode: current.exitCode, signal: current.signal, stopRequested: stopRequested() }) : null;
@@ -1018,7 +2276,7 @@ var init_supervisor = __esm({
                     current = null;
                     record({ startupRejected: true, pid: refused.target.pid, reason: "account-mismatch" });
                     lastWaiting = "";
-                    if (stopping || fs6.existsSync(path7.join(home, "STOP")))
+                    if (stopping || fs7.existsSync(path8.join(home, "STOP")))
                         break;
                     continue;
                 }
@@ -1036,14 +2294,18 @@ var init_supervisor = __esm({
                     }
                     current = null;
                     if (!drained) {
+                        const cause2 = { classification: "unresolved", reason: "recovery-drain-unconfirmed", exit: null, transport: null, legacy: null, errors: [], failure: null, cleanup: "unconfirmed" };
                         try {
-                            guard.mark({ target: failed6.target, reason: "recovery-drain-unconfirmed" });
+                            guard.mark({ target: failed6.target, reason: "recovery-drain-unconfirmed", cause: cause2 });
                         }
                         catch {
                         }
                         record({ recoveryBlocked: true, pid: pid2, reason: "drain-unconfirmed", action: "exit-and-relogin-bot-qq", businessRequestsRetried: 0 });
-                        process.exitCode = 1;
-                        break;
+                        blocked.add(processKey(failed6.target));
+                        await standby.start();
+                        report.failed({ target: failed6.target, reason: "recovery-drain-unconfirmed", cause: cause2, guarded: true, guardReason: "recovery-drain-unconfirmed", qqBuild: await qqBuildOfProcess(pid2), retry: "restart-qq" });
+                        guardNoted = processKey(failed6.target);
+                        continue;
                     }
                     if (stopRequested())
                         break;
@@ -1055,6 +2317,8 @@ var init_supervisor = __esm({
                     }
                     record({ recoveryScheduled: true, pid: pid2, attempt: step.attempt, maxAttempts: step.maxAttempts, delayMs: step.delayMs, businessRequestsRetried: 0 });
                     operation = "recovery-delay";
+                    await standby.start();
+                    report.state("recovering", { pid: pid2 });
                     await pause(step.delayMs);
                     if (stopRequested())
                         break;
@@ -1068,6 +2332,7 @@ var init_supervisor = __esm({
                     break;
                 }
                 if (!current) {
+                    await standby.start();
                     const choice = selectReplacement(candidates, selection, blocked), target = choice.target;
                     if (!target) {
                         const reason = choice.reason;
@@ -1075,10 +2340,49 @@ var init_supervisor = __esm({
                             record({ waiting: reason });
                             lastWaiting = reason;
                         }
+                        if (!failureShown())
+                            report.state("waiting-for-bot", { lines: reason === "ambiguous-bot-process" ? ["有多个 QQ 在运行，无法确定哪个是机器人。请停止后用 -BotPid 重新启动。"] : [] });
                         await sleep(1500);
                         continue;
                     }
+                    const slot = slots.of(target);
+                    if (slot.held) {
+                        if (!takeRetryRequest()) {
+                            await sleep(1e3);
+                            continue;
+                        }
+                        slots.retry(target);
+                        record({ attachRetryRequested: true, pid: target.pid });
+                    }
+                    if (Date.now() < slot.nextAt) {
+                        await sleep(500);
+                        continue;
+                    }
+                    if (!slot.prepared) {
+                        operation = "prepare-binding";
+                        if (!showing("qq-initializing") && !showing("login-wait"))
+                            report.state("starting", { pid: target.pid });
+                        const prepared = await prepareBinding({ target, observe: () => observe(target), loadedModule: () => wrapperOfProcess(target.pid), record, run: () => driver2(target, "--prepare-binding", { cancellable: true }) });
+                        if (prepared.kind === "cancelled")
+                            break;
+                        if (prepared.kind === "target-changed") {
+                            slots.forget(target);
+                            lastWaiting = "";
+                            await sleep(1e3);
+                            continue;
+                        }
+                        if (prepared.kind === "failed") {
+                            const plan = slots.failed(target);
+                            const first = report.failed({ target, reason: prepared.reason, cause: prepared.cause, qqBuild: await qqBuildOfProcess(target.pid), retry: plan.retry, nextAttemptInMs: plan.delayMs });
+                            record({ startupRejected: true, pid: target.pid, stage: "prepare-binding", reason: prepared.reason, guarded: false, retry: plan.retry, delayMs: plan.delayMs, ...first ? { firstFailureOfRun: true } : {} });
+                            lastWaiting = "";
+                            continue;
+                        }
+                        slot.prepared = prepared;
+                    }
                     operation = "native-start";
+                    if (!showing("qq-initializing") && !showing("login-wait"))
+                        report.state("starting", { pid: target.pid });
                     const attempt = await startNativeGeneration({
                         target,
                         observe: () => observe(target),
@@ -1086,21 +2390,14 @@ var init_supervisor = __esm({
                         close: () => closeNativeWithDrain(target.pid, artifacts, record, 5e3, { observe: () => observe(target) }),
                         markUnresolved: (entry) => guard.mark(entry),
                         record,
-                        run: async () => {
-                            try {
-                                const { stdout } = await exec3(path7.join(artifacts, "neronet_native_host.exe"), [String(target.pid), path7.join(artifacts, "neronet_live_binding.dll"), "--runtime-start"], { windowsHide: true, timeout: 25e3, maxBuffer: 65536, env: nativeEnv });
-                                return parseDriverResult(stdout);
-                            }
-                            catch (error) {
-                                return parseDriverResult(error.stdout, error);
-                            }
-                        }
+                        run: () => driver2(target, "--runtime-start")
                     });
                     if (attempt.kind === "login-wait") {
                         if (lastWaiting !== "account-login") {
                             record({ waiting: "account-login", pid: target.pid, businessRequestsRetried: 0 });
                             lastWaiting = "account-login";
                         }
+                        report.state("login-wait", { pid: target.pid });
                         await sleep(2500);
                         continue;
                     }
@@ -1110,15 +2407,43 @@ var init_supervisor = __esm({
                         await sleep(1500);
                         continue;
                     }
+                    if (attempt.kind === "rejected" && attempt.retry === "wait-for-qq") {
+                        const delayMs = slots.waiting(target);
+                        if (lastWaiting !== "qq-initializing") {
+                            record({ waiting: "qq-initializing", pid: target.pid, reason: attempt.reason, businessRequestsRetried: 0 });
+                            lastWaiting = "qq-initializing";
+                        }
+                        report.state("qq-initializing", { pid: target.pid });
+                        await pause(Math.min(delayMs, 1e3));
+                        continue;
+                    }
                     if (attempt.kind !== "ready") {
+                        const reason = attempt.reason ?? attempt.kind, qqBuild = await qqBuildOfProcess(target.pid);
+                        lastWaiting = "";
+                        if (attempt.kind === "rejected" || attempt.kind === "failed" && attempt.closed === true) {
+                            const plan = slots.failed(target);
+                            const first2 = report.failed({ target, reason, cause: attempt.cause ?? null, qqBuild, retry: plan.retry, nextAttemptInMs: plan.delayMs });
+                            record({ startupRejected: true, pid: target.pid, reason, guarded: false, retry: plan.retry, delayMs: plan.delayMs, ...first2 ? { firstFailureOfRun: true, qqBuild } : {}, ...recovering ? { duringRecovery: true } : {} });
+                            continue;
+                        }
                         blocked.add(processKey(target));
-                        record({ startupRejected: true, pid: target.pid, reason: attempt.reason ?? attempt.kind, ...recovering ? { duringRecovery: true } : {} });
+                        if (attempt.cause && attempt.reason === BUILD_MISMATCH) {
+                            const resident = await residentComponents(target.pid);
+                            if (resident && resident.length === 1 && path8.resolve(resident[0]).toLowerCase() === path8.resolve(bindingDll).toLowerCase())
+                                attempt.cause.residentIsThisBuild = true;
+                        }
+                        const first = report.failed({ target, reason, cause: attempt.cause ?? null, guarded: attempt.guarded === true, guardReason: attempt.guardReason ?? null, qqBuild, retry: "restart-qq" });
+                        if (attempt.guarded === true)
+                            guardNoted = processKey(target);
+                        record({ startupRejected: true, pid: target.pid, reason, guarded: attempt.guarded === true, retry: "restart-qq", ...first ? { firstFailureOfRun: true, qqBuild } : {}, ...recovering ? { duringRecovery: true } : {} });
                         continue;
                     }
                     pendingStartup = attempt;
+                    slots.attached(target);
                     const stopMarker = "gateway-stop-" + randomUUID();
                     operation = "spawn-gateway";
-                    const child = spawn(process.execPath, [...entryArguments("gateway"), String(target.pid), home, stopMarker, String(epoch + 1), String(target.started)], { windowsHide: true, stdio: "ignore" });
+                    await standby.stop();
+                    const child = spawn2(process.execPath, [...entryArguments("gateway"), String(target.pid), home, stopMarker, String(epoch + 1), String(target.started)], { windowsHide: true, stdio: "ignore" });
                     const generation = { target, child, stopMarker, epoch: ++epoch, exited: false, exitCode: null, signal: null };
                     current = generation;
                     pendingStartup = null;
@@ -1131,8 +2456,10 @@ var init_supervisor = __esm({
                         generation.exitCode = code;
                         generation.signal = signal;
                     });
-                    record({ gatewayStarted: true, epoch, pid: target.pid, qqStarted: target.started, gatewayPid: child.pid, adminPid: selection.admin?.pid ?? null, ...recovering ? { recovered: true, recoveryAttempt: recovering.attempt, unavailableMs: Date.now() - recovering.since } : {} });
+                    record({ gatewayStarted: true, epoch, pid: target.pid, qqStarted: target.started, gatewayPid: child.pid, adminPid: selection.admin?.pid ?? null, binding: slot.prepared ? { state: slot.prepared.state, imageSha256: slot.prepared.imageSha256, runtimeVerified: slot.prepared.runtimeVerified } : null, ...recovering ? { recovered: true, recoveryAttempt: recovering.attempt, unavailableMs: Date.now() - recovering.since } : {} });
+                    report.state("attached", { pid: target.pid });
                     recovering = null;
+                    lastWaiting = "";
                 }
                 operation = "idle";
                 await sleep(1500);
@@ -1159,6 +2486,9 @@ var init_supervisor = __esm({
                     process.exitCode = 1;
                 }
             }
+            await standby.stop();
+            if (!failureShown())
+                report.state("stopped");
             record({ supervisorStopped: true, generations: epoch });
         }
     }
@@ -1244,8 +2574,8 @@ var init_wire = __esm({
 import net from "node:net";
 import { EventEmitter } from "node:events";
 function socketErrorSummary(error) {
-    const text = (value) => typeof value === "string" && /^[\w.\- ]{1,48}$/.test(value) ? value : null;
-    return { code: text(error?.code), errno: Number.isSafeInteger(error?.errno) ? error.errno : null, syscall: text(error?.syscall) };
+    const text2 = (value) => typeof value === "string" && /^[\w.\- ]{1,48}$/.test(value) ? value : null;
+    return { code: text2(error?.code), errno: Number.isSafeInteger(error?.errno) ? error.errno : null, syscall: text2(error?.syscall) };
 }
 function nativeReasonCode(reason) {
     if (typeof reason !== "string" || !reason)
@@ -1643,8 +2973,8 @@ var init_server_lifecycle = __esm({
         closing = new WeakMap();
     }
 });
-import fs7 from "node:fs";
-import path8 from "node:path";
+import fs8 from "node:fs";
+import path9 from "node:path";
 function resolveActionPolicy(spec2) {
     const actions = new Set(DEFAULT_ACTIONS), profiles = [];
     let extra = 0;
@@ -1678,18 +3008,18 @@ function resolveActionPolicy(spec2) {
     return { actions, profiles, extraActions: extra };
 }
 function loadActionPolicy(configDir) {
-    const candidates = ["neronet-actions.json"].map((name) => path8.join(configDir, name)).filter((file2) => fs7.existsSync(file2));
+    const candidates = ["neronet-actions.json"].map((name) => path9.join(configDir, name)).filter((file2) => fs8.existsSync(file2));
     if (!candidates.length)
         return { ...resolveActionPolicy(null), file: null };
     const file = candidates[0];
     let spec2;
     try {
-        spec2 = JSON.parse(fs7.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+        spec2 = JSON.parse(fs8.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
     }
     catch {
-        throw Error("Invalid action policy JSON: " + path8.basename(file));
+        throw Error("Invalid action policy JSON: " + path9.basename(file));
     }
-    return { ...resolveActionPolicy(spec2), file: path8.basename(file) };
+    return { ...resolveActionPolicy(spec2), file: path9.basename(file) };
 }
 function describeActionPolicy(policy) {
     if (!policy)
@@ -1738,7 +3068,9 @@ var init_action_policy = __esm({
                 "get_group_msg_history",
                 "get_group_list"
             ]),
-            "qqbridge-stickers": Object.freeze(["add_custom_face", "modify_custom_face"])
+            "qqbridge-stickers": Object.freeze(["add_custom_face", "modify_custom_face"]),
+            "message-read": Object.freeze(["mark_msg_as_read", "mark_group_msg_as_read", "mark_private_msg_as_read"]),
+            qzone: Object.freeze(["send_qzone_msg", "delete_qzone_msg", "get_qzone_msg_list", "get_qzone_msg_detail", "set_qzone_msg_right"])
         });
         ACTION_NAME = /^[a-z][a-z0-9_]{1,63}$/;
     }
@@ -1790,8 +3122,8 @@ var init_media_network = __esm({
         highwayProxySource = (env) => env.NERONET_HIGHWAY_PROXY !== void 0 ? "NERONET_HIGHWAY_PROXY" : env.HTTP_PROXY !== void 0 ? "HTTP_PROXY" : "none";
     }
 });
-import fs8 from "node:fs/promises";
-import path9 from "node:path";
+import fs9 from "node:fs/promises";
+import path10 from "node:path";
 import crypto from "node:crypto";
 function imageMime(bytes) {
     if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
@@ -1822,13 +3154,13 @@ function cdnUrl(raw) {
 }
 async function renameRetry(from, to) {
     try {
-        await fs8.rename(from, to);
+        await fs9.rename(from, to);
     }
     catch (e) {
         if (e.code !== "EPERM" && e.code !== "EBUSY" && e.code !== "EACCES")
             throw e;
         await new Promise((r) => setTimeout(r, 50));
-        await fs8.rename(from, to);
+        await fs9.rename(from, to);
     }
 }
 var IMAGE_CACHE, CDN_HOSTS, HTTP_UPGRADE_HOSTS, hash, fail, isMd5, ImageCache;
@@ -1856,12 +3188,12 @@ var init_image_cache = __esm({
                 this.stopper.abort();
             }
             #base(md52) {
-                return path9.join(this.dir, md52.toLowerCase());
+                return path10.join(this.dir, md52.toLowerCase());
             }
             async cleanTemps() {
                 let names;
                 try {
-                    names = await fs8.readdir(this.dir);
+                    names = await fs9.readdir(this.dir);
                 }
                 catch (e) {
                     if (e.code === "ENOENT")
@@ -1871,7 +3203,7 @@ var init_image_cache = __esm({
                 let n2 = 0;
                 for (const name of names)
                     if (name.endsWith(".tmp")) {
-                        await fs8.unlink(path9.join(this.dir, name)).then(() => n2++, () => {
+                        await fs9.unlink(path10.join(this.dir, name)).then(() => n2++, () => {
                         });
                     }
                 await this.prune();
@@ -1880,7 +3212,7 @@ var init_image_cache = __esm({
             async prune() {
                 let names;
                 try {
-                    names = await fs8.readdir(this.dir);
+                    names = await fs9.readdir(this.dir);
                 }
                 catch {
                     return 0;
@@ -1890,8 +3222,8 @@ var init_image_cache = __esm({
                     if (!name.endsWith(".bin"))
                         continue;
                     try {
-                        const st = await fs8.stat(path9.join(this.dir, name));
-                        entries.push({ base: path9.join(this.dir, name.slice(0, -4)), size: st.size, used: st.mtimeMs });
+                        const st = await fs9.stat(path10.join(this.dir, name));
+                        entries.push({ base: path10.join(this.dir, name.slice(0, -4)), size: st.size, used: st.mtimeMs });
                     }
                     catch {
                     }
@@ -1901,7 +3233,7 @@ var init_image_cache = __esm({
                 for (const e of entries) {
                     if (total <= this.limits.maxTotalBytes)
                         break;
-                    await Promise.all([fs8.rm(e.base + ".bin", { force: true }), fs8.rm(e.base + ".json", { force: true })]).catch(() => {
+                    await Promise.all([fs9.rm(e.base + ".bin", { force: true }), fs9.rm(e.base + ".json", { force: true })]).catch(() => {
                     });
                     total -= e.size;
                     removed++;
@@ -1915,12 +3247,12 @@ var init_image_cache = __esm({
                     return null;
                 const base = this.#base(md52);
                 try {
-                    const [metaText, bytes] = await Promise.all([fs8.readFile(base + ".json", "utf8"), fs8.readFile(base + ".bin")]);
+                    const [metaText, bytes] = await Promise.all([fs9.readFile(base + ".json", "utf8"), fs9.readFile(base + ".bin")]);
                     const meta = JSON.parse(metaText);
                     if (!bytes.length || bytes.length > this.limits.maxBytes || bytes.length !== meta.bytes || hash("md5", bytes) !== md52.toLowerCase() || hash("sha256", bytes) !== meta.sha256 || imageMime(bytes) !== meta.mimeType)
                         throw fail("NERONET_IMAGE_CACHE_INVALID");
                     const now2 = new Date();
-                    await fs8.utimes(base + ".bin", now2, now2).catch(() => {
+                    await fs9.utimes(base + ".bin", now2, now2).catch(() => {
                     });
                     return bytes;
                 }
@@ -1929,7 +3261,7 @@ var init_image_cache = __esm({
                         return null;
                     if (e instanceof SyntaxError || e.code === "NERONET_IMAGE_CACHE_INVALID") {
                         this.log({ upperImageCacheRepair: true });
-                        await Promise.all([fs8.rm(base + ".json", { force: true }), fs8.rm(base + ".bin", { force: true })]).catch(() => {
+                        await Promise.all([fs9.rm(base + ".json", { force: true }), fs9.rm(base + ".bin", { force: true })]).catch(() => {
                         });
                         return null;
                     }
@@ -1948,9 +3280,9 @@ var init_image_cache = __esm({
                 const base = this.#base(md52), suffix = `.${crypto.randomUUID()}.tmp`;
                 const dataTmp = base + ".bin" + suffix, metaTmp = base + ".json" + suffix;
                 try {
-                    await fs8.mkdir(this.dir, { recursive: true });
-                    await fs8.writeFile(dataTmp, bytes, { flag: "wx" });
-                    await fs8.writeFile(metaTmp, JSON.stringify({ sha256: hash("sha256", bytes), md5: md52.toLowerCase(), bytes: bytes.length, mimeType, fetchedUtc: (new Date()).toISOString(), origin }), { flag: "wx" });
+                    await fs9.mkdir(this.dir, { recursive: true });
+                    await fs9.writeFile(dataTmp, bytes, { flag: "wx" });
+                    await fs9.writeFile(metaTmp, JSON.stringify({ sha256: hash("sha256", bytes), md5: md52.toLowerCase(), bytes: bytes.length, mimeType, fetchedUtc: (new Date()).toISOString(), origin }), { flag: "wx" });
                     await renameRetry(dataTmp, base + ".bin");
                     await renameRetry(metaTmp, base + ".json");
                 }
@@ -1958,7 +3290,7 @@ var init_image_cache = __esm({
                     throw fail("NERONET_IMAGE_CACHE_WRITE_FAILED");
                 }
                 finally {
-                    await Promise.all([fs8.rm(dataTmp, { force: true }), fs8.rm(metaTmp, { force: true })]).catch(() => {
+                    await Promise.all([fs9.rm(dataTmp, { force: true }), fs9.rm(metaTmp, { force: true })]).catch(() => {
                     });
                 }
                 if (++this.writes % this.limits.pruneEvery === 0)
@@ -2326,7 +3658,7 @@ var require_protobuf = __commonJS({
                         "use strict";
                         module2.exports = fetch2;
                         var asPromise = require2(1), inquire2 = require2(7);
-                        var fs35 = inquire2("fs");
+                        var fs36 = inquire2("fs");
                         function fetch2(filename, options, callback) {
                             if (typeof options === "function") {
                                 callback = options;
@@ -2336,8 +3668,8 @@ var require_protobuf = __commonJS({
                                 options = {};
                             if (!callback)
                                 return asPromise(fetch2, this, filename, options);
-                            if (!options.xhr && fs35 && fs35.readFile)
-                                return fs35.readFile(filename, function fetchReadFileCallback(err2, contents) {
+                            if (!options.xhr && fs36 && fs36.readFile)
+                                return fs36.readFile(filename, function fetchReadFileCallback(err2, contents) {
                                     return err2 && typeof XMLHttpRequest !== "undefined" ? fetch2.xhr(filename, options, callback) : err2 ? callback(err2) : callback(null, options.binary ? contents : contents.toString("utf8"));
                                 });
                             return fetch2.xhr(filename, options, callback);
@@ -2568,13 +3900,13 @@ var require_protobuf = __commonJS({
                         }
                     }, {}], 8: [function (require2, module2, exports2) {
                         "use strict";
-                        var path34 = exports2;
-                        var isAbsolute = (path34.isAbsolute = function isAbsolute2(path35) {
-                            return /^(?:\/|\w+:)/.test(path35);
+                        var path35 = exports2;
+                        var isAbsolute = (path35.isAbsolute = function isAbsolute2(path36) {
+                            return /^(?:\/|\w+:)/.test(path36);
                         });
-                        var normalize = (path34.normalize = function normalize2(path35) {
-                            path35 = path35.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
-                            var parts = path35.split("/"), absolute = isAbsolute(path35), prefix = "";
+                        var normalize = (path35.normalize = function normalize2(path36) {
+                            path36 = path36.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+                            var parts = path36.split("/"), absolute = isAbsolute(path36), prefix = "";
                             if (absolute)
                                 prefix = parts.shift() + "/";
                             for (var i = 0; i < parts.length;) {
@@ -2593,7 +3925,7 @@ var require_protobuf = __commonJS({
                             }
                             return prefix + parts.join("/");
                         });
-                        path34.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+                        path35.resolve = function resolve(originPath, includePath, alreadyNormalized) {
                             if (!alreadyNormalized)
                                 includePath = normalize(includePath);
                             if (isAbsolute(includePath))
@@ -3198,13 +4530,13 @@ var require_protobuf = __commonJS({
                         var ReflectionObject = require2(24);
                         ((Enum.prototype = Object.create(ReflectionObject.prototype)).constructor = Enum).className = "Enum";
                         var Namespace = require2(23), util = require2(37);
-                        function Enum(name, values, options, comment, comments, valuesOptions) {
+                        function Enum(name, values, options, comment2, comments, valuesOptions) {
                             ReflectionObject.call(this, name, options);
                             if (values && typeof values !== "object")
                                 throw TypeError("values must be an object");
                             this.valuesById = {};
                             this.values = Object.create(this.valuesById);
-                            this.comment = comment;
+                            this.comment = comment2;
                             this.comments = comments || {};
                             this.valuesOptions = valuesOptions;
                             this.reserved = undefined;
@@ -3236,7 +4568,7 @@ var require_protobuf = __commonJS({
                                 keepComments ? this.comments : undefined
                             ]);
                         };
-                        Enum.prototype.add = function add(name, id, comment, options) {
+                        Enum.prototype.add = function add(name, id, comment2, options) {
                             if (!util.isString(name))
                                 throw TypeError("name must be a string");
                             if (!util.isInteger(id))
@@ -3259,7 +4591,7 @@ var require_protobuf = __commonJS({
                                     this.valuesOptions = {};
                                 this.valuesOptions[name] = options || null;
                             }
-                            this.comments[name] = comment || null;
+                            this.comments[name] = comment2 || null;
                             return this;
                         };
                         Enum.prototype.remove = function remove(name) {
@@ -3292,14 +4624,14 @@ var require_protobuf = __commonJS({
                         Field.fromJSON = function fromJSON(name, json2) {
                             return new Field(name, json2.id, json2.type, json2.rule, json2.extend, json2.options, json2.comment);
                         };
-                        function Field(name, id, type, rule, extend, options, comment) {
+                        function Field(name, id, type, rule, extend, options, comment2) {
                             if (util.isObject(rule)) {
-                                comment = extend;
+                                comment2 = extend;
                                 options = rule;
                                 rule = extend = undefined;
                             }
                             else if (util.isObject(extend)) {
-                                comment = options;
+                                comment2 = options;
                                 options = extend;
                                 extend = undefined;
                             }
@@ -3333,7 +4665,7 @@ var require_protobuf = __commonJS({
                             this.extensionField = null;
                             this.declaringField = null;
                             this._packed = null;
-                            this.comment = comment;
+                            this.comment = comment2;
                         }
                         Object.defineProperty(Field.prototype, "packed", {
                             get: function () {
@@ -3497,8 +4829,8 @@ var require_protobuf = __commonJS({
                         var Field = require2(16);
                         ((MapField.prototype = Object.create(Field.prototype)).constructor = MapField).className = "MapField";
                         var types = require2(36), util = require2(37);
-                        function MapField(name, id, keyType, type, options, comment) {
-                            Field.call(this, name, id, type, undefined, undefined, options, comment);
+                        function MapField(name, id, keyType, type, options, comment2) {
+                            Field.call(this, name, id, type, undefined, undefined, options, comment2);
                             if (!util.isString(keyType))
                                 throw TypeError("keyType must be a string");
                             this.keyType = keyType;
@@ -3583,7 +4915,7 @@ var require_protobuf = __commonJS({
                         var ReflectionObject = require2(24);
                         ((Method.prototype = Object.create(ReflectionObject.prototype)).constructor = Method).className = "Method";
                         var util = require2(37);
-                        function Method(name, type, requestType, responseType, requestStream, responseStream, options, comment, parsedOptions) {
+                        function Method(name, type, requestType, responseType, requestStream, responseStream, options, comment2, parsedOptions) {
                             if (util.isObject(requestStream)) {
                                 options = requestStream;
                                 requestStream = responseStream = undefined;
@@ -3606,7 +4938,7 @@ var require_protobuf = __commonJS({
                             this.responseStream = responseStream ? true : undefined;
                             this.resolvedRequestType = null;
                             this.resolvedResponseType = null;
-                            this.comment = comment;
+                            this.comment = comment2;
                             this.parsedOptions = parsedOptions;
                         }
                         Method.fromJSON = function fromJSON(name, json2) {
@@ -3752,16 +5084,16 @@ var require_protobuf = __commonJS({
                             object2.onRemove(this);
                             return clearCache(this);
                         };
-                        Namespace.prototype.define = function define2(path34, json2) {
-                            if (util.isString(path34))
-                                path34 = path34.split(".");
-                            else if (!Array.isArray(path34))
+                        Namespace.prototype.define = function define2(path35, json2) {
+                            if (util.isString(path35))
+                                path35 = path35.split(".");
+                            else if (!Array.isArray(path35))
                                 throw TypeError("illegal path");
-                            if (path34 && path34.length && path34[0] === "")
+                            if (path35 && path35.length && path35[0] === "")
                                 throw Error("path must be relative");
                             var ptr = this;
-                            while (path34.length > 0) {
-                                var part = path34.shift();
+                            while (path35.length > 0) {
+                                var part = path35.shift();
                                 if (ptr.nested && ptr.nested[part]) {
                                     ptr = ptr.nested[part];
                                     if (!(ptr instanceof Namespace))
@@ -3783,61 +5115,61 @@ var require_protobuf = __commonJS({
                                     nested[i++].resolve();
                             return this.resolve();
                         };
-                        Namespace.prototype.lookup = function lookup(path34, filterTypes, parentAlreadyChecked) {
+                        Namespace.prototype.lookup = function lookup(path35, filterTypes, parentAlreadyChecked) {
                             if (typeof filterTypes === "boolean") {
                                 parentAlreadyChecked = filterTypes;
                                 filterTypes = undefined;
                             }
                             else if (filterTypes && !Array.isArray(filterTypes))
                                 filterTypes = [filterTypes];
-                            if (util.isString(path34) && path34.length) {
-                                if (path34 === ".")
+                            if (util.isString(path35) && path35.length) {
+                                if (path35 === ".")
                                     return this.root;
-                                path34 = path34.split(".");
+                                path35 = path35.split(".");
                             }
-                            else if (!path34.length)
+                            else if (!path35.length)
                                 return this;
-                            if (path34[0] === "")
-                                return this.root.lookup(path34.slice(1), filterTypes);
-                            var found = this.get(path34[0]);
+                            if (path35[0] === "")
+                                return this.root.lookup(path35.slice(1), filterTypes);
+                            var found = this.get(path35[0]);
                             if (found) {
-                                if (path34.length === 1) {
+                                if (path35.length === 1) {
                                     if (!filterTypes || filterTypes.indexOf(found.constructor) > -1)
                                         return found;
                                 }
-                                else if (found instanceof Namespace && (found = found.lookup(path34.slice(1), filterTypes, true)))
+                                else if (found instanceof Namespace && (found = found.lookup(path35.slice(1), filterTypes, true)))
                                     return found;
                             }
                             else
                                 for (var i = 0; i < this.nestedArray.length; ++i)
-                                    if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i].lookup(path34, filterTypes, true)))
+                                    if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i].lookup(path35, filterTypes, true)))
                                         return found;
                             if (this.parent === null || parentAlreadyChecked)
                                 return null;
-                            return this.parent.lookup(path34, filterTypes);
+                            return this.parent.lookup(path35, filterTypes);
                         };
-                        Namespace.prototype.lookupType = function lookupType(path34) {
-                            var found = this.lookup(path34, [Type]);
+                        Namespace.prototype.lookupType = function lookupType(path35) {
+                            var found = this.lookup(path35, [Type]);
                             if (!found)
-                                throw Error("no such type: " + path34);
+                                throw Error("no such type: " + path35);
                             return found;
                         };
-                        Namespace.prototype.lookupEnum = function lookupEnum(path34) {
-                            var found = this.lookup(path34, [Enum]);
+                        Namespace.prototype.lookupEnum = function lookupEnum(path35) {
+                            var found = this.lookup(path35, [Enum]);
                             if (!found)
-                                throw Error("no such Enum '" + path34 + "' in " + this);
+                                throw Error("no such Enum '" + path35 + "' in " + this);
                             return found;
                         };
-                        Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path34) {
-                            var found = this.lookup(path34, [Type, Enum]);
+                        Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path35) {
+                            var found = this.lookup(path35, [Type, Enum]);
                             if (!found)
-                                throw Error("no such Type or Enum '" + path34 + "' in " + this);
+                                throw Error("no such Type or Enum '" + path35 + "' in " + this);
                             return found;
                         };
-                        Namespace.prototype.lookupService = function lookupService(path34) {
-                            var found = this.lookup(path34, [Service]);
+                        Namespace.prototype.lookupService = function lookupService(path35) {
+                            var found = this.lookup(path35, [Service]);
                             if (!found)
-                                throw Error("no such Service '" + path34 + "' in " + this);
+                                throw Error("no such Service '" + path35 + "' in " + this);
                             return found;
                         };
                         Namespace._configure = function (Type_, Service_, Enum_) {
@@ -3875,12 +5207,12 @@ var require_protobuf = __commonJS({
                             },
                             fullName: {
                                 get: function () {
-                                    var path34 = [this.name], ptr = this.parent;
+                                    var path35 = [this.name], ptr = this.parent;
                                     while (ptr) {
-                                        path34.unshift(ptr.name);
+                                        path35.unshift(ptr.name);
                                         ptr = ptr.parent;
                                     }
-                                    return path34.join(".");
+                                    return path35.join(".");
                                 }
                             }
                         });
@@ -3968,7 +5300,7 @@ var require_protobuf = __commonJS({
                         var ReflectionObject = require2(24);
                         ((OneOf.prototype = Object.create(ReflectionObject.prototype)).constructor = OneOf).className = "OneOf";
                         var Field = require2(16), util = require2(37);
-                        function OneOf(name, fieldNames, options, comment) {
+                        function OneOf(name, fieldNames, options, comment2) {
                             if (!Array.isArray(fieldNames)) {
                                 options = fieldNames;
                                 fieldNames = undefined;
@@ -3978,7 +5310,7 @@ var require_protobuf = __commonJS({
                                 throw TypeError("fieldNames must be an Array");
                             this.oneof = fieldNames || [];
                             this.fieldsArray = [];
-                            this.comment = comment;
+                            this.comment = comment2;
                         }
                         OneOf.fromJSON = function fromJSON(name, json2) {
                             return new OneOf(name, json2.oneof, json2.options, json2.comment);
@@ -5340,7 +6672,7 @@ var require_protobuf = __commonJS({
                                 return source.charAt(pos);
                             }
                             function setComment(start, end, isLeading) {
-                                var comment = {
+                                var comment2 = {
                                     type: source.charAt(start++),
                                     lineEmpty: false,
                                     leading: isLeading
@@ -5355,15 +6687,15 @@ var require_protobuf = __commonJS({
                                 var commentOffset = start - lookback, c;
                                 do {
                                     if (--commentOffset < 0 || (c = source.charAt(commentOffset)) === "\n") {
-                                        comment.lineEmpty = true;
+                                        comment2.lineEmpty = true;
                                         break;
                                     }
                                 } while (c === " " || c === "	");
                                 var lines = source.substring(start, end).split(setCommentSplitRe);
                                 for (var i = 0; i < lines.length; ++i)
                                     lines[i] = lines[i].replace(alternateCommentMode ? setCommentAltRe : setCommentRe, "").trim();
-                                comment.text = lines.join("\n").trim();
-                                comments[line] = comment;
+                                comment2.text = lines.join("\n").trim();
+                                comments[line] = comment2;
                                 lastCommentLine = line;
                             }
                             function isDoubleSlashCommentLine(startOffset) {
@@ -5372,8 +6704,8 @@ var require_protobuf = __commonJS({
                                 var isComment = /^\s*\/\//.test(lineText);
                                 return isComment;
                             }
-                            function findEndOfLine(cursor) {
-                                var endOffset = cursor;
+                            function findEndOfLine(cursor2) {
+                                var endOffset = cursor2;
                                 while (endOffset < length && charAt(endOffset) !== "\n") {
                                     endOffset++;
                                 }
@@ -5504,22 +6836,22 @@ var require_protobuf = __commonJS({
                             }
                             function cmnt(trailingLine) {
                                 var ret = null;
-                                var comment;
+                                var comment2;
                                 if (trailingLine === undefined) {
-                                    comment = comments[line - 1];
+                                    comment2 = comments[line - 1];
                                     delete comments[line - 1];
-                                    if (comment && (alternateCommentMode || comment.type === "*" || comment.lineEmpty)) {
-                                        ret = comment.leading ? comment.text : null;
+                                    if (comment2 && (alternateCommentMode || comment2.type === "*" || comment2.lineEmpty)) {
+                                        ret = comment2.leading ? comment2.text : null;
                                     }
                                 }
                                 else {
                                     if (lastCommentLine < trailingLine) {
                                         peek();
                                     }
-                                    comment = comments[trailingLine];
+                                    comment2 = comments[trailingLine];
                                     delete comments[trailingLine];
-                                    if (comment && !comment.lineEmpty && (alternateCommentMode || comment.type === "/")) {
-                                        ret = comment.leading ? null : comment.text;
+                                    if (comment2 && !comment2.lineEmpty && (alternateCommentMode || comment2.type === "/")) {
+                                        ret = comment2.leading ? null : comment2.text;
                                     }
                                 }
                                 return ret;
@@ -5981,14 +7313,14 @@ var require_protobuf = __commonJS({
                             Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
                             return enm;
                         };
-                        util.setProperty = function setProperty(dst, path34, value) {
-                            function setProp(dst2, path35, value2) {
-                                var part = path35.shift();
+                        util.setProperty = function setProperty(dst, path35, value) {
+                            function setProp(dst2, path36, value2) {
+                                var part = path36.shift();
                                 if (part === "__proto__" || part === "prototype") {
                                     return dst2;
                                 }
-                                if (path35.length > 0) {
-                                    dst2[part] = setProp(dst2[part] || {}, path35, value2);
+                                if (path36.length > 0) {
+                                    dst2[part] = setProp(dst2[part] || {}, path36, value2);
                                 }
                                 else {
                                     var prevValue = dst2[part];
@@ -6000,10 +7332,10 @@ var require_protobuf = __commonJS({
                             }
                             if (typeof dst !== "object")
                                 throw TypeError("dst must be an object");
-                            if (!path34)
+                            if (!path35)
                                 throw TypeError("path must be specified");
-                            path34 = path34.split(".");
-                            return setProp(dst, path34, value);
+                            path35 = path35.split(".");
+                            return setProp(dst, path35, value);
                         };
                         Object.defineProperty(util, "decorateRoot", {
                             get: function () {
@@ -6252,13 +7584,13 @@ var require_protobuf = __commonJS({
                         "use strict";
                         module2.exports = verifier;
                         var Enum = require2(15), util = require2(37);
-                        function invalid8(field, expected) {
+                        function invalid9(field, expected) {
                             return field.name + ": " + expected + (field.repeated && expected !== "array" ? "[]" : field.map && expected !== "object" ? "{k:" + field.keyType + "}" : "") + " expected";
                         }
                         function genVerifyValue(gen, field, fieldIndex, ref) {
                             if (field.resolvedType) {
                                 if (field.resolvedType instanceof Enum) {
-                                    gen("switch(%s){", ref)("default:")("return%j", invalid8(field, "enum value"));
+                                    gen("switch(%s){", ref)("default:")("return%j", invalid9(field, "enum value"));
                                     for (var keys = Object.keys(field.resolvedType.values), j = 0; j < keys.length; ++j)
                                         gen("case %i:", field.resolvedType.values[keys[j]]);
                                     gen("break")("}");
@@ -6274,27 +7606,27 @@ var require_protobuf = __commonJS({
                                     case "sint32":
                                     case "fixed32":
                                     case "sfixed32":
-                                        gen("if(!util.isInteger(%s))", ref)("return%j", invalid8(field, "integer"));
+                                        gen("if(!util.isInteger(%s))", ref)("return%j", invalid9(field, "integer"));
                                         break;
                                     case "int64":
                                     case "uint64":
                                     case "sint64":
                                     case "fixed64":
                                     case "sfixed64":
-                                        gen("if(!util.isInteger(%s)&&!(%s&&util.isInteger(%s.low)&&util.isInteger(%s.high)))", ref, ref, ref, ref)("return%j", invalid8(field, "integer|Long"));
+                                        gen("if(!util.isInteger(%s)&&!(%s&&util.isInteger(%s.low)&&util.isInteger(%s.high)))", ref, ref, ref, ref)("return%j", invalid9(field, "integer|Long"));
                                         break;
                                     case "float":
                                     case "double":
-                                        gen('if(typeof %s!=="number")', ref)("return%j", invalid8(field, "number"));
+                                        gen('if(typeof %s!=="number")', ref)("return%j", invalid9(field, "number"));
                                         break;
                                     case "bool":
-                                        gen('if(typeof %s!=="boolean")', ref)("return%j", invalid8(field, "boolean"));
+                                        gen('if(typeof %s!=="boolean")', ref)("return%j", invalid9(field, "boolean"));
                                         break;
                                     case "string":
-                                        gen("if(!util.isString(%s))", ref)("return%j", invalid8(field, "string"));
+                                        gen("if(!util.isString(%s))", ref)("return%j", invalid9(field, "string"));
                                         break;
                                     case "bytes":
-                                        gen('if(!(%s&&typeof %s.length==="number"||util.isString(%s)))', ref, ref, ref)("return%j", invalid8(field, "buffer"));
+                                        gen('if(!(%s&&typeof %s.length==="number"||util.isString(%s)))', ref, ref, ref)("return%j", invalid9(field, "buffer"));
                                         break;
                                 }
                             }
@@ -6307,17 +7639,17 @@ var require_protobuf = __commonJS({
                                 case "sint32":
                                 case "fixed32":
                                 case "sfixed32":
-                                    gen("if(!util.key32Re.test(%s))", ref)("return%j", invalid8(field, "integer key"));
+                                    gen("if(!util.key32Re.test(%s))", ref)("return%j", invalid9(field, "integer key"));
                                     break;
                                 case "int64":
                                 case "uint64":
                                 case "sint64":
                                 case "fixed64":
                                 case "sfixed64":
-                                    gen("if(!util.key64Re.test(%s))", ref)("return%j", invalid8(field, "integer|Long key"));
+                                    gen("if(!util.key64Re.test(%s))", ref)("return%j", invalid9(field, "integer|Long key"));
                                     break;
                                 case "bool":
-                                    gen("if(!util.key2Re.test(%s))", ref)("return%j", invalid8(field, "boolean key"));
+                                    gen("if(!util.key2Re.test(%s))", ref)("return%j", invalid9(field, "boolean key"));
                                     break;
                             }
                             return gen;
@@ -6333,12 +7665,12 @@ var require_protobuf = __commonJS({
                                 if (field.optional)
                                     gen("if(%s!=null&&m.hasOwnProperty(%j)){", ref, field.name);
                                 if (field.map) {
-                                    gen("if(!util.isObject(%s))", ref)("return%j", invalid8(field, "object"))("var k=Object.keys(%s)", ref)("for(var i=0;i<k.length;++i){");
+                                    gen("if(!util.isObject(%s))", ref)("return%j", invalid9(field, "object"))("var k=Object.keys(%s)", ref)("for(var i=0;i<k.length;++i){");
                                     genVerifyKey(gen, field, "k[i]");
                                     genVerifyValue(gen, field, i, ref + "[k[i]]")("}");
                                 }
                                 else if (field.repeated) {
-                                    gen("if(!Array.isArray(%s))", ref)("return%j", invalid8(field, "array"))("for(var i=0;i<%s.length;++i){", ref);
+                                    gen("if(!Array.isArray(%s))", ref)("return%j", invalid9(field, "array"))("for(var i=0;i<%s.length;++i){", ref);
                                     genVerifyValue(gen, field, i, ref + "[i]")("}");
                                 }
                                 else {
@@ -7151,10 +8483,10 @@ var require_umd = __commonJS({
                 if (this.isNegative())
                     return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
                 var val = this.high != 0 ? this.high : this.low;
-                for (var bit = 31; bit > 0; bit--)
-                    if ((val & 1 << bit) != 0)
+                for (var bit2 = 31; bit2 > 0; bit2--)
+                    if ((val & 1 << bit2) != 0)
                         break;
-                return this.high != 0 ? bit + 33 : bit + 1;
+                return this.high != 0 ? bit2 + 33 : bit2 + 1;
             };
             LongPrototype.isSafeInteger = function isSafeInteger() {
                 var top11Bits = this.high >> 21;
@@ -7574,7 +8906,7 @@ function schemaText(file) {
 var TEXTS;
 var init_schema_text = __esm({
     "upper/wire/schema-text.mjs"() {
-        TEXTS = { "c2c_history.proto": 'syntax = "proto3";\npackage neronet.wire.c2chistory;\nmessage C2cRangeRequest {\n  string friendUid = 2;\n  uint32 startSequence = 3;\n  uint32 endSequence = 4;\n}\nmessage C2cRangeResponse {\n  int32 result = 1;\n  string errorMessage = 2;\n  string friendUid = 4;\n  repeated PushMsgBody messages = 7;\n}\nmessage RoamRequest {\n  string friendUid = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 count = 4;\n  int32 direction = 5;\n}\nmessage RoamResponse {\n  string friendUid = 3;\n  uint32 timestamp = 5;\n  uint32 random = 6;\n  repeated PushMsgBody messages = 7;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "custom_faces.proto": 'syntax = "proto3";\npackage neronet.wire.customfaces;\nmessage FaceroamOpReq {\n  FaceroamOpReqInner inner = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  FaceroamOpBody body = 5;\n  uint32 field6 = 6;\n}\nmessage FaceroamOpResp {\n  uint32 retCode = 1;\n  string message = 2;\n  uint32 field3 = 3;\n  FaceroamOpRespItem item = 4;\n}\nmessage CustomFaceMoveBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  repeated CustomFaceMoveEntry emojis = 4;\n}\nmessage CustomFaceModifyBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  CustomFaceModifyEntry entry = 5;\n  uint32 field12 = 12;\n}\nmessage CustomFaceModifyResp {\n  uint32 retCode = 1;\n  string errMsg = 2;\n  uint32 opType = 3;\n  repeated CustomFaceModifyRespEntry entries = 4;\n}\nmessage BDHExpressionRoamReq {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamInner inner = 3;\n  uint32 field7 = 7;\n  BDHExpressionRoamTail tail = 1001;\n}\nmessage BDHExpressionRoamResp {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamRespInner inner = 3;\n}\nmessage FavEmojiHighwayHead {\n  FavEmojiHighwayBaseHead baseHead = 1;\n  FavEmojiHighwaySegHead segHead = 2;\n  FavEmojiIdWrap emojiIdWrap = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n  uint64 field8 = 8;\n}\nmessage FaceroamOpReqInner {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  string qqVersion = 3;\n}\nmessage FaceroamOpBody {\n  string emojiId = 1;\n}\nmessage FaceroamOpRespItem {\n  repeated string faceIds = 1;\n  string category = 3;\n  uint32 totalCount = 4;\n}\nmessage CustomFaceMoveEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage CustomFaceModifyEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string desc = 2;\n}\nmessage CustomFaceModifyRespEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string legacyDesc = 2;\n  string desc = 3;\n}\nmessage BDHExpressionRoamInner {\n  uint32 field1 = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  bytes md5 = 4;\n  uint32 filesize = 5;\n  uint32 field7 = 7;\n  uint32 field8 = 8;\n  uint32 field9 = 9;\n  string ver = 13;\n  uint32 field16 = 16;\n}\nmessage BDHExpressionRoamTail {\n  BDHExpressionRoamTailInner inner = 1;\n  uint32 field2 = 2;\n}\nmessage BDHExpressionRoamRespInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  repeated uint32 field6 = 6 [packed = false];\n  repeated uint32 field7 = 7 [packed = false];\n  bytes token = 8;\n  uint32 field12 = 12;\n}\nmessage FavEmojiHighwayBaseHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint64 filesize = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage FavEmojiHighwaySegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint64 dataLength = 4;\n  bytes serviceTicket = 6;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n}\nmessage FavEmojiIdWrap {\n  string emojiId = 1;\n}\nmessage CustomFaceOpEmojiEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage BDHExpressionRoamTailInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  string field3 = 3;\n}\n', "elements_in.proto": 'syntax = "proto3";\npackage neronet.wire.elemin;\nmessage MentionExtra {\n  int32 type = 3;\n  uint32 uin = 4;\n  int32 field5 = 5;\n  string uid = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  int32 qsid = 3;\n  int32 sourceType = 4;\n  int32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  int32 randomType = 9;\n}\nmessage MsgInfo {\n  repeated MsgInfoBody msgInfoBody = 1;\n  ExtBizInfo extBizInfo = 2;\n}\nmessage GroupFileExtra {\n  uint32 field1 = 1;\n  string fileName = 2;\n  string display = 3;\n  GroupFileExtraInner inner = 7;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage MsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage GroupFileExtraInner {\n  GroupFileInfo info = 2;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage GroupFileInfo {\n  uint32 busId = 1;\n  string fileId = 2;\n  uint64 fileSize = 3;\n  string fileName = 4;\n  uint32 field5 = 5;\n  bytes fileSha = 6;\n  string extInfoString = 7;\n  bytes fileMd5 = 8;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "elements_out.proto": 'syntax = "proto3";\npackage neronet.wire.elemout;\nmessage MentionExtraSend {\n  uint32 type = 3;\n  uint32 uin = 4;\n  uint32 field5 = 5;\n  string uid = 9;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  uint32 qsid = 3;\n  uint32 sourceType = 4;\n  uint32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  uint32 randomType = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\n', "file_upload.proto": 'syntax = "proto3";\npackage neronet.wire.fileupload;\nmessage OidbPrivateFileUploadReq {\n  uint32 command = 1;\n  uint32 seq = 2;\n  OidbPrivateFileUploadReqBody upload = 19;\n  uint32 businessId = 101;\n  uint32 clientType = 102;\n  uint32 flagSupportMediaPlatform = 200;\n}\nmessage OidbPrivateFileUploadResp {\n  OidbPrivateFileUploadRespBody upload = 19;\n}\nmessage OidbGroupSendFileReq {\n  OidbGroupTransFileReq transFile = 1;\n  OidbGroupSendFileBody body = 5;\n}\nmessage OidbEmpty {\n}\nmessage OidbOfflineFileFinalizeReq {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbOfflineFileFinalizeReqBody body = 10;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n}\nmessage OidbOfflineFileFinalizeResp {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  OidbOfflineFileFinalizeRespBody body = 10;\n  uint32 field50 = 50;\n}\nmessage FileUploadExt {\n  uint32 unknown1 = 1;\n  uint32 unknown2 = 2;\n  uint32 unknown3 = 3;\n  FileUploadEntry entry = 100;\n  uint32 unknown200 = 200;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage OidbPrivateFileUploadReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  uint32 fileSize = 30;\n  string fileName = 40;\n  bytes md510MCheckSum = 50;\n  bytes sha1CheckSum = 60;\n  string localPath = 70;\n  bytes md5CheckSum = 110;\n  bytes sha3CheckSum = 120;\n}\nmessage OidbPrivateFileUploadRespBody {\n  int32 retCode = 10;\n  string retMsg = 20;\n  string uploadIp = 60;\n  string uploadDomain = 70;\n  uint32 uploadPort = 80;\n  string uuid = 90;\n  bytes uploadKey = 100;\n  bool boolFileExist = 110;\n  repeated string uploadIpList = 130;\n  int32 uploadHttpsPort = 140;\n  string uploadHttpsDomain = 150;\n  string uploadDns = 160;\n  string uploadLanip = 170;\n  string fileAddon = 200;\n  repeated IPv4 rtpMediaPlatformUploadAddress = 210;\n  bytes mediaPlatformUploadKey = 220;\n}\nmessage OidbGroupTransFileReq {\n  uint64 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupSendFileBody {\n  uint32 groupUin = 1;\n  uint32 type = 2;\n  OidbGroupSendFileInfo info = 3;\n}\nmessage OidbOfflineFileFinalizeReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  string fileUuid = 30;\n  string fileHash = 40;\n}\nmessage OidbOfflineFileFinalizeRespBody {\n  uint32 field10 = 10;\n  OidbOfflineFileMetadata metadata = 30;\n}\nmessage FileUploadEntry {\n  FileUploadBusiInfo busiBuff = 100;\n  FileUploadFileEntry fileEntry = 200;\n  FileUploadClientInfo clientInfo = 300;\n  FileUploadNameInfo fileNameInfo = 400;\n  FileUploadHostConfig host = 500;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IPv4 {\n  int32 outIP = 1;\n  int32 outPort = 2;\n  int32 inIP = 3;\n  int32 inPort = 4;\n  int32 iPType = 5;\n}\nmessage OidbGroupSendFileInfo {\n  uint32 busiType = 1;\n  string fileId = 2;\n  uint32 field3 = 3;\n  string field4 = 4;\n  int32 field5 = 5;\n}\nmessage OidbOfflineFileMetadata {\n  uint32 field3 = 3;\n  bytes field100 = 100;\n  bytes field101 = 101;\n  uint32 field110 = 110;\n  uint32 timestamp1 = 130;\n}\nmessage FileUploadBusiInfo {\n  uint32 busId = 1;\n  uint64 senderUin = 100;\n  uint64 receiverUin = 200;\n  uint64 groupCode = 400;\n}\nmessage FileUploadFileEntry {\n  uint64 fileSize = 100;\n  bytes md5 = 200;\n  bytes checkKey = 300;\n  bytes md5S2 = 400;\n  string fileId = 600;\n  bytes uploadKey = 700;\n}\nmessage FileUploadClientInfo {\n  uint32 clientType = 100;\n  string appId = 200;\n  uint32 terminalType = 300;\n  string clientVer = 400;\n  uint32 unknown = 600;\n}\nmessage FileUploadNameInfo {\n  string fileName = 100;\n}\nmessage FileUploadHostConfig {\n  repeated FileUploadHost hosts = 200;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileUploadHost {\n  FileUploadUrl url = 1;\n  uint32 port = 2;\n}\nmessage FileUploadUrl {\n  uint32 unknown = 1;\n  string host = 2;\n}\n', "file_url.proto": 'syntax = "proto3";\npackage neronet.wire.fileurl;\nmessage GroupFileRequest {\n  OidbGroupFileUploadReq file = 1;\n  OidbGroupFileDownloadReq download = 3;\n  OidbGroupFileDeleteReq delete = 4;\n  OidbGroupFileRenameReq rename = 5;\n  OidbGroupFileMoveReq move = 6;\n}\nmessage GroupFileResponse {\n  OidbGroupFileUploadResp upload = 1;\n  OidbGroupFileDownloadResp download = 3;\n  OidbGroupFileRetResp delete = 4;\n  OidbGroupFileRetResp rename = 5;\n  OidbGroupFileRetResp move = 6;\n}\nmessage PrivateFileUrlRequest {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbPrivateFileDownloadReqBody body = 14;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n  bytes field99999 = 99999;\n}\nmessage PrivateFileUrlResponse {\n  OidbPrivateFileDownloadRespBody body = 14;\n}\nmessage OidbGroupFileUploadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  uint32 entrance = 4;\n  string targetDirectory = 5;\n  string fileName = 6;\n  string localDirectory = 7;\n  uint64 fileSize = 8;\n  bytes fileSha1 = 9;\n  bytes fileSha3 = 10;\n  bytes fileMd5 = 11;\n  int32 field15 = 15;\n}\nmessage OidbGroupFileDownloadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupFileDeleteReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 5;\n}\nmessage OidbGroupFileRenameReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentFolder = 5;\n  string newFileName = 6;\n}\nmessage OidbGroupFileMoveReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentDirectory = 5;\n  string targetDirectory = 6;\n}\nmessage OidbGroupFileUploadResp {\n  int32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string uploadIp = 4;\n  string serverDns = 5;\n  int32 busId = 6;\n  string fileId = 7;\n  bytes checkKey = 8;\n  bytes fileKey = 9;\n  bool boolFileExist = 10;\n  uint32 uploadPort = 14;\n}\nmessage OidbGroupFileDownloadResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string downloadIp = 4;\n  string downloadDns = 5;\n  bytes downloadUrl = 6;\n  string saveFileName = 11;\n}\nmessage OidbGroupFileRetResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n}\nmessage OidbPrivateFileDownloadReqBody {\n  string receiverUid = 10;\n  string fileUuid = 20;\n  uint32 type = 30;\n  string fileHash = 60;\n  uint32 t2 = 601;\n}\nmessage OidbPrivateFileDownloadRespBody {\n  string state = 20;\n  OidbPrivateFileDownloadRespResult result = 30;\n}\nmessage OidbPrivateFileDownloadRespResult {\n  string server = 20;\n  uint32 port = 40;\n  string url = 50;\n}\n', "forward.proto": 'syntax = "proto3";\npackage neronet.wire.forward;\nmessage SendLongMsgReq {\n  SendLongMsgInfo info = 2;\n  LongMsgSettings settings = 15;\n}\nmessage SendLongMsgResp {\n  SendLongMsgRespResult result = 2;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgReq {\n  RecvLongMsgInfo info = 1;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgResp {\n  RecvLongMsgRespResult result = 1;\n  LongMsgSettings settings = 15;\n}\nmessage LongMsgResult {\n  repeated LongMsgAction action = 2;\n}\nmessage SendLongMsgInfo {\n  uint32 type = 1;\n  LongMsgUid uid = 2;\n  uint32 groupUin = 3;\n  bytes payload = 4;\n}\nmessage LongMsgSettings {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n}\nmessage SendLongMsgRespResult {\n  string resId = 3;\n}\nmessage RecvLongMsgInfo {\n  LongMsgUid uid = 1;\n  string resId = 2;\n  int32 acquire = 3;\n}\nmessage RecvLongMsgRespResult {\n  string resId = 3;\n  bytes payload = 4;\n}\nmessage LongMsgAction {\n  string actionCommand = 1;\n  LongMsgContent actionData = 2;\n}\nmessage LongMsgUid {\n  string uid = 2;\n}\nmessage LongMsgContent {\n  repeated PushMsgBody msgBody = 1;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "friend_list.proto": 'syntax = "proto3";\npackage neronet.wire.friendlist;\nmessage FriendListRequest {\n  uint32 friendCount = 2;\n  uint32 field4 = 4;\n  bytes cookie = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  repeated OidbFriendListBodyItem body = 10001;\n  repeated uint32 field10002 = 10002 [packed = false];\n  uint32 field10003 = 10003;\n}\nmessage FriendListResponse {\n  bytes cookie = 2;\n  bool isEnd = 3;\n  uint64 timestamp = 6;\n  uint64 selfUin = 7;\n  uint32 smallSeq = 8;\n  repeated OidbFriend friends = 101;\n  repeated OidbFriendCategory categories = 102;\n}\nmessage OidbFriendListBodyItem {\n  uint32 type = 1;\n  OidbFriendListNumber number = 2;\n}\nmessage OidbFriend {\n  string uid = 1;\n  uint32 customGroup = 2;\n  uint32 uin = 3;\n  repeated OidbFriendAdditional additional = 10001;\n}\nmessage OidbFriendCategory {\n  uint32 categoryId = 1;\n  string categoryName = 2;\n  uint32 memberCount = 3;\n  uint32 sortId = 4;\n}\nmessage OidbFriendListNumber {\n  repeated uint32 numbers = 1 [packed = false];\n}\nmessage OidbFriendAdditional {\n  uint32 type = 1;\n  OidbFriendLayer1 layer1 = 2;\n}\nmessage OidbFriendLayer1 {\n  repeated OidbFriendProperty properties = 2;\n}\nmessage OidbFriendProperty {\n  uint32 code = 1;\n  string value = 2;\n}\n', "group_history.proto": 'syntax = "proto3";\npackage neronet.wire.grouphistory;\nmessage GroupHistoryRequest {\n  GroupHistoryRange info = 1;\n  int32 direction = 2;\n}\nmessage GroupHistoryResponse {\n  GroupHistoryBody body = 3;\n}\nmessage GroupHistoryRange {\n  uint32 groupUin = 1;\n  uint32 startSequence = 2;\n  uint32 endSequence = 3;\n}\nmessage GroupHistoryBody {\n  uint32 groupUin = 3;\n  uint32 startSequence = 4;\n  uint32 endSequence = 5;\n  repeated PushMsgBody messages = 6;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "group_list.proto": 'syntax = "proto3";\npackage neronet.wire.grouplist;\nmessage GroupListRequest {\n  GroupListConfig config = 1;\n}\nmessage GroupListResponse {\n  repeated GroupListEntry groups = 2;\n}\nmessage GroupListConfig {\n  GroupListConfig1 config1 = 1;\n  GroupListConfig2 config2 = 2;\n  GroupListConfig3 config3 = 3;\n}\nmessage GroupListEntry {\n  uint32 groupUin = 3;\n  GroupListInfo info = 4;\n  GroupListCustomInfo customInfo = 5;\n}\nmessage GroupListConfig1 {\n  int32 groupOwner = 1;\n  int32 field2 = 2;\n  int32 memberMax = 3;\n  int32 memberCount = 4;\n  int32 groupName = 5;\n  int32 field8 = 8;\n  int32 field9 = 9;\n  int32 field10 = 10;\n  int32 field11 = 11;\n  int32 field12 = 12;\n  int32 field13 = 13;\n  int32 field14 = 14;\n  int32 field15 = 15;\n  int32 field16 = 16;\n  int32 field17 = 17;\n  int32 field18 = 18;\n  int32 question = 19;\n  int32 field20 = 20;\n  int32 field22 = 22;\n  int32 field23 = 23;\n  int32 field24 = 24;\n  int32 field25 = 25;\n  int32 field26 = 26;\n  int32 field27 = 27;\n  int32 field28 = 28;\n  int32 field29 = 29;\n  int32 field30 = 30;\n  int32 field31 = 31;\n  int32 field32 = 32;\n  int32 field5001 = 5001;\n  int32 field5002 = 5002;\n  int32 field5003 = 5003;\n}\nmessage GroupListConfig2 {\n  int32 field1 = 1;\n  int32 field2 = 2;\n  int32 remark = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n  int32 field8 = 8;\n}\nmessage GroupListConfig3 {\n  int32 field5 = 5;\n  int32 field6 = 6;\n}\nmessage GroupListInfo {\n  GroupListOwner groupOwner = 1;\n  uint32 createdTime = 2;\n  uint32 memberMax = 3;\n  uint32 memberCount = 4;\n  string groupName = 5;\n  uint32 shutUpAllTimestamp = 10;\n  string description = 18;\n  string question = 19;\n  string announcement = 30;\n}\nmessage GroupListCustomInfo {\n  string remark = 3;\n}\nmessage GroupListOwner {\n  string uid = 2;\n}\n', "group_members.proto": 'syntax = "proto3";\npackage neronet.wire.groupmembers;\nmessage GroupMemberListRequest {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  GroupMemberListFields body = 4;\n  string token = 15;\n}\nmessage GroupMemberListResponse {\n  uint32 groupUin = 1;\n  repeated GroupMember members = 2;\n  uint32 field3 = 3;\n  uint32 memberChangeSeq = 5;\n  uint32 memberCardChangeSeq = 6;\n  string token = 15;\n}\nmessage GroupMemberListFields {\n  int32 memberName = 10;\n  int32 memberCard = 11;\n  int32 level = 12;\n  int32 field13 = 13;\n  int32 field16 = 16;\n  int32 specialTitle = 17;\n  int32 field18 = 18;\n  int32 field20 = 20;\n  int32 field21 = 21;\n  int32 joinTimestamp = 100;\n  int32 lastMsgTimestamp = 101;\n  int32 shutUpTimestamp = 102;\n  int32 field103 = 103;\n  int32 field104 = 104;\n  int32 field105 = 105;\n  int32 field106 = 106;\n  int32 permission = 107;\n  int32 field200 = 200;\n  int32 field201 = 201;\n}\nmessage GroupMember {\n  GroupMemberId uin = 1;\n  string memberName = 10;\n  GroupMemberCard memberCard = 11;\n  GroupMemberLevel level = 12;\n  string specialTitle = 17;\n  uint32 joinTimestamp = 100;\n  uint32 lastMsgTimestamp = 101;\n  uint32 shutUpTimestamp = 102;\n  uint32 permission = 107;\n}\nmessage GroupMemberId {\n  string uid = 2;\n  uint32 uin = 4;\n}\nmessage GroupMemberCard {\n  string memberCard = 2;\n}\nmessage GroupMemberLevel {\n  repeated uint32 infos = 1 [packed = false];\n  uint32 level = 2;\n}\n', "highway.proto": 'syntax = "proto3";\npackage neronet.wire.highway;\nmessage SessionRequest {\n  HttpConn httpConn = 1281;\n}\nmessage SessionResponse {\n  HttpConnResponse httpConn = 1281;\n}\nmessage ReqDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  bytes bytesReqExtendInfo = 3;\n  uint64 timestamp = 4;\n  LoginSigHead msgLoginSigHead = 5;\n}\nmessage RespDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  uint32 errorCode = 3;\n}\nmessage NTV2RichMediaHighwayExt {\n  string fileUuid = 1;\n  string uKey = 2;\n  HighwayNetwork network = 5;\n  repeated HighwayMsgInfoBody msgInfoBody = 6;\n  uint32 blockSize = 10;\n  HighwayHash hash = 11;\n}\nmessage HttpConn {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  repeated uint32 serviceTypes = 7 [packed = false];\n  uint32 field9 = 9;\n  uint32 field10 = 10;\n  uint32 field11 = 11;\n  string ver = 15;\n}\nmessage HttpConnResponse {\n  bytes sigSession = 1;\n  bytes sessionKey = 2;\n  repeated ServerInfo serverInfos = 3;\n}\nmessage DataHighwayHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint32 appId = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage SegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint32 dataLength = 4;\n  uint32 retCode = 5;\n  bytes serviceTicket = 6;\n  uint32 flag = 7;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n  uint32 cacheAddr = 10;\n  uint32 cachePort = 13;\n}\nmessage LoginSigHead {\n  uint32 loginSigType = 1;\n  uint32 appId = 3;\n}\nmessage HighwayNetwork {\n  repeated HighwayIPv4 ipv4s = 1;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  int32 fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage HighwayHash {\n  repeated bytes fileSha1 = 1;\n}\nmessage ServerInfo {\n  uint32 serviceType = 1;\n  repeated ServerAddr serverAddrs = 2;\n}\nmessage HighwayIPv4 {\n  HighwayDomain domain = 1;\n  uint32 port = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage ServerAddr {\n  uint32 type = 1;\n  sfixed32 ip = 2;\n  uint32 port = 3;\n  uint32 area = 4;\n}\nmessage HighwayDomain {\n  int32 isEnable = 1;\n  string ip = 2;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "interaction.proto": 'syntax = "proto3";\npackage neronet.wire.interaction;\nmessage PokeRequest {\n  uint32 uin = 1;\n  uint32 groupUin = 2;\n  uint32 friendUin = 5;\n  uint32 ext = 6;\n}\nmessage GroupReactionRequest {\n  uint32 groupUin = 2;\n  uint32 sequence = 3;\n  string code = 4;\n  uint32 type = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n}\nmessage Empty {\n}\n', "media_download.proto": 'syntax = "proto3";\npackage neronet.wire.mediadown;\nmessage RichMediaRequest {\n  NTV2ReqHead reqHead = 1;\n  NTV2DownloadReq download = 3;\n  NTV2DownloadRKeyReq downloadRkey = 4;\n}\nmessage RichMediaResponse {\n  NTV2RespHead respHead = 1;\n  NTV2MediaDownloadResp download = 3;\n  NTV2DownloadRKeyResp downloadRkey = 4;\n}\nmessage NTV2ReqHead {\n  NTV2CommonHead common = 1;\n  NTV2SceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2DownloadReq {\n  NTV2IndexNode node = 1;\n  NTV2DownloadExt download = 2;\n}\nmessage NTV2DownloadRKeyReq {\n  repeated uint32 types = 1 [packed = false];\n}\nmessage NTV2RespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2MediaDownloadResp {\n  string rKeyParam = 1;\n  uint32 rKeyTtlSecond = 2;\n  NTV2MediaDownloadInfo info = 3;\n  uint32 rKeyCreateTime = 4;\n}\nmessage NTV2DownloadRKeyResp {\n  repeated NTV2RKeyInfo rkeys = 1;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2SceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2IndexNode {\n  NTV2FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage NTV2DownloadExt {\n  NTV2VideoDownloadExt video = 2;\n}\nmessage NTV2MediaDownloadInfo {\n  string domain = 1;\n  string urlPath = 2;\n  uint32 httpsPort = 3;\n}\nmessage NTV2RKeyInfo {\n  string rkey = 1;\n  uint64 rkeyTtlSec = 2;\n  uint32 storeId = 3;\n  uint32 rkeyCreateTime = 4;\n  uint32 type = 5;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage NTV2VideoDownloadExt {\n  uint32 busiType = 1;\n  uint32 sceneType = 2;\n  uint32 subBusiType = 3;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "media_upload.proto": 'syntax = "proto3";\npackage neronet.wire.mediaup;\nmessage UploadRequest {\n  NTV2UploadReqHead reqHead = 1;\n  NTV2UploadReq upload = 2;\n}\nmessage UploadResponse {\n  NTV2UploadRespHead respHead = 1;\n  NTV2UploadRespBody upload = 2;\n}\nmessage MediaMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  EncodableMediaExtBizInfo extBizInfo = 2;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage PttWaveform {\n  uint32 size = 1;\n  bytes amplitudes = 2;\n}\nmessage NTV2UploadReqHead {\n  NTV2CommonHead common = 1;\n  NTV2UploadSceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2UploadReq {\n  repeated NTV2UploadInfo uploadInfo = 1;\n  int32 tryFastUploadCompleted = 2;\n  int32 srvSendMsg = 3;\n  uint64 clientRandomId = 4;\n  uint32 compatQmsgSceneType = 5;\n  NTV2ExtBizInfo extBizInfo = 6;\n  uint32 clientSeq = 7;\n  int32 noNeedCompatMsg = 8;\n}\nmessage NTV2UploadRespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2UploadRespBody {\n  string uKey = 1;\n  uint32 uKeyTtl = 2;\n  repeated NTV2IPv4 ipv4s = 3;\n  uint64 msgSeq = 5;\n  NTV2UploadRespMsgInfo msgInfo = 6;\n  repeated NTV2SubFileInfoResp subFileInfos = 10;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage EncodableMediaExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2UploadSceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2UploadInfo {\n  NTV2FileInfo fileInfo = 1;\n  uint32 subFileType = 2;\n}\nmessage NTV2ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NTV2IPv4 {\n  uint32 outIp = 1;\n  uint32 outPort = 2;\n}\nmessage NTV2UploadRespMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  NTV2ExtBizInfo extBizInfo = 2;\n}\nmessage NTV2SubFileInfoResp {\n  uint32 subType = 1;\n  string uKey = 2;\n  uint32 uKeyTtl = 3;\n  repeated NTV2IPv4 ipv4s = 4;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n  bytes routingHead = 3;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "msg_push.proto": 'syntax = "proto3";\npackage neronet.wire.push;\nmessage PushMsg {\n  PushMsgBody message = 1;\n  int32 status = 3;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "notices.proto": 'syntax = "proto3";\npackage neronet.wire.notices;\nmessage GroupMute {\n  uint32 groupUin = 1;\n  uint32 subType = 2;\n  uint32 field3 = 3;\n  string operatorUid = 4;\n  GroupMuteData data = 5;\n}\nmessage NotifyMessageBody {\n  uint32 type = 1;\n  uint32 groupUin = 4;\n  bytes eventParam = 5;\n  GroupRecall recall = 11;\n  uint32 field13 = 13;\n  string operatorUid = 21;\n  GeneralGrayTipInfo generalGrayTip = 26;\n  EssenceMessage essenceMessage = 33;\n  uint32 msgSequence = 37;\n  uint32 field39 = 39;\n}\nmessage GroupReactNotify {\n  uint64 groupUin = 4;\n  uint32 field13 = 13;\n  GroupReactionData groupReactionData = 44;\n}\nmessage FriendRecall {\n  FriendRecallInfo info = 1;\n  uint32 instId = 2;\n  uint32 appId = 3;\n  uint32 longMessageFlag = 4;\n  bytes reserved = 5;\n}\nmessage GeneralGrayTipInfo {\n  uint64 busiType = 1;\n  uint64 busiId = 2;\n  uint32 ctrlFlag = 3;\n  uint32 c2cType = 4;\n  uint32 serviceType = 5;\n  uint64 templId = 6;\n  repeated TemplParam msgTemplParam = 7;\n  string content = 8;\n}\nmessage NewFriend {\n  uint32 field1 = 1;\n  NewFriendInfo info = 2;\n}\nmessage GroupChange {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  string memberUid = 3;\n  uint32 decreaseType = 4;\n  bytes operatorBytes = 5;\n  uint32 increaseType = 6;\n  bytes field7 = 7;\n}\nmessage SelfJoinInGroup {\n  uint64 groupUin = 1;\n  uint32 field2 = 2;\n  string operatorUid = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  string field7 = 7;\n}\nmessage GroupAdmin {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  bool isPromote = 3;\n  GroupAdminBody body = 4;\n}\nmessage OperatorInfo {\n  OperatorField1 operatorField = 1;\n}\nmessage GroupSpecialTitleChange {\n  string tipText = 2;\n  uint32 memberUin = 5;\n}\nmessage GroupNameChange {\n  string name = 2;\n}\nmessage GroupMuteData {\n  uint32 timestamp = 1;\n  uint32 type = 2;\n  GroupMuteState state = 3;\n}\nmessage GroupRecall {\n  string operatorUid = 1;\n  repeated RecallMessage recallMessages = 3;\n  bytes userDef = 5;\n  int32 groupType = 6;\n  int32 opType = 7;\n  GroupRecallTipInfo tipInfo = 9;\n}\nmessage EssenceMessage {\n  uint32 groupUin = 1;\n  uint32 msgSequence = 2;\n  uint32 random = 3;\n  uint32 setFlag = 4;\n  uint32 memberUin = 5;\n  uint32 operatorUin = 6;\n  uint32 timestamp = 7;\n  uint32 msgSequence2 = 8;\n  string operatorNickname = 9;\n  string memberNickname = 10;\n  uint32 setFlag2 = 11;\n}\nmessage GroupReactionData {\n  GroupReactionDataInner data = 1;\n}\nmessage FriendRecallInfo {\n  string fromUid = 1;\n  string toUid = 2;\n  uint32 clientSequence = 3;\n  uint64 newId = 4;\n  uint32 time = 5;\n  uint32 random = 6;\n  uint32 pkgNum = 7;\n  uint32 pkgIndex = 8;\n  uint32 divSeq = 9;\n  FriendRecallTipInfo tipInfo = 13;\n}\nmessage TemplParam {\n  string name = 1;\n  string value = 2;\n}\nmessage NewFriendInfo {\n  string uid = 1;\n  uint32 field2 = 2;\n  uint32 time = 3;\n  string message = 4;\n  string nickName = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  string toUid = 9;\n}\nmessage GroupAdminBody {\n  GroupAdminExtra extraDisable = 1;\n  GroupAdminExtra extraEnable = 2;\n}\nmessage OperatorField1 {\n  string uid = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n}\nmessage GroupMuteState {\n  string targetUid = 1;\n  uint32 duration = 2;\n}\nmessage RecallMessage {\n  uint32 sequence = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 type = 4;\n  uint32 flag = 5;\n  string authorUid = 6;\n}\nmessage GroupRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupReactionDataInner {\n  GroupReactionDataInnerData data = 1;\n}\nmessage FriendRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupAdminExtra {\n  string adminUid = 1;\n  bool isPromote = 2;\n}\nmessage GroupReactionDataInnerData {\n  GroupReactionDataInnerDataTarget groupReactionTarget = 2;\n  GroupReactionDataContent groupReactionDataContent = 3;\n}\nmessage GroupReactionDataInnerDataTarget {\n  uint64 seq = 1;\n}\nmessage GroupReactionDataContent {\n  string code = 1;\n  uint32 count = 3;\n  string operatorUid = 4;\n  uint32 type = 5;\n}\n', "oidb.proto": 'syntax = "proto3";\npackage neronet.wire.oidb;\nmessage OidbEnvelope {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  uint32 errorCode = 3;\n  bytes body = 4;\n  string errorMsg = 5;\n  repeated OidbProperty properties = 11;\n  uint32 reserved = 12;\n}\nmessage OidbProperty {\n  string key = 1;\n  bytes value = 2;\n}\n', "recall.proto": 'syntax = "proto3";\npackage neronet.wire.recall;\nmessage GroupRecallRequest {\n  uint32 type = 1;\n  uint32 groupUin = 2;\n  GroupRecallInfo info = 3;\n  GroupRecallSettings settings = 4;\n}\nmessage C2CRecallRequest {\n  uint32 type = 1;\n  string targetUid = 3;\n  C2CRecallInfo info = 4;\n  C2CRecallSettings settings = 5;\n  int32 field6 = 6;\n}\nmessage GroupRecallInfo {\n  uint32 sequence = 1;\n  uint32 random = 2;\n  uint32 field3 = 3;\n}\nmessage GroupRecallSettings {\n  uint32 field1 = 1;\n}\nmessage C2CRecallInfo {\n  uint32 clientSequence = 1;\n  uint32 random = 2;\n  uint64 messageId = 3;\n  uint32 timestamp = 4;\n  uint32 field5 = 5;\n  uint32 messageSequence = 6;\n}\nmessage C2CRecallSettings {\n  int32 field1 = 1;\n  int32 field2 = 2;\n}\n', "send_msg.proto": 'syntax = "proto3";\npackage neronet.wire.send;\nmessage SendMessageRequest {\n  RoutingHead routingHead = 1;\n  SendContentHead contentHead = 2;\n  SendMessageBody messageBody = 3;\n  uint32 clientSequence = 4;\n  uint32 random = 5;\n  bytes syncCookie = 6;\n  uint32 via = 8;\n  uint32 dataStatist = 9;\n  MessageControl ctrl = 12;\n  uint32 multiSendSeq = 14;\n}\nmessage SendMessageResponse {\n  int32 result = 1;\n  string errMsg = 2;\n  uint32 timestamp1 = 3;\n  int32 reviewResult = 6;\n  SendMessageServerResult serverResult = 7;\n  uint32 field10 = 10;\n  uint32 groupSequence = 11;\n  uint32 timestamp2 = 12;\n  uint32 privateSequence = 14;\n}\nmessage RoutingHead {\n  RoutingC2C c2c = 1;\n  RoutingGroup grp = 2;\n  RoutingGrpTmp grpTmp = 3;\n  RoutingTrans0x211 trans0x211 = 15;\n}\nmessage SendContentHead {\n  uint32 type = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n}\nmessage SendMessageBody {\n  SendRichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage MessageControl {\n  uint32 msgFlag = 1;\n}\nmessage SendMessageServerResult {\n  int32 type = 1;\n  int32 code = 2;\n  string message = 3;\n}\nmessage RoutingC2C {\n  uint32 uin = 1;\n  string uid = 2;\n}\nmessage RoutingGroup {\n  uint64 groupCode = 1;\n}\nmessage RoutingGrpTmp {\n  uint64 groupUin = 3;\n  string toUid = 4;\n}\nmessage RoutingTrans0x211 {\n  uint64 toUin = 1;\n  uint32 ccCmd = 2;\n  string uid = 8;\n}\nmessage SendRichText {\n  repeated Elem elems = 2;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  uint32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  uint32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  uint32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  uint32 bizType = 16;\n  uint32 result = 17;\n  uint32 index = 18;\n  bytes opFaceBuf = 19;\n  int32 oldPicMd5 = 20;\n  uint32 thumbWidth = 21;\n  uint32 thumbHeight = 22;\n  uint32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  uint32 x400Width = 27;\n  uint32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  uint32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  uint32 serverIp = 8;\n  uint32 serverPort = 9;\n  uint32 fileType = 10;\n  bytes signature = 11;\n  uint32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  uint32 bizType = 17;\n  uint32 repeatIndex = 18;\n  uint32 repeatImage = 19;\n  uint32 imageType = 20;\n  uint32 index = 21;\n  uint32 width = 22;\n  uint32 height = 23;\n  uint32 source = 24;\n  uint32 size = 25;\n  uint32 origin = 26;\n  uint32 thumbWidth = 27;\n  uint32 thumbHeight = 28;\n  uint32 showLen = 29;\n  uint32 downloadLen = 30;\n  string x400Url = 31;\n  uint32 x400Width = 32;\n  uint32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  uint32 serviceId = 2;\n  bytes msgResId = 3;\n  uint32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  uint32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  uint32 level = 3;\n  uint32 flags = 4;\n  uint32 groupMask = 5;\n  uint32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  uint32 msgStateFlag = 10;\n  uint32 apnsSoundType = 11;\n  uint32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  uint32 fileFormat = 4;\n  uint32 fileTime = 5;\n  uint32 fileSize = 6;\n  uint32 thumbWidth = 7;\n  uint32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  uint32 thumbFileSize = 11;\n  uint32 busiType = 12;\n  uint32 fromChatType = 13;\n  uint32 toChatType = 14;\n  int32 supportProgressive = 15;\n  uint32 fileWidth = 16;\n  uint32 fileHeight = 17;\n  uint32 subBusiType = 18;\n  uint32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  uint32 bubbleDiyTextId = 1;\n  uint32 groupFlagNew = 2;\n  uint64 uin = 3;\n  uint32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  uint32 time = 3;\n  uint32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  uint32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  uint32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  uint32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\n', "sys_faces.proto": 'syntax = "proto3";\npackage neronet.wire.sysfaces;\nmessage CatalogRequest {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  OidbFetchSysFacesExpInfo field4 = 4;\n}\nmessage CatalogResponse {\n  int32 field1 = 1;\n  OidbFaceContent commonFace = 2;\n  OidbFaceContent specialBigFace = 3;\n  OidbFaceContent specialMagicFace = 4;\n}\nmessage FaceRequest {\n  string qSid = 1;\n}\nmessage FaceResponse {\n  OidbFaceEmoji emoji = 1;\n  bool field2 = 2;\n}\nmessage OidbFetchSysFacesExpInfo {\n  string field1 = 1;\n}\nmessage OidbFaceContent {\n  repeated OidbFaceEmojiList emojiList = 1;\n  OidbFaceResourceUrl resourceUrl = 2;\n}\nmessage OidbFaceEmoji {\n  string qSid = 1;\n  string qDes = 2;\n  string emCode = 3;\n  int32 qCid = 4;\n  int32 aniStickerType = 5;\n  int32 aniStickerPackId = 6;\n  int32 aniStickerId = 7;\n  OidbFaceResourceUrl url = 8;\n  repeated string emojiNameAlias = 9;\n  int32 unknown10 = 10;\n  int32 aniStickerWidth = 13;\n  int32 aniStickerHeight = 14;\n}\nmessage OidbFaceEmojiList {\n  string emojiPackName = 1;\n  repeated OidbFaceEmoji emojiDetail = 2;\n}\nmessage OidbFaceResourceUrl {\n  string baseUrl = 1;\n  string advUrl = 2;\n}\n', "user_profile.proto": 'syntax = "proto3";\npackage neronet.wire.profile;\nmessage UserInfoRequest {\n  uint32 uin = 1;\n  repeated OidbUserInfoKey keys = 3;\n}\nmessage UserInfoResponse {\n  OidbUserInfoResponseBody body = 1;\n}\nmessage AvatarInfo {\n  string url = 5;\n}\nmessage OidbUserInfoKey {\n  uint32 key = 1;\n}\nmessage OidbUserInfoResponseBody {\n  string uid = 1;\n  OidbUserInfoProperty properties = 2;\n  uint32 uin = 3;\n}\nmessage OidbUserInfoProperty {\n  repeated OidbTwoNumber numberProperties = 1;\n  repeated OidbByteProperty bytesProperties = 2;\n}\nmessage OidbTwoNumber {\n  uint32 number1 = 1;\n  uint32 number2 = 2;\n}\nmessage OidbByteProperty {\n  uint32 code = 1;\n  bytes value = 2;\n}\n' };
+        TEXTS = { "c2c_history.proto": 'syntax = "proto3";\npackage neronet.wire.c2chistory;\nmessage C2cRangeRequest {\n  string friendUid = 2;\n  uint32 startSequence = 3;\n  uint32 endSequence = 4;\n}\nmessage C2cRangeResponse {\n  int32 result = 1;\n  string errorMessage = 2;\n  string friendUid = 4;\n  repeated PushMsgBody messages = 7;\n}\nmessage RoamRequest {\n  string friendUid = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 count = 4;\n  int32 direction = 5;\n}\nmessage RoamResponse {\n  string friendUid = 3;\n  uint32 timestamp = 5;\n  uint32 random = 6;\n  repeated PushMsgBody messages = 7;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "custom_faces.proto": 'syntax = "proto3";\npackage neronet.wire.customfaces;\nmessage FaceroamOpReq {\n  FaceroamOpReqInner inner = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  FaceroamOpBody body = 5;\n  uint32 field6 = 6;\n}\nmessage FaceroamOpResp {\n  uint32 retCode = 1;\n  string message = 2;\n  uint32 field3 = 3;\n  FaceroamOpRespItem item = 4;\n}\nmessage CustomFaceMoveBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  repeated CustomFaceMoveEntry emojis = 4;\n}\nmessage CustomFaceModifyBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  CustomFaceModifyEntry entry = 5;\n  uint32 field12 = 12;\n}\nmessage CustomFaceModifyResp {\n  uint32 retCode = 1;\n  string errMsg = 2;\n  uint32 opType = 3;\n  repeated CustomFaceModifyRespEntry entries = 4;\n}\nmessage BDHExpressionRoamReq {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamInner inner = 3;\n  uint32 field7 = 7;\n  BDHExpressionRoamTail tail = 1001;\n}\nmessage BDHExpressionRoamResp {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamRespInner inner = 3;\n}\nmessage FavEmojiHighwayHead {\n  FavEmojiHighwayBaseHead baseHead = 1;\n  FavEmojiHighwaySegHead segHead = 2;\n  FavEmojiIdWrap emojiIdWrap = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n  uint64 field8 = 8;\n}\nmessage FaceroamOpReqInner {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  string qqVersion = 3;\n}\nmessage FaceroamOpBody {\n  string emojiId = 1;\n}\nmessage FaceroamOpRespItem {\n  repeated string faceIds = 1;\n  string category = 3;\n  uint32 totalCount = 4;\n}\nmessage CustomFaceMoveEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage CustomFaceModifyEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string desc = 2;\n}\nmessage CustomFaceModifyRespEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string legacyDesc = 2;\n  string desc = 3;\n}\nmessage BDHExpressionRoamInner {\n  uint32 field1 = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  bytes md5 = 4;\n  uint32 filesize = 5;\n  uint32 field7 = 7;\n  uint32 field8 = 8;\n  uint32 field9 = 9;\n  string ver = 13;\n  uint32 field16 = 16;\n}\nmessage BDHExpressionRoamTail {\n  BDHExpressionRoamTailInner inner = 1;\n  uint32 field2 = 2;\n}\nmessage BDHExpressionRoamRespInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  repeated uint32 field6 = 6 [packed = false];\n  repeated uint32 field7 = 7 [packed = false];\n  bytes token = 8;\n  uint32 field12 = 12;\n}\nmessage FavEmojiHighwayBaseHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint64 filesize = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage FavEmojiHighwaySegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint64 dataLength = 4;\n  bytes serviceTicket = 6;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n}\nmessage FavEmojiIdWrap {\n  string emojiId = 1;\n}\nmessage CustomFaceOpEmojiEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage BDHExpressionRoamTailInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  string field3 = 3;\n}\n', "elements_in.proto": 'syntax = "proto3";\npackage neronet.wire.elemin;\nmessage MentionExtra {\n  int32 type = 3;\n  uint32 uin = 4;\n  int32 field5 = 5;\n  string uid = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  int32 qsid = 3;\n  int32 sourceType = 4;\n  int32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  int32 randomType = 9;\n}\nmessage MsgInfo {\n  repeated MsgInfoBody msgInfoBody = 1;\n  ExtBizInfo extBizInfo = 2;\n}\nmessage GroupFileExtra {\n  uint32 field1 = 1;\n  string fileName = 2;\n  string display = 3;\n  GroupFileExtraInner inner = 7;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage MsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage GroupFileExtraInner {\n  GroupFileInfo info = 2;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage GroupFileInfo {\n  uint32 busId = 1;\n  string fileId = 2;\n  uint64 fileSize = 3;\n  string fileName = 4;\n  uint32 field5 = 5;\n  bytes fileSha = 6;\n  string extInfoString = 7;\n  bytes fileMd5 = 8;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "elements_out.proto": 'syntax = "proto3";\npackage neronet.wire.elemout;\nmessage MentionExtraSend {\n  uint32 type = 3;\n  uint32 uin = 4;\n  uint32 field5 = 5;\n  string uid = 9;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  uint32 qsid = 3;\n  uint32 sourceType = 4;\n  uint32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  uint32 randomType = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\n', "file_upload.proto": 'syntax = "proto3";\npackage neronet.wire.fileupload;\nmessage OidbPrivateFileUploadReq {\n  uint32 command = 1;\n  uint32 seq = 2;\n  OidbPrivateFileUploadReqBody upload = 19;\n  uint32 businessId = 101;\n  uint32 clientType = 102;\n  uint32 flagSupportMediaPlatform = 200;\n}\nmessage OidbPrivateFileUploadResp {\n  OidbPrivateFileUploadRespBody upload = 19;\n}\nmessage OidbGroupSendFileReq {\n  OidbGroupTransFileReq transFile = 1;\n  OidbGroupSendFileBody body = 5;\n}\nmessage OidbEmpty {\n}\nmessage OidbOfflineFileFinalizeReq {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbOfflineFileFinalizeReqBody body = 10;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n}\nmessage OidbOfflineFileFinalizeResp {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  OidbOfflineFileFinalizeRespBody body = 10;\n  uint32 field50 = 50;\n}\nmessage FileUploadExt {\n  uint32 unknown1 = 1;\n  uint32 unknown2 = 2;\n  uint32 unknown3 = 3;\n  FileUploadEntry entry = 100;\n  uint32 unknown200 = 200;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage OidbPrivateFileUploadReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  uint32 fileSize = 30;\n  string fileName = 40;\n  bytes md510MCheckSum = 50;\n  bytes sha1CheckSum = 60;\n  string localPath = 70;\n  bytes md5CheckSum = 110;\n  bytes sha3CheckSum = 120;\n}\nmessage OidbPrivateFileUploadRespBody {\n  int32 retCode = 10;\n  string retMsg = 20;\n  string uploadIp = 60;\n  string uploadDomain = 70;\n  uint32 uploadPort = 80;\n  string uuid = 90;\n  bytes uploadKey = 100;\n  bool boolFileExist = 110;\n  repeated string uploadIpList = 130;\n  int32 uploadHttpsPort = 140;\n  string uploadHttpsDomain = 150;\n  string uploadDns = 160;\n  string uploadLanip = 170;\n  string fileAddon = 200;\n  repeated IPv4 rtpMediaPlatformUploadAddress = 210;\n  bytes mediaPlatformUploadKey = 220;\n}\nmessage OidbGroupTransFileReq {\n  uint64 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupSendFileBody {\n  uint32 groupUin = 1;\n  uint32 type = 2;\n  OidbGroupSendFileInfo info = 3;\n}\nmessage OidbOfflineFileFinalizeReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  string fileUuid = 30;\n  string fileHash = 40;\n}\nmessage OidbOfflineFileFinalizeRespBody {\n  uint32 field10 = 10;\n  OidbOfflineFileMetadata metadata = 30;\n}\nmessage FileUploadEntry {\n  FileUploadBusiInfo busiBuff = 100;\n  FileUploadFileEntry fileEntry = 200;\n  FileUploadClientInfo clientInfo = 300;\n  FileUploadNameInfo fileNameInfo = 400;\n  FileUploadHostConfig host = 500;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IPv4 {\n  int32 outIP = 1;\n  int32 outPort = 2;\n  int32 inIP = 3;\n  int32 inPort = 4;\n  int32 iPType = 5;\n}\nmessage OidbGroupSendFileInfo {\n  uint32 busiType = 1;\n  string fileId = 2;\n  uint32 field3 = 3;\n  string field4 = 4;\n  int32 field5 = 5;\n}\nmessage OidbOfflineFileMetadata {\n  uint32 field3 = 3;\n  bytes field100 = 100;\n  bytes field101 = 101;\n  uint32 field110 = 110;\n  uint32 timestamp1 = 130;\n}\nmessage FileUploadBusiInfo {\n  uint32 busId = 1;\n  uint64 senderUin = 100;\n  uint64 receiverUin = 200;\n  uint64 groupCode = 400;\n}\nmessage FileUploadFileEntry {\n  uint64 fileSize = 100;\n  bytes md5 = 200;\n  bytes checkKey = 300;\n  bytes md5S2 = 400;\n  string fileId = 600;\n  bytes uploadKey = 700;\n}\nmessage FileUploadClientInfo {\n  uint32 clientType = 100;\n  string appId = 200;\n  uint32 terminalType = 300;\n  string clientVer = 400;\n  uint32 unknown = 600;\n}\nmessage FileUploadNameInfo {\n  string fileName = 100;\n}\nmessage FileUploadHostConfig {\n  repeated FileUploadHost hosts = 200;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileUploadHost {\n  FileUploadUrl url = 1;\n  uint32 port = 2;\n}\nmessage FileUploadUrl {\n  uint32 unknown = 1;\n  string host = 2;\n}\n', "file_url.proto": 'syntax = "proto3";\npackage neronet.wire.fileurl;\nmessage GroupFileRequest {\n  OidbGroupFileUploadReq file = 1;\n  OidbGroupFileDownloadReq download = 3;\n  OidbGroupFileDeleteReq delete = 4;\n  OidbGroupFileRenameReq rename = 5;\n  OidbGroupFileMoveReq move = 6;\n}\nmessage GroupFileResponse {\n  OidbGroupFileUploadResp upload = 1;\n  OidbGroupFileDownloadResp download = 3;\n  OidbGroupFileRetResp delete = 4;\n  OidbGroupFileRetResp rename = 5;\n  OidbGroupFileRetResp move = 6;\n}\nmessage PrivateFileUrlRequest {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbPrivateFileDownloadReqBody body = 14;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n  bytes field99999 = 99999;\n}\nmessage PrivateFileUrlResponse {\n  OidbPrivateFileDownloadRespBody body = 14;\n}\nmessage OidbGroupFileUploadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  uint32 entrance = 4;\n  string targetDirectory = 5;\n  string fileName = 6;\n  string localDirectory = 7;\n  uint64 fileSize = 8;\n  bytes fileSha1 = 9;\n  bytes fileSha3 = 10;\n  bytes fileMd5 = 11;\n  int32 field15 = 15;\n}\nmessage OidbGroupFileDownloadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupFileDeleteReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 5;\n}\nmessage OidbGroupFileRenameReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentFolder = 5;\n  string newFileName = 6;\n}\nmessage OidbGroupFileMoveReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentDirectory = 5;\n  string targetDirectory = 6;\n}\nmessage OidbGroupFileUploadResp {\n  int32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string uploadIp = 4;\n  string serverDns = 5;\n  int32 busId = 6;\n  string fileId = 7;\n  bytes checkKey = 8;\n  bytes fileKey = 9;\n  bool boolFileExist = 10;\n  uint32 uploadPort = 14;\n}\nmessage OidbGroupFileDownloadResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string downloadIp = 4;\n  string downloadDns = 5;\n  bytes downloadUrl = 6;\n  string saveFileName = 11;\n}\nmessage OidbGroupFileRetResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n}\nmessage OidbPrivateFileDownloadReqBody {\n  string receiverUid = 10;\n  string fileUuid = 20;\n  uint32 type = 30;\n  string fileHash = 60;\n  uint32 t2 = 601;\n}\nmessage OidbPrivateFileDownloadRespBody {\n  string state = 20;\n  OidbPrivateFileDownloadRespResult result = 30;\n}\nmessage OidbPrivateFileDownloadRespResult {\n  string server = 20;\n  uint32 port = 40;\n  string url = 50;\n}\n', "forward.proto": 'syntax = "proto3";\npackage neronet.wire.forward;\nmessage SendLongMsgReq {\n  SendLongMsgInfo info = 2;\n  LongMsgSettings settings = 15;\n}\nmessage SendLongMsgResp {\n  SendLongMsgRespResult result = 2;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgReq {\n  RecvLongMsgInfo info = 1;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgResp {\n  RecvLongMsgRespResult result = 1;\n  LongMsgSettings settings = 15;\n}\nmessage LongMsgResult {\n  repeated LongMsgAction action = 2;\n}\nmessage SendLongMsgInfo {\n  uint32 type = 1;\n  LongMsgUid uid = 2;\n  uint32 groupUin = 3;\n  bytes payload = 4;\n}\nmessage LongMsgSettings {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n}\nmessage SendLongMsgRespResult {\n  string resId = 3;\n}\nmessage RecvLongMsgInfo {\n  LongMsgUid uid = 1;\n  string resId = 2;\n  int32 acquire = 3;\n}\nmessage RecvLongMsgRespResult {\n  string resId = 3;\n  bytes payload = 4;\n}\nmessage LongMsgAction {\n  string actionCommand = 1;\n  LongMsgContent actionData = 2;\n}\nmessage LongMsgUid {\n  string uid = 2;\n}\nmessage LongMsgContent {\n  repeated PushMsgBody msgBody = 1;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "friend_list.proto": 'syntax = "proto3";\npackage neronet.wire.friendlist;\nmessage FriendListRequest {\n  uint32 friendCount = 2;\n  uint32 field4 = 4;\n  bytes cookie = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  repeated OidbFriendListBodyItem body = 10001;\n  repeated uint32 field10002 = 10002 [packed = false];\n  uint32 field10003 = 10003;\n}\nmessage FriendListResponse {\n  bytes cookie = 2;\n  bool isEnd = 3;\n  uint64 timestamp = 6;\n  uint64 selfUin = 7;\n  uint32 smallSeq = 8;\n  repeated OidbFriend friends = 101;\n  repeated OidbFriendCategory categories = 102;\n}\nmessage OidbFriendListBodyItem {\n  uint32 type = 1;\n  OidbFriendListNumber number = 2;\n}\nmessage OidbFriend {\n  string uid = 1;\n  uint32 customGroup = 2;\n  uint32 uin = 3;\n  repeated OidbFriendAdditional additional = 10001;\n}\nmessage OidbFriendCategory {\n  uint32 categoryId = 1;\n  string categoryName = 2;\n  uint32 memberCount = 3;\n  uint32 sortId = 4;\n}\nmessage OidbFriendListNumber {\n  repeated uint32 numbers = 1 [packed = false];\n}\nmessage OidbFriendAdditional {\n  uint32 type = 1;\n  OidbFriendLayer1 layer1 = 2;\n}\nmessage OidbFriendLayer1 {\n  repeated OidbFriendProperty properties = 2;\n}\nmessage OidbFriendProperty {\n  uint32 code = 1;\n  string value = 2;\n}\n', "group_history.proto": 'syntax = "proto3";\npackage neronet.wire.grouphistory;\nmessage GroupHistoryRequest {\n  GroupHistoryRange info = 1;\n  int32 direction = 2;\n}\nmessage GroupHistoryResponse {\n  GroupHistoryBody body = 3;\n}\nmessage GroupHistoryRange {\n  uint32 groupUin = 1;\n  uint32 startSequence = 2;\n  uint32 endSequence = 3;\n}\nmessage GroupHistoryBody {\n  uint32 groupUin = 3;\n  uint32 startSequence = 4;\n  uint32 endSequence = 5;\n  repeated PushMsgBody messages = 6;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "group_list.proto": 'syntax = "proto3";\npackage neronet.wire.grouplist;\nmessage GroupListRequest {\n  GroupListConfig config = 1;\n}\nmessage GroupListResponse {\n  repeated GroupListEntry groups = 2;\n}\nmessage GroupListConfig {\n  GroupListConfig1 config1 = 1;\n  GroupListConfig2 config2 = 2;\n  GroupListConfig3 config3 = 3;\n}\nmessage GroupListEntry {\n  uint32 groupUin = 3;\n  GroupListInfo info = 4;\n  GroupListCustomInfo customInfo = 5;\n}\nmessage GroupListConfig1 {\n  int32 groupOwner = 1;\n  int32 field2 = 2;\n  int32 memberMax = 3;\n  int32 memberCount = 4;\n  int32 groupName = 5;\n  int32 field8 = 8;\n  int32 field9 = 9;\n  int32 field10 = 10;\n  int32 field11 = 11;\n  int32 field12 = 12;\n  int32 field13 = 13;\n  int32 field14 = 14;\n  int32 field15 = 15;\n  int32 field16 = 16;\n  int32 field17 = 17;\n  int32 field18 = 18;\n  int32 question = 19;\n  int32 field20 = 20;\n  int32 field22 = 22;\n  int32 field23 = 23;\n  int32 field24 = 24;\n  int32 field25 = 25;\n  int32 field26 = 26;\n  int32 field27 = 27;\n  int32 field28 = 28;\n  int32 field29 = 29;\n  int32 field30 = 30;\n  int32 field31 = 31;\n  int32 field32 = 32;\n  int32 field5001 = 5001;\n  int32 field5002 = 5002;\n  int32 field5003 = 5003;\n}\nmessage GroupListConfig2 {\n  int32 field1 = 1;\n  int32 field2 = 2;\n  int32 remark = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n  int32 field8 = 8;\n}\nmessage GroupListConfig3 {\n  int32 field5 = 5;\n  int32 field6 = 6;\n}\nmessage GroupListInfo {\n  GroupListOwner groupOwner = 1;\n  uint32 createdTime = 2;\n  uint32 memberMax = 3;\n  uint32 memberCount = 4;\n  string groupName = 5;\n  uint32 shutUpAllTimestamp = 10;\n  string description = 18;\n  string question = 19;\n  string announcement = 30;\n}\nmessage GroupListCustomInfo {\n  string remark = 3;\n}\nmessage GroupListOwner {\n  string uid = 2;\n}\n', "group_members.proto": 'syntax = "proto3";\npackage neronet.wire.groupmembers;\nmessage GroupMemberListRequest {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  GroupMemberListFields body = 4;\n  string token = 15;\n}\nmessage GroupMemberListResponse {\n  uint32 groupUin = 1;\n  repeated GroupMember members = 2;\n  uint32 field3 = 3;\n  uint32 memberChangeSeq = 5;\n  uint32 memberCardChangeSeq = 6;\n  string token = 15;\n}\nmessage GroupMemberListFields {\n  int32 memberName = 10;\n  int32 memberCard = 11;\n  int32 level = 12;\n  int32 field13 = 13;\n  int32 field16 = 16;\n  int32 specialTitle = 17;\n  int32 field18 = 18;\n  int32 field20 = 20;\n  int32 field21 = 21;\n  int32 joinTimestamp = 100;\n  int32 lastMsgTimestamp = 101;\n  int32 shutUpTimestamp = 102;\n  int32 field103 = 103;\n  int32 field104 = 104;\n  int32 field105 = 105;\n  int32 field106 = 106;\n  int32 permission = 107;\n  int32 field200 = 200;\n  int32 field201 = 201;\n}\nmessage GroupMember {\n  GroupMemberId uin = 1;\n  string memberName = 10;\n  GroupMemberCard memberCard = 11;\n  GroupMemberLevel level = 12;\n  string specialTitle = 17;\n  uint32 joinTimestamp = 100;\n  uint32 lastMsgTimestamp = 101;\n  uint32 shutUpTimestamp = 102;\n  uint32 permission = 107;\n}\nmessage GroupMemberId {\n  string uid = 2;\n  uint32 uin = 4;\n}\nmessage GroupMemberCard {\n  string memberCard = 2;\n}\nmessage GroupMemberLevel {\n  repeated uint32 infos = 1 [packed = false];\n  uint32 level = 2;\n}\n', "highway.proto": 'syntax = "proto3";\npackage neronet.wire.highway;\nmessage SessionRequest {\n  HttpConn httpConn = 1281;\n}\nmessage SessionResponse {\n  HttpConnResponse httpConn = 1281;\n}\nmessage ReqDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  bytes bytesReqExtendInfo = 3;\n  uint64 timestamp = 4;\n  LoginSigHead msgLoginSigHead = 5;\n}\nmessage RespDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  uint32 errorCode = 3;\n}\nmessage NTV2RichMediaHighwayExt {\n  string fileUuid = 1;\n  string uKey = 2;\n  HighwayNetwork network = 5;\n  repeated HighwayMsgInfoBody msgInfoBody = 6;\n  uint32 blockSize = 10;\n  HighwayHash hash = 11;\n}\nmessage HttpConn {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  repeated uint32 serviceTypes = 7 [packed = false];\n  uint32 field9 = 9;\n  uint32 field10 = 10;\n  uint32 field11 = 11;\n  string ver = 15;\n}\nmessage HttpConnResponse {\n  bytes sigSession = 1;\n  bytes sessionKey = 2;\n  repeated ServerInfo serverInfos = 3;\n}\nmessage DataHighwayHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint32 appId = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage SegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint32 dataLength = 4;\n  uint32 retCode = 5;\n  bytes serviceTicket = 6;\n  uint32 flag = 7;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n  uint32 cacheAddr = 10;\n  uint32 cachePort = 13;\n}\nmessage LoginSigHead {\n  uint32 loginSigType = 1;\n  uint32 appId = 3;\n}\nmessage HighwayNetwork {\n  repeated HighwayIPv4 ipv4s = 1;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  int32 fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage HighwayHash {\n  repeated bytes fileSha1 = 1;\n}\nmessage ServerInfo {\n  uint32 serviceType = 1;\n  repeated ServerAddr serverAddrs = 2;\n}\nmessage HighwayIPv4 {\n  HighwayDomain domain = 1;\n  uint32 port = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage ServerAddr {\n  uint32 type = 1;\n  sfixed32 ip = 2;\n  uint32 port = 3;\n  uint32 area = 4;\n}\nmessage HighwayDomain {\n  int32 isEnable = 1;\n  string ip = 2;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "interaction.proto": 'syntax = "proto3";\npackage neronet.wire.interaction;\nmessage PokeRequest {\n  uint32 uin = 1;\n  uint32 groupUin = 2;\n  uint32 friendUin = 5;\n  uint32 ext = 6;\n}\nmessage GroupReactionRequest {\n  uint32 groupUin = 2;\n  uint32 sequence = 3;\n  string code = 4;\n  uint32 type = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n}\nmessage Empty {\n}\n', "media_download.proto": 'syntax = "proto3";\npackage neronet.wire.mediadown;\nmessage RichMediaRequest {\n  NTV2ReqHead reqHead = 1;\n  NTV2DownloadReq download = 3;\n  NTV2DownloadRKeyReq downloadRkey = 4;\n}\nmessage RichMediaResponse {\n  NTV2RespHead respHead = 1;\n  NTV2MediaDownloadResp download = 3;\n  NTV2DownloadRKeyResp downloadRkey = 4;\n}\nmessage NTV2ReqHead {\n  NTV2CommonHead common = 1;\n  NTV2SceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2DownloadReq {\n  NTV2IndexNode node = 1;\n  NTV2DownloadExt download = 2;\n}\nmessage NTV2DownloadRKeyReq {\n  repeated uint32 types = 1 [packed = false];\n}\nmessage NTV2RespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2MediaDownloadResp {\n  string rKeyParam = 1;\n  uint32 rKeyTtlSecond = 2;\n  NTV2MediaDownloadInfo info = 3;\n  uint32 rKeyCreateTime = 4;\n}\nmessage NTV2DownloadRKeyResp {\n  repeated NTV2RKeyInfo rkeys = 1;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2SceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2IndexNode {\n  NTV2FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage NTV2DownloadExt {\n  NTV2VideoDownloadExt video = 2;\n}\nmessage NTV2MediaDownloadInfo {\n  string domain = 1;\n  string urlPath = 2;\n  uint32 httpsPort = 3;\n}\nmessage NTV2RKeyInfo {\n  string rkey = 1;\n  uint64 rkeyTtlSec = 2;\n  uint32 storeId = 3;\n  uint32 rkeyCreateTime = 4;\n  uint32 type = 5;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage NTV2VideoDownloadExt {\n  uint32 busiType = 1;\n  uint32 sceneType = 2;\n  uint32 subBusiType = 3;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "media_upload.proto": 'syntax = "proto3";\npackage neronet.wire.mediaup;\nmessage UploadRequest {\n  NTV2UploadReqHead reqHead = 1;\n  NTV2UploadReq upload = 2;\n}\nmessage UploadResponse {\n  NTV2UploadRespHead respHead = 1;\n  NTV2UploadRespBody upload = 2;\n}\nmessage MediaMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  EncodableMediaExtBizInfo extBizInfo = 2;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage PttWaveform {\n  uint32 size = 1;\n  bytes amplitudes = 2;\n}\nmessage NTV2UploadReqHead {\n  NTV2CommonHead common = 1;\n  NTV2UploadSceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2UploadReq {\n  repeated NTV2UploadInfo uploadInfo = 1;\n  int32 tryFastUploadCompleted = 2;\n  int32 srvSendMsg = 3;\n  uint64 clientRandomId = 4;\n  uint32 compatQmsgSceneType = 5;\n  NTV2ExtBizInfo extBizInfo = 6;\n  uint32 clientSeq = 7;\n  int32 noNeedCompatMsg = 8;\n}\nmessage NTV2UploadRespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2UploadRespBody {\n  string uKey = 1;\n  uint32 uKeyTtl = 2;\n  repeated NTV2IPv4 ipv4s = 3;\n  uint64 msgSeq = 5;\n  NTV2UploadRespMsgInfo msgInfo = 6;\n  repeated NTV2SubFileInfoResp subFileInfos = 10;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage EncodableMediaExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2UploadSceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2UploadInfo {\n  NTV2FileInfo fileInfo = 1;\n  uint32 subFileType = 2;\n}\nmessage NTV2ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NTV2IPv4 {\n  uint32 outIp = 1;\n  uint32 outPort = 2;\n}\nmessage NTV2UploadRespMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  NTV2ExtBizInfo extBizInfo = 2;\n}\nmessage NTV2SubFileInfoResp {\n  uint32 subType = 1;\n  string uKey = 2;\n  uint32 uKeyTtl = 3;\n  repeated NTV2IPv4 ipv4s = 4;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n  bytes routingHead = 3;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "msg_push.proto": 'syntax = "proto3";\npackage neronet.wire.push;\nmessage PushMsg {\n  PushMsgBody message = 1;\n  int32 status = 3;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "notices.proto": 'syntax = "proto3";\npackage neronet.wire.notices;\nmessage GroupMute {\n  uint32 groupUin = 1;\n  uint32 subType = 2;\n  uint32 field3 = 3;\n  string operatorUid = 4;\n  GroupMuteData data = 5;\n}\nmessage NotifyMessageBody {\n  uint32 type = 1;\n  uint32 groupUin = 4;\n  bytes eventParam = 5;\n  GroupRecall recall = 11;\n  uint32 field13 = 13;\n  string operatorUid = 21;\n  GeneralGrayTipInfo generalGrayTip = 26;\n  EssenceMessage essenceMessage = 33;\n  uint32 msgSequence = 37;\n  uint32 field39 = 39;\n}\nmessage GroupReactNotify {\n  uint64 groupUin = 4;\n  uint32 field13 = 13;\n  GroupReactionData groupReactionData = 44;\n}\nmessage FriendRecall {\n  FriendRecallInfo info = 1;\n  uint32 instId = 2;\n  uint32 appId = 3;\n  uint32 longMessageFlag = 4;\n  bytes reserved = 5;\n}\nmessage GeneralGrayTipInfo {\n  uint64 busiType = 1;\n  uint64 busiId = 2;\n  uint32 ctrlFlag = 3;\n  uint32 c2cType = 4;\n  uint32 serviceType = 5;\n  uint64 templId = 6;\n  repeated TemplParam msgTemplParam = 7;\n  string content = 8;\n}\nmessage NewFriend {\n  uint32 field1 = 1;\n  NewFriendInfo info = 2;\n}\nmessage GroupChange {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  string memberUid = 3;\n  uint32 decreaseType = 4;\n  bytes operatorBytes = 5;\n  uint32 increaseType = 6;\n  bytes field7 = 7;\n}\nmessage SelfJoinInGroup {\n  uint64 groupUin = 1;\n  uint32 field2 = 2;\n  string operatorUid = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  string field7 = 7;\n}\nmessage GroupAdmin {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  bool isPromote = 3;\n  GroupAdminBody body = 4;\n}\nmessage OperatorInfo {\n  OperatorField1 operatorField = 1;\n}\nmessage GroupSpecialTitleChange {\n  string tipText = 2;\n  uint32 memberUin = 5;\n}\nmessage GroupNameChange {\n  string name = 2;\n}\nmessage GroupMuteData {\n  uint32 timestamp = 1;\n  uint32 type = 2;\n  GroupMuteState state = 3;\n}\nmessage GroupRecall {\n  string operatorUid = 1;\n  repeated RecallMessage recallMessages = 3;\n  bytes userDef = 5;\n  int32 groupType = 6;\n  int32 opType = 7;\n  GroupRecallTipInfo tipInfo = 9;\n}\nmessage EssenceMessage {\n  uint32 groupUin = 1;\n  uint32 msgSequence = 2;\n  uint32 random = 3;\n  uint32 setFlag = 4;\n  uint32 memberUin = 5;\n  uint32 operatorUin = 6;\n  uint32 timestamp = 7;\n  uint32 msgSequence2 = 8;\n  string operatorNickname = 9;\n  string memberNickname = 10;\n  uint32 setFlag2 = 11;\n}\nmessage GroupReactionData {\n  GroupReactionDataInner data = 1;\n}\nmessage FriendRecallInfo {\n  string fromUid = 1;\n  string toUid = 2;\n  uint32 clientSequence = 3;\n  uint64 newId = 4;\n  uint32 time = 5;\n  uint32 random = 6;\n  uint32 pkgNum = 7;\n  uint32 pkgIndex = 8;\n  uint32 divSeq = 9;\n  FriendRecallTipInfo tipInfo = 13;\n}\nmessage TemplParam {\n  string name = 1;\n  string value = 2;\n}\nmessage NewFriendInfo {\n  string uid = 1;\n  uint32 field2 = 2;\n  uint32 time = 3;\n  string message = 4;\n  string nickName = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  string toUid = 9;\n}\nmessage GroupAdminBody {\n  GroupAdminExtra extraDisable = 1;\n  GroupAdminExtra extraEnable = 2;\n}\nmessage OperatorField1 {\n  string uid = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n}\nmessage GroupMuteState {\n  string targetUid = 1;\n  uint32 duration = 2;\n}\nmessage RecallMessage {\n  uint32 sequence = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 type = 4;\n  uint32 flag = 5;\n  string authorUid = 6;\n}\nmessage GroupRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupReactionDataInner {\n  GroupReactionDataInnerData data = 1;\n}\nmessage FriendRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupAdminExtra {\n  string adminUid = 1;\n  bool isPromote = 2;\n}\nmessage GroupReactionDataInnerData {\n  GroupReactionDataInnerDataTarget groupReactionTarget = 2;\n  GroupReactionDataContent groupReactionDataContent = 3;\n}\nmessage GroupReactionDataInnerDataTarget {\n  uint64 seq = 1;\n}\nmessage GroupReactionDataContent {\n  string code = 1;\n  uint32 count = 3;\n  string operatorUid = 4;\n  uint32 type = 5;\n}\n', "oidb.proto": 'syntax = "proto3";\npackage neronet.wire.oidb;\nmessage OidbEnvelope {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  uint32 errorCode = 3;\n  bytes body = 4;\n  string errorMsg = 5;\n  repeated OidbProperty properties = 11;\n  uint32 reserved = 12;\n}\nmessage OidbProperty {\n  string key = 1;\n  bytes value = 2;\n}\n', "read_state.proto": 'syntax = "proto3";\nmessage GroupReadTarget { uint64 groupUin = 1; uint64 lastReadSeq = 2; }\nmessage PrivateReadTarget { string uid = 2; uint64 lastReadTime = 3; uint64 lastReadSeq = 4; }\nmessage ReadStateRequest { repeated GroupReadTarget groupList = 1; repeated PrivateReadTarget c2cList = 2; }\nmessage GroupReadState { uint32 resultCode = 1; string errorMessage = 2; uint64 groupUin = 3; uint64 readSeq = 4; uint64 latestSeq = 5; }\nmessage PrivateReadState { uint32 resultCode = 1; string errorMessage = 2; uint64 targetUin = 3; string uid = 4; uint64 readSeq = 5; uint64 latestSeq = 6; uint64 lastMsgTime = 7; }\nmessage ReadStateResponse { uint32 resultCode = 1; string errorMessage = 2; repeated GroupReadState groupList = 3; repeated PrivateReadState c2cList = 4; }\n', "recall.proto": 'syntax = "proto3";\npackage neronet.wire.recall;\nmessage GroupRecallRequest {\n  uint32 type = 1;\n  uint32 groupUin = 2;\n  GroupRecallInfo info = 3;\n  GroupRecallSettings settings = 4;\n}\nmessage C2CRecallRequest {\n  uint32 type = 1;\n  string targetUid = 3;\n  C2CRecallInfo info = 4;\n  C2CRecallSettings settings = 5;\n  int32 field6 = 6;\n}\nmessage GroupRecallInfo {\n  uint32 sequence = 1;\n  uint32 random = 2;\n  uint32 field3 = 3;\n}\nmessage GroupRecallSettings {\n  uint32 field1 = 1;\n}\nmessage C2CRecallInfo {\n  uint32 clientSequence = 1;\n  uint32 random = 2;\n  uint64 messageId = 3;\n  uint32 timestamp = 4;\n  uint32 field5 = 5;\n  uint32 messageSequence = 6;\n}\nmessage C2CRecallSettings {\n  int32 field1 = 1;\n  int32 field2 = 2;\n}\n', "send_msg.proto": 'syntax = "proto3";\npackage neronet.wire.send;\nmessage SendMessageRequest {\n  RoutingHead routingHead = 1;\n  SendContentHead contentHead = 2;\n  SendMessageBody messageBody = 3;\n  uint32 clientSequence = 4;\n  uint32 random = 5;\n  bytes syncCookie = 6;\n  uint32 via = 8;\n  uint32 dataStatist = 9;\n  MessageControl ctrl = 12;\n  uint32 multiSendSeq = 14;\n}\nmessage SendMessageResponse {\n  int32 result = 1;\n  string errMsg = 2;\n  uint32 timestamp1 = 3;\n  int32 reviewResult = 6;\n  SendMessageServerResult serverResult = 7;\n  uint32 field10 = 10;\n  uint32 groupSequence = 11;\n  uint32 timestamp2 = 12;\n  uint32 privateSequence = 14;\n}\nmessage RoutingHead {\n  RoutingC2C c2c = 1;\n  RoutingGroup grp = 2;\n  RoutingGrpTmp grpTmp = 3;\n  RoutingTrans0x211 trans0x211 = 15;\n}\nmessage SendContentHead {\n  uint32 type = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n}\nmessage SendMessageBody {\n  SendRichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage MessageControl {\n  uint32 msgFlag = 1;\n}\nmessage SendMessageServerResult {\n  int32 type = 1;\n  int32 code = 2;\n  string message = 3;\n}\nmessage RoutingC2C {\n  uint32 uin = 1;\n  string uid = 2;\n}\nmessage RoutingGroup {\n  uint64 groupCode = 1;\n}\nmessage RoutingGrpTmp {\n  uint64 groupUin = 3;\n  string toUid = 4;\n}\nmessage RoutingTrans0x211 {\n  uint64 toUin = 1;\n  uint32 ccCmd = 2;\n  string uid = 8;\n}\nmessage SendRichText {\n  repeated Elem elems = 2;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  uint32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  uint32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  uint32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  uint32 bizType = 16;\n  uint32 result = 17;\n  uint32 index = 18;\n  bytes opFaceBuf = 19;\n  int32 oldPicMd5 = 20;\n  uint32 thumbWidth = 21;\n  uint32 thumbHeight = 22;\n  uint32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  uint32 x400Width = 27;\n  uint32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  uint32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  uint32 serverIp = 8;\n  uint32 serverPort = 9;\n  uint32 fileType = 10;\n  bytes signature = 11;\n  uint32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  uint32 bizType = 17;\n  uint32 repeatIndex = 18;\n  uint32 repeatImage = 19;\n  uint32 imageType = 20;\n  uint32 index = 21;\n  uint32 width = 22;\n  uint32 height = 23;\n  uint32 source = 24;\n  uint32 size = 25;\n  uint32 origin = 26;\n  uint32 thumbWidth = 27;\n  uint32 thumbHeight = 28;\n  uint32 showLen = 29;\n  uint32 downloadLen = 30;\n  string x400Url = 31;\n  uint32 x400Width = 32;\n  uint32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  uint32 serviceId = 2;\n  bytes msgResId = 3;\n  uint32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  uint32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  uint32 level = 3;\n  uint32 flags = 4;\n  uint32 groupMask = 5;\n  uint32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  uint32 msgStateFlag = 10;\n  uint32 apnsSoundType = 11;\n  uint32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  uint32 fileFormat = 4;\n  uint32 fileTime = 5;\n  uint32 fileSize = 6;\n  uint32 thumbWidth = 7;\n  uint32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  uint32 thumbFileSize = 11;\n  uint32 busiType = 12;\n  uint32 fromChatType = 13;\n  uint32 toChatType = 14;\n  int32 supportProgressive = 15;\n  uint32 fileWidth = 16;\n  uint32 fileHeight = 17;\n  uint32 subBusiType = 18;\n  uint32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  uint32 bubbleDiyTextId = 1;\n  uint32 groupFlagNew = 2;\n  uint64 uin = 3;\n  uint32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  uint32 time = 3;\n  uint32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  uint32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  uint32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  uint32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\n', "sys_faces.proto": 'syntax = "proto3";\npackage neronet.wire.sysfaces;\nmessage CatalogRequest {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  OidbFetchSysFacesExpInfo field4 = 4;\n}\nmessage CatalogResponse {\n  int32 field1 = 1;\n  OidbFaceContent commonFace = 2;\n  OidbFaceContent specialBigFace = 3;\n  OidbFaceContent specialMagicFace = 4;\n}\nmessage FaceRequest {\n  string qSid = 1;\n}\nmessage FaceResponse {\n  OidbFaceEmoji emoji = 1;\n  bool field2 = 2;\n}\nmessage OidbFetchSysFacesExpInfo {\n  string field1 = 1;\n}\nmessage OidbFaceContent {\n  repeated OidbFaceEmojiList emojiList = 1;\n  OidbFaceResourceUrl resourceUrl = 2;\n}\nmessage OidbFaceEmoji {\n  string qSid = 1;\n  string qDes = 2;\n  string emCode = 3;\n  int32 qCid = 4;\n  int32 aniStickerType = 5;\n  int32 aniStickerPackId = 6;\n  int32 aniStickerId = 7;\n  OidbFaceResourceUrl url = 8;\n  repeated string emojiNameAlias = 9;\n  int32 unknown10 = 10;\n  int32 aniStickerWidth = 13;\n  int32 aniStickerHeight = 14;\n}\nmessage OidbFaceEmojiList {\n  string emojiPackName = 1;\n  repeated OidbFaceEmoji emojiDetail = 2;\n}\nmessage OidbFaceResourceUrl {\n  string baseUrl = 1;\n  string advUrl = 2;\n}\n', "user_profile.proto": 'syntax = "proto3";\npackage neronet.wire.profile;\nmessage UserInfoRequest {\n  uint32 uin = 1;\n  repeated OidbUserInfoKey keys = 3;\n}\nmessage UserInfoResponse {\n  OidbUserInfoResponseBody body = 1;\n}\nmessage AvatarInfo {\n  string url = 5;\n}\nmessage OidbUserInfoKey {\n  uint32 key = 1;\n}\nmessage OidbUserInfoResponseBody {\n  string uid = 1;\n  OidbUserInfoProperty properties = 2;\n  uint32 uin = 3;\n}\nmessage OidbUserInfoProperty {\n  repeated OidbTwoNumber numberProperties = 1;\n  repeated OidbByteProperty bytesProperties = 2;\n}\nmessage OidbTwoNumber {\n  uint32 number1 = 1;\n  uint32 number2 = 2;\n}\nmessage OidbByteProperty {\n  uint32 code = 1;\n  bytes value = 2;\n}\n', "web_auth.proto": 'syntax = "proto3";\nmessage ClientKeyRequest {}\nmessage ClientKeyResponse { uint32 keyIndex = 2; string clientKey = 3; uint32 expireTime = 4; }\nmessage PskeyRequest { repeated string domainList = 1; }\nmessage PskeyItem { string domain = 1; string pskey = 2; uint64 expireTime = 3; }\nmessage PskeyResponse { repeated PskeyItem pskeyItems = 1; }\n' };
     }
 });
 function loadRoot(file) {
@@ -7788,8 +9120,8 @@ function unpackCard(data, maxBytes = CARD_LIMITS.cardBytes) {
         return data.length - 1 > maxBytes ? { ok: false, reason: "too large" } : { ok: true, text: Buffer.from(data.subarray(1)).toString("utf8") };
     return { ok: false, reason: "unknown marker" };
 }
-function packCard(text) {
-    const deflated = zlib.deflateSync(Buffer.from(text, "utf8"));
+function packCard(text2) {
+    const deflated = zlib.deflateSync(Buffer.from(text2, "utf8"));
     const out = Buffer.alloc(deflated.length + 1);
     out[0] = 1;
     deflated.copy(out, 1);
@@ -7929,14 +9261,14 @@ function mentionOf(t) {
     }
     return { pb, mention: pb };
 }
-function legacyImageUrl(path34) {
-    if (!path34)
+function legacyImageUrl(path35) {
+    if (!path35)
         return "";
-    if (/^https?:\/\//i.test(path34))
-        return path34;
-    if (!path34.startsWith("/"))
+    if (/^https?:\/\//i.test(path35))
+        return path35;
+    if (!path35.startsWith("/"))
         return "";
-    return (path34.includes("rkey") || path34.includes("fileid") ? "https://multimedia.nt.qq.com.cn" : "http://gchat.qpic.cn") + path34;
+    return (path35.includes("rkey") || path35.includes("fileid") ? "https://multimedia.nt.qq.com.cn" : "http://gchat.qpic.cn") + path35;
 }
 function usableUrl(url) {
     try {
@@ -7972,9 +9304,9 @@ function legacyImage(img, group) {
     if (md52?.length !== 16)
         return null;
     const md5Hex = hexOf(md52).toUpperCase();
-    const path34 = group ? img.origUrl ?? "" : img.origUrl || img.bigUrl || "";
+    const path35 = group ? img.origUrl ?? "" : img.origUrl || img.bigUrl || "";
     const subType = img.pbRes?.subType ?? 0;
-    return { nt: false, file: img.filePath || md5Hex, url: legacyImageUrl(path34) || (!path34 ? imageUrlFromMd5(md5Hex) : ""), fileSize: (group ? img.size : img.fileLen) ?? 0, md5Hex, subType, summary: summaryOf(subType, img.pbRes?.summary) };
+    return { nt: false, file: img.filePath || md5Hex, url: legacyImageUrl(path35) || (!path35 ? imageUrlFromMd5(md5Hex) : ""), fileSize: (group ? img.size : img.fileLen) ?? 0, md5Hex, subType, summary: summaryOf(subType, img.pbRes?.summary) };
 }
 function ntMedia(pbElem, kind) {
     const info = tryDecode(MsgInfoIn, pbElem);
@@ -8140,12 +9472,12 @@ function elementsToSegments(elems = [], { isGroup = false, cardBudget: sharedBud
         media.push({ ...o.media, segment: o.segment });
     return { segments: kept, unsupported, reply, media, forwardRefs };
 }
-function appendText(segments, text) {
+function appendText(segments, text2) {
     const last = segments[segments.length - 1];
     if (last && last.type === "text")
-        last.data.text += text;
+        last.data.text += text2;
     else
-        segments.push({ type: "text", data: { text } });
+        segments.push({ type: "text", data: { text: text2 } });
 }
 function segmentsToElements(segments, resolved2 = {}) {
     const elems = [];
@@ -8153,9 +9485,9 @@ function segmentsToElements(segments, resolved2 = {}) {
     for (const seg of segments) {
         switch (seg.type) {
             case "text": {
-                const text = String(seg.data?.text ?? "");
-                if (text)
-                    elems.push({ text: { str: text } });
+                const text2 = String(seg.data?.text ?? "");
+                if (text2)
+                    elems.push({ text: { str: text2 } });
                 break;
             }
             case "face": {
@@ -8166,7 +9498,7 @@ function segmentsToElements(segments, resolved2 = {}) {
                 }
                 const id = Number(seg.data?.id);
                 if (!Number.isInteger(id) || id < 0 || id > 65535)
-                    throw invalid("face id");
+                    throw invalid2("face id");
                 if (id >= 260)
                     throw new UnsupportedSegmentError(`face ${id} (needs the system face catalog)`);
                 elems.push({ face: { index: id } });
@@ -8180,7 +9512,7 @@ function segmentsToElements(segments, resolved2 = {}) {
                 }
                 const m = resolved2.mentions?.get(qq);
                 if (!m)
-                    throw invalid(`at ${qq} could not be resolved`);
+                    throw invalid2(`at ${qq} could not be resolved`);
                 const name = String(seg.data?.name ?? "") || m.name || qq;
                 elems.push({ text: { str: `@${name} `, pbReserve: MentionOut.encode({ type: 2, uin: Number(m.uin), field5: 0, uid: m.uid }) } });
                 break;
@@ -8188,7 +9520,7 @@ function segmentsToElements(segments, resolved2 = {}) {
             case "reply": {
                 const r = resolved2.reply;
                 if (!r)
-                    throw invalid("reply target not found");
+                    throw invalid2("reply target not found");
                 elems.push({ srcMsg: {
                         origSeqs: [r.sequence],
                         ...r.senderUin ? { senderUin: BigInt(r.senderUin) } : {},
@@ -8205,7 +9537,7 @@ function segmentsToElements(segments, resolved2 = {}) {
             case "video": {
                 const elem = resolved2.images?.get(seg);
                 if (!elem)
-                    throw invalid(`${seg.type} was not uploaded`);
+                    throw invalid2(`${seg.type} was not uploaded`);
                 elems.push(...Array.isArray(elem) ? elem : [elem]);
                 break;
             }
@@ -8215,20 +9547,20 @@ function segmentsToElements(segments, resolved2 = {}) {
             }
             case "json": {
                 const raw = seg.data?.data;
-                const text = raw && typeof raw === "object" && !Array.isArray(raw) ? JSON.stringify(raw) : raw;
-                if (typeof text !== "string" || !text.trim())
-                    throw invalid("json data must be a JSON object or a non-empty JSON string");
-                elems.push({ lightApp: { data: packCard(text) } });
+                const text2 = raw && typeof raw === "object" && !Array.isArray(raw) ? JSON.stringify(raw) : raw;
+                if (typeof text2 !== "string" || !text2.trim())
+                    throw invalid2("json data must be a JSON object or a non-empty JSON string");
+                elems.push({ lightApp: { data: packCard(text2) } });
                 break;
             }
             case "xml": {
-                const text = String(seg.data?.data ?? "");
-                if (!text.trim())
-                    throw invalid("xml data is empty");
+                const text2 = String(seg.data?.data ?? "");
+                if (!text2.trim())
+                    throw invalid2("xml data is empty");
                 const svc = Number(seg.data?.resid ?? seg.data?.id ?? 0) || 0;
                 if (!Number.isInteger(svc) || svc < 0 || svc > 2147483647)
-                    throw invalid("xml resid must be a non-negative 32-bit integer");
-                elems.push({ richMsg: { serviceId: svc === 0 ? 35 : svc, template1: packCard(text) } });
+                    throw invalid2("xml resid must be a non-negative 32-bit integer");
+                elems.push({ richMsg: { serviceId: svc === 0 ? 35 : svc, template1: packCard(text2) } });
                 break;
             }
             default:
@@ -8237,7 +9569,7 @@ function segmentsToElements(segments, resolved2 = {}) {
     }
     return elems;
 }
-var MentionIn, SmallFace, BigFace, MentionOut, ElemOut, MsgInfoIn, GroupFileExtra, BIG_FACE_COMPAT_SUFFIX, hexOf, isMd52, imageUrlFromMd5, ntImageUrlFromFileId, summaryOf, sameFile, UnsupportedSegmentError, invalid;
+var MentionIn, SmallFace, BigFace, MentionOut, ElemOut, MsgInfoIn, GroupFileExtra, BIG_FACE_COMPAT_SUFFIX, hexOf, isMd52, imageUrlFromMd5, ntImageUrlFromFileId, summaryOf, sameFile, UnsupportedSegmentError, invalid2;
 var init_elements = __esm({
     "upper/qq/elements.mjs"() {
         init_schema();
@@ -8263,7 +9595,7 @@ var init_elements = __esm({
                 this.segmentType = type;
             }
         };
-        invalid = (what) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${what}`), { code: "NERONET_SEGMENT_INVALID" });
+        invalid2 = (what) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${what}`), { code: "NERONET_SEGMENT_INVALID" });
     }
 });
 function decodeMessagePush(body, selfUin) {
@@ -8623,14 +9955,8 @@ var init_log = __esm({
 });
 async function invokeOidb(transport, service, body) {
     const { command: command2, subCommand } = service;
-    const bytes = Envelope.encode({
-        command: command2,
-        subCommand,
-        errorCode: 0,
-        body: service.request.encode(body),
-        errorMsg: "",
-        reserved: service.reserved ?? 0
-    });
+    const inner = service.request.encode(body), reserved = service.reserved ?? 0;
+    const bytes = inner.length ? Envelope.encode({ command: command2, subCommand, errorCode: 0, body: inner, errorMsg: "", reserved }) : Buffer.concat([Envelope.encode({ command: command2, subCommand }), EMPTY_BODY_FIELD, Envelope.encode({ reserved })]);
     const reply = await transport.send(oidbCommandName(command2, subCommand), bytes);
     const accepted = (code) => code === 0 || (service.acceptedCodes ?? []).includes(code);
     if (reply.error && !accepted(reply.error))
@@ -8642,11 +9968,12 @@ async function invokeOidb(transport, service, body) {
         throw new OidbError(env.errorCode, env.errorMsg ?? "", command2, subCommand);
     return env.body?.length ? service.response.decode(env.body) : {};
 }
-var Envelope, OidbError, oidbCommandName;
+var Envelope, EMPTY_BODY_FIELD, OidbError, oidbCommandName;
 var init_oidb = __esm({
     "upper/qq/oidb.mjs"() {
         init_schema();
         Envelope = wireType("oidb.proto", "OidbEnvelope");
+        EMPTY_BODY_FIELD = Buffer.from([34, 0]);
         OidbError = class extends Error {
             constructor(code, serverMessage, command2, subCommand) {
                 super(`NERONET_OIDB_FAILED: 0x${command2.toString(16)}_${subCommand} code ${code}${serverMessage ? `: ${serverMessage}` : ""}`);
@@ -8978,8 +10305,8 @@ var init_directory = __esm({
         };
     }
 });
-function normalizeCount(count) {
-    const n2 = Math.trunc(Number(count));
+function normalizeCount(count3) {
+    const n2 = Math.trunc(Number(count3));
     if (!Number.isFinite(n2) || n2 <= 0)
         return HISTORY_LIMITS.defaultCount;
     return Math.min(n2, HISTORY_LIMITS.maxCount);
@@ -9045,8 +10372,8 @@ var init_history = __esm({
                     return out.sort((a, b) => a.sequence - b.sequence);
                 });
             }
-            async before(groupId, anchorSeq, count) {
-                const want = normalizeCount(count);
+            async before(groupId, anchorSeq, count3) {
+                const want = normalizeCount(count3);
                 const found = new Map();
                 let end = anchorSeq;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && end >= 1 && found.size < want; i++) {
@@ -9061,7 +10388,7 @@ var init_history = __esm({
         };
     }
 });
-var C2C_RANGE_COMMAND, C2C_ROAM_COMMAND, RangeReq, RangeResp, RoamReq, RoamResp, failed, invalid2, FriendHistory;
+var C2C_RANGE_COMMAND, C2C_ROAM_COMMAND, RangeReq, RangeResp, RoamReq, RoamResp, failed, invalid3, FriendHistory;
 var init_friend_history = __esm({
     "upper/qq/friend-history.mjs"() {
         init_schema();
@@ -9074,7 +10401,7 @@ var init_friend_history = __esm({
         RoamReq = wireType("c2c_history.proto", "RoamRequest");
         RoamResp = wireType("c2c_history.proto", "RoamResponse");
         failed = (detail) => Object.assign(new Error(`NERONET_HISTORY_FAILED: ${detail}`), { code: "NERONET_HISTORY_FAILED" });
-        invalid2 = (detail) => Object.assign(new Error(`NERONET_HISTORY_INVALID: ${detail}`), { code: "NERONET_HISTORY_INVALID" });
+        invalid3 = (detail) => Object.assign(new Error(`NERONET_HISTORY_INVALID: ${detail}`), { code: "NERONET_HISTORY_INVALID" });
         FriendHistory = class {
             constructor(transport, { selfUin = () => "", pacer, now: now2 = () => Date.now() }) {
                 this.transport = transport;
@@ -9084,16 +10411,16 @@ var init_friend_history = __esm({
             }
             #decode(messages, friendUid, responseUid) {
                 if (responseUid && responseUid !== friendUid)
-                    throw invalid2(`response for another friend (${responseUid})`);
+                    throw invalid3(`response for another friend (${responseUid})`);
                 const out = [];
                 for (const m of messages ?? []) {
                     const ev = decodeMessageBody(m, this.selfUin());
                     if (!ev)
-                        throw invalid2("record without a content head");
+                        throw invalid3("record without a content head");
                     if (ev.kind !== "private")
                         continue;
                     if (!(ev.sequence > 0))
-                        throw invalid2("record without NT sequence");
+                        throw invalid3("record without NT sequence");
                     if (!ev.segments.length && !ev.unsupported.length)
                         continue;
                     out.push(ev);
@@ -9114,20 +10441,20 @@ var init_friend_history = __esm({
                     const out = this.#decode(r.messages, friendUid, r.friendUid);
                     for (const ev of out)
                         if (ev.sequence < start || ev.sequence > end)
-                            throw invalid2(`sequence ${ev.sequence} outside ${start}-${end}`);
+                            throw invalid3(`sequence ${ev.sequence} outside ${start}-${end}`);
                     return out.sort((a, b) => a.sequence - b.sequence);
                 });
             }
-            async latest(friendUid, count) {
-                const want = normalizeCount(count);
+            async latest(friendUid, count3) {
+                const want = normalizeCount(count3);
                 const found = new Map();
-                let cursor = { time: Math.floor(this.now() / 1e3) + 1, random: 0 };
-                const seen = new Set([`${cursor.time}:${cursor.random}`]);
+                let cursor2 = { time: Math.floor(this.now() / 1e3) + 1, random: 0 };
+                const seen = new Set([`${cursor2.time}:${cursor2.random}`]);
                 let ended = false;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && found.size < want; i++) {
                     const ask = found.size ? want - found.size + 1 : want;
                     const page = await this.pacer.run(async () => {
-                        const r = RoamResp.decode(await this.#send(C2C_ROAM_COMMAND, RoamReq.encode({ friendUid, time: cursor.time, random: cursor.random, count: ask, direction: 1 })));
+                        const r = RoamResp.decode(await this.#send(C2C_ROAM_COMMAND, RoamReq.encode({ friendUid, time: cursor2.time, random: cursor2.random, count: ask, direction: 1 })));
                         return { messages: this.#decode(r.messages, friendUid, r.friendUid), next: { time: r.timestamp ?? 0, random: r.random ?? 0 } };
                     });
                     const before = found.size;
@@ -9145,17 +10472,17 @@ var init_friend_history = __esm({
                             ended = true;
                             break;
                         }
-                        throw invalid2(`roam cursor did not advance from ${cursor.time}/${cursor.random}`);
+                        throw invalid3(`roam cursor did not advance from ${cursor2.time}/${cursor2.random}`);
                     }
                     seen.add(key);
-                    cursor = page.next;
+                    cursor2 = page.next;
                 }
                 if (found.size < want && !ended)
                     throw failed(`request budget of ${HISTORY_LIMITS.maxRequests} pages exhausted (wanted ${want}, got ${found.size})`);
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence || a.time - b.time).slice(-want);
             }
-            async before(friendUid, anchorSeq, count) {
-                const want = normalizeCount(count);
+            async before(friendUid, anchorSeq, count3) {
+                const want = normalizeCount(count3);
                 const found = new Map();
                 let end = anchorSeq;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && end >= 1 && found.size < want; i++) {
@@ -9167,8 +10494,8 @@ var init_friend_history = __esm({
                 }
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence).slice(-want);
             }
-            async after(friendUid, anchorSeq, count) {
-                const want = normalizeCount(count);
+            async after(friendUid, anchorSeq, count3) {
+                const want = normalizeCount(count3);
                 const found = new Map();
                 let start = anchorSeq;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && found.size < want; i++) {
@@ -9181,6 +10508,109 @@ var init_friend_history = __esm({
                     start = end + 1;
                 }
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence).slice(0, want);
+            }
+        };
+    }
+});
+var READ_REPORT_COMMAND, MAX_PENDING_READ_REPORTS, Request2, Response2, fail2, cursor, ReadState;
+var init_read_state = __esm({
+    "upper/qq/read-state.mjs"() {
+        init_schema();
+        READ_REPORT_COMMAND = "trpc.msg.msg_svc.MsgService.SsoReadedReport";
+        MAX_PENDING_READ_REPORTS = 32;
+        Request2 = wireType("read_state.proto", "ReadStateRequest");
+        Response2 = wireType("read_state.proto", "ReadStateResponse");
+        fail2 = (code) => Object.assign(new Error(code), { code });
+        cursor = (value) => {
+            if (value === void 0)
+                return 0n;
+            if (typeof value !== "bigint" || value < 0n || value > 0xffffffffffffffffn)
+                throw fail2("NERONET_READ_STATE_INVALID");
+            return value;
+        };
+        ReadState = class {
+            constructor(transport, { pacer, isCurrent = () => true }) {
+                this.transport = transport;
+                this.pacer = pacer;
+                this.isCurrent = isCurrent;
+                this.tail = Promise.resolve();
+                this.stopped = false;
+                this.pending = 0;
+            }
+            close() {
+                this.stopped = true;
+            }
+            mark(target) {
+                const id = String(target?.id ?? "");
+                if (!/^[1-9]\d{0,9}$/.test(id) || BigInt(id) > 0xffffffffn || !["group", "private"].includes(target?.kind))
+                    return Promise.reject(fail2("NERONET_READ_TARGET_INVALID"));
+                const uid2 = target.kind === "private" ? target.uid : "";
+                if (target.kind === "private" && (typeof uid2 !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(uid2)))
+                    return Promise.reject(fail2("NERONET_READ_UID_UNAVAILABLE"));
+                if (this.stopped)
+                    return Promise.reject(fail2("NERONET_READ_GENERATION_CLOSED"));
+                if (this.pending >= MAX_PENDING_READ_REPORTS)
+                    return Promise.reject(fail2("NERONET_READ_REQUEST_CAPACITY"));
+                this.pending++;
+                const account = String(this.transport.uin ?? "");
+                const active = () => {
+                    if (this.stopped || !this.isCurrent() || String(this.transport.uin ?? "") !== account)
+                        throw fail2("NERONET_READ_GENERATION_CLOSED");
+                    if (!account || !this.transport.isLoggedIn || this.transport.businessPaused)
+                        throw fail2("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE");
+                };
+                const run = this.tail.then(async () => {
+                    active();
+                    const request = (state) => target.kind === "group" ? { groupList: [{ groupUin: BigInt(id), ...state ? { lastReadSeq: state.latest } : {} }] } : { c2cList: [{ uid: uid2, ...state ? { lastReadSeq: state.latest, lastReadTime: state.time } : {} }] };
+                    const before = await this.#send(request(null), target.kind, id, uid2, active);
+                    if (before.latest === before.read)
+                        return;
+                    if (target.kind === "private" && before.time === 0n)
+                        throw fail2("NERONET_READ_TIMESTAMP_UNAVAILABLE");
+                    const after = await this.#send(request(before), target.kind, id, uid2, active);
+                    if (after.read < before.latest)
+                        throw fail2("NERONET_READ_NOT_CONFIRMED");
+                }).finally(() => {
+                    this.pending--;
+                });
+                this.tail = run.catch(() => {
+                });
+                return run;
+            }
+            async #send(body, kind, id, uid2, active) {
+                const reply = await this.pacer.run(() => {
+                    active();
+                    return this.transport.send(READ_REPORT_COMMAND, Request2.encode(body));
+                });
+                active();
+                if (reply.error)
+                    throw fail2("NERONET_READ_TRANSPORT_REJECTED");
+                if (!reply.body?.length)
+                    throw fail2("NERONET_READ_RESPONSE_MISSING");
+                let response;
+                try {
+                    response = Response2.decode(reply.body);
+                }
+                catch {
+                    throw fail2("NERONET_READ_RESPONSE_INVALID");
+                }
+                if (response[DROPPED])
+                    throw fail2("NERONET_READ_RESPONSE_INVALID");
+                if (response.resultCode)
+                    throw fail2("NERONET_READ_REPORT_REJECTED");
+                const own = kind === "group" ? response.groupList : response.c2cList;
+                const other = kind === "group" ? response.c2cList : response.groupList;
+                if (!Array.isArray(own) || own.length !== 1 || other?.length)
+                    throw fail2("NERONET_READ_RESPONSE_TARGET_MISMATCH");
+                const item = own[0];
+                if (item.resultCode)
+                    throw fail2("NERONET_READ_TARGET_REJECTED");
+                if (kind === "group" ? String(item.groupUin ?? "") !== id : item.uid !== uid2 || item.targetUin !== void 0 && String(item.targetUin) !== id)
+                    throw fail2("NERONET_READ_RESPONSE_TARGET_MISMATCH");
+                const read = cursor(item.readSeq), latest = cursor(item.latestSeq), time = cursor(item.lastMsgTime);
+                if (latest < read)
+                    throw fail2("NERONET_READ_STATE_INVALID");
+                return { read, latest, time };
             }
         };
     }
@@ -9250,10 +10680,10 @@ async function ntv2MediaUrl(transport, kind, scene, params) {
     const body = await invokeOidb(transport, { command: s.command, subCommand: 200, reserved: 1, request: RichMediaRequest, response: RichMediaResponse }, ntv2DownloadRequest(kind, scene, params));
     if (body.respHead?.retCode)
         throw failed2(`server refused (${body.respHead.retCode} ${body.respHead.message ?? ""})`.trim());
-    const domain = body.download?.info?.domain ?? "", path34 = body.download?.info?.urlPath ?? "";
-    if (!domain || !path34)
+    const domain = body.download?.info?.domain ?? "", path35 = body.download?.info?.urlPath ?? "";
+    if (!domain || !path35)
         throw failed2("download response has no URL");
-    return `https://${domain}${path34}${body.download?.rKeyParam ?? ""}`;
+    return `https://${domain}${path35}${body.download?.rKeyParam ?? ""}`;
 }
 async function groupFileUrl(transport, groupId, fileId, busId = 102) {
     const body = await invokeOidb(transport, { command: 1750, subCommand: 2, reserved: 1, request: GroupFileRequest, response: GroupFileResponse }, { download: { groupUin: Number(groupId), appId: 7, busId, fileId: String(fileId) } });
@@ -9322,11 +10752,11 @@ function operatorUid(bytes) {
         return OperatorInfo.decode(bytes).operatorField?.uid ?? "";
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
-function decodeNotice(msg, { selfUin, uinOf }) {
+function decodeNotice(msg, { selfUin, uinOf: uinOf2 }) {
     const head = msg?.contentHead ?? {};
     const time = head.timestamp ?? Math.floor(Date.now() / 1e3);
     const content = msg?.body?.msgContent;
-    const uin = (uid2, groupId) => uid2 ? uinOf(uid2, groupId) || "0" : "0";
+    const uin = (uid2, groupId) => uid2 ? uinOf2(uid2, groupId) || "0" : "0";
     switch (head.msgType) {
         case 732:
             return groupNotice(head.subType, content, time, uin);
@@ -9542,17 +10972,17 @@ function faceEntryResult(f) {
 function faceElement(faceId, entry, { large = true, resultId } = {}) {
     if (large && isSuperFace(entry)) {
         if (entry.aniStickerPackId == null || entry.aniStickerId == null)
-            throw invalid3(`face ${faceId} has incomplete super-face metadata`);
+            throw invalid4(`face ${faceId} has incomplete super-face metadata`);
         const t = entry.aniStickerType;
         return { commonElem: { serviceType: 37, pbElem: QFaceExtraOut.encode({ packId: String(entry.aniStickerPackId), stickerId: String(entry.aniStickerId), qsid: faceId, sourceType: 1, stickerType: t, ...resultId !== void 0 ? { resultId } : {}, randomType: 1 }), businessType: t < 4 ? t : 1 } };
     }
     if (resultId !== void 0)
-        throw invalid3(`face resultId requires animation metadata for face ${faceId}`);
+        throw invalid4(`face resultId requires animation metadata for face ${faceId}`);
     if (faceId >= 260)
         return { commonElem: { serviceType: 33, pbElem: QSmallFaceExtraOut.encode({ faceId, preview: "", preview2: "" }), businessType: 1 } };
     return { face: { index: faceId } };
 }
-var CatalogRequest, CatalogResponse, FaceRequest, FaceResponse, QFaceExtraOut, QSmallFaceExtraOut, n, isSuperFace, invalid3, FaceCatalog;
+var CatalogRequest, CatalogResponse, FaceRequest, FaceResponse, QFaceExtraOut, QSmallFaceExtraOut, n, isSuperFace, invalid4, FaceCatalog;
 var init_faces = __esm({
     "upper/qq/faces.mjs"() {
         init_schema();
@@ -9565,7 +10995,7 @@ var init_faces = __esm({
         QSmallFaceExtraOut = wireType("elements_out.proto", "QSmallFaceExtra");
         n = (v) => v === void 0 || v === null ? null : v;
         isSuperFace = (entry) => entry?.aniStickerType != null && entry.aniStickerType > 0;
-        invalid3 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
+        invalid4 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
         FaceCatalog = class {
             constructor(transport, { log = () => {
             } } = {}) {
@@ -9629,13 +11059,13 @@ var init_faces = __esm({
             async element(data) {
                 const id = Number(data?.id);
                 if (!Number.isInteger(id) || id < 0 || id > 65535)
-                    throw invalid3("face id");
+                    throw invalid4("face id");
                 const large = data?.large === void 0 ? true : data.large === true || data.large === "true" || data.large === 1 || data.large === "1" ? true : data.large === false || data.large === "false" || data.large === 0 || data.large === "0" ? false : (() => {
-                    throw invalid3("face large must be a boolean");
+                    throw invalid4("face large must be a boolean");
                 })();
                 const rid = data?.resultId ?? data?.result_id;
                 const resultId = rid === void 0 ? void 0 : typeof rid === "string" ? rid : Number.isSafeInteger(rid) && rid >= 0 ? String(rid) : (() => {
-                    throw invalid3("face resultId");
+                    throw invalid4("face resultId");
                 })();
                 if (!large)
                     return faceElement(id, null, { large, resultId });
@@ -9678,7 +11108,7 @@ var init_media_lifetime = __esm({
         uploads = new AsyncLocalStorage();
     }
 });
-import http from "node:http";
+import http2 from "node:http";
 import net2 from "node:net";
 function connectHighwayTransport(host, port3, timeoutMs, { proxy = highwayProxyValue(), signal = mediaSignal() } = {}) {
     if (signal?.aborted)
@@ -9700,12 +11130,12 @@ function connectHighwayTransport(host, port3, timeoutMs, { proxy = highwayProxyV
         return new Promise((resolve, reject) => {
             const socket = net2.createConnection({ host, port: port3 });
             let settled = false;
-            const timer = setTimeout(() => fail2(Error("NERONET_HIGHWAY_CONNECT_TIMEOUT")), timeoutMs);
+            const timer = setTimeout(() => fail3(Error("NERONET_HIGHWAY_CONNECT_TIMEOUT")), timeoutMs);
             const cleanup = () => {
                 clearTimeout(timer);
                 signal?.removeEventListener("abort", abort);
             };
-            const fail2 = (error) => {
+            const fail3 = (error) => {
                 if (settled)
                     return;
                 settled = true;
@@ -9713,9 +11143,9 @@ function connectHighwayTransport(host, port3, timeoutMs, { proxy = highwayProxyV
                 socket.destroy();
                 reject(error);
             };
-            const abort = () => fail2(signal.reason);
+            const abort = () => fail3(signal.reason);
             signal?.addEventListener("abort", abort, { once: true });
-            socket.once("error", fail2);
+            socket.once("error", fail3);
             socket.once("connect", () => {
                 if (settled) {
                     socket.destroy();
@@ -9723,13 +11153,13 @@ function connectHighwayTransport(host, port3, timeoutMs, { proxy = highwayProxyV
                 }
                 settled = true;
                 cleanup();
-                socket.off("error", fail2);
+                socket.off("error", fail3);
                 resolve(ownUploadSocket(socket));
             });
         });
     return new Promise((resolve, reject) => {
         const authority = (net2.isIP(host) === 6 ? "[" + host + "]" : host) + ":" + port3;
-        const req = http.request({ hostname: endpoint.hostname, port: Number(endpoint.port || 80), method: "CONNECT", path: authority, headers: { host: authority }, agent: false });
+        const req = http2.request({ hostname: endpoint.hostname, port: Number(endpoint.port || 80), method: "CONNECT", path: authority, headers: { host: authority }, agent: false });
         let settled = false;
         const timer = setTimeout(() => {
             req.destroy();
@@ -9776,19 +11206,19 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
     if (![maxHeaderBytes, maxBodyBytes].every((x) => Number.isSafeInteger(x) && x > 0))
         throw Error("NERONET_HIGHWAY_INVALID_EXCHANGE");
     let buffer = Buffer.alloc(0), mode = "headers", remaining = 0, received = 0, information = 0, trailerBytes = 0, chunkCount = 0, done = false;
-    const fail2 = (code) => {
+    const fail3 = (code) => {
         throw Error("NERONET_HIGHWAY_" + code);
     };
     const field = (line) => {
         const at = line.indexOf(":");
         if (at < 1 || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(line.slice(0, at)) || /[\x00-\x08\x0a-\x1f\x7f]/.test(line.slice(at + 1)))
-            fail2("INVALID_RESPONSE");
+            fail3("INVALID_RESPONSE");
         return [line.slice(0, at).toLowerCase(), line.slice(at + 1).trim()];
     };
     function feed(input) {
         if (done) {
             if (input.length)
-                fail2("RESPONSE_EXTRA_DATA");
+                fail3("RESPONSE_EXTRA_DATA");
             return { chunks: [], done: true };
         }
         buffer = buffer.length ? Buffer.concat([buffer, input]) : input;
@@ -9801,7 +11231,7 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
         const append = (n2) => {
             received += n2;
             if (received > maxBodyBytes)
-                fail2("RESPONSE_TOO_LARGE");
+                fail3("RESPONSE_TOO_LARGE");
             if (n2)
                 chunks.push(consume(n2));
         };
@@ -9809,39 +11239,39 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
             if (mode === "headers") {
                 const split = buffer.indexOf("\r\n\r\n");
                 if (split < 0 && buffer.length > maxHeaderBytes || split + 4 > maxHeaderBytes)
-                    fail2("HEADER_TOO_LARGE");
+                    fail3("HEADER_TOO_LARGE");
                 if (split < 0)
                     break;
                 const lines = consume(split + 4).subarray(0, split).toString("latin1").split("\r\n");
                 const status = /^HTTP\/1\.[01] (\d{3})(?: [\x20-\x7e\x80-\xff]*)?$/.exec(lines.shift());
                 if (!status)
-                    fail2("INVALID_RESPONSE");
+                    fail3("INVALID_RESPONSE");
                 const fields2 = lines.map(field), lengths = fields2.filter((x) => x[0] === "content-length").map((x) => x[1]), transfers = fields2.filter((x) => x[0] === "transfer-encoding").map((x) => x[1].toLowerCase()), code = Number(status[1]);
                 if (code >= 100 && code < 200) {
                     if (code === 101)
-                        fail2("UNSUPPORTED_UPGRADE");
+                        fail3("UNSUPPORTED_UPGRADE");
                     if (++information > 8)
-                        fail2("TOO_MANY_INFORMATIONAL");
+                        fail3("TOO_MANY_INFORMATIONAL");
                     if (lengths.length || transfers.length)
-                        fail2("INVALID_INFORMATIONAL");
+                        fail3("INVALID_INFORMATIONAL");
                     continue;
                 }
                 if (code < 200 || code >= 300)
-                    fail2("HTTP_" + status[1]);
+                    fail3("HTTP_" + status[1]);
                 if (lengths.length && transfers.length)
-                    fail2("AMBIGUOUS_FRAMING");
+                    fail3("AMBIGUOUS_FRAMING");
                 if (transfers.length && (transfers.length !== 1 || transfers[0] !== "chunked"))
-                    fail2("UNSUPPORTED_TRANSFER");
+                    fail3("UNSUPPORTED_TRANSFER");
                 if (lengths.length) {
                     if (lengths.some((v) => !/^\d+$/.test(v) || v !== lengths[0]))
-                        fail2("INVALID_LENGTH");
+                        fail3("INVALID_LENGTH");
                     remaining = Number(lengths[0]);
                     if (!Number.isSafeInteger(remaining) || remaining > maxBodyBytes)
-                        fail2("RESPONSE_TOO_LARGE");
+                        fail3("RESPONSE_TOO_LARGE");
                 }
                 if (code === 204) {
                     if (transfers.length || lengths.some((v) => Number(v) !== 0))
-                        fail2("INVALID_LENGTH");
+                        fail3("INVALID_LENGTH");
                     done = true;
                 }
                 else if (transfers.length)
@@ -9870,17 +11300,17 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
             else if (mode === "chunk-size") {
                 const end2 = buffer.indexOf("\r\n");
                 if (end2 < 0 && buffer.length > 4096 || end2 > 4096)
-                    fail2("CHUNK_HEADER_TOO_LARGE");
+                    fail3("CHUNK_HEADER_TOO_LARGE");
                 if (end2 < 0)
                     break;
                 const line = consume(end2 + 2).subarray(0, end2).toString("latin1"), match = /^([0-9a-fA-F]+)(?:;[\x20-\x7e\x80-\xff]*)?$/.exec(line);
                 if (!match)
-                    fail2("INVALID_CHUNK");
+                    fail3("INVALID_CHUNK");
                 remaining = Number.parseInt(match[1], 16);
                 if (!Number.isSafeInteger(remaining) || remaining > maxBodyBytes - received)
-                    fail2("RESPONSE_TOO_LARGE");
+                    fail3("RESPONSE_TOO_LARGE");
                 if (++chunkCount > 1048576)
-                    fail2("TOO_MANY_CHUNKS");
+                    fail3("TOO_MANY_CHUNKS");
                 mode = remaining ? "chunk-data" : "trailers";
             }
             else if (mode === "chunk-data") {
@@ -9895,13 +11325,13 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
                 if (buffer.length < 2)
                     break;
                 if (consume(2).toString("ascii") !== "\r\n")
-                    fail2("INVALID_CHUNK");
+                    fail3("INVALID_CHUNK");
                 mode = "chunk-size";
             }
             else if (mode === "trailers") {
                 const end2 = buffer.indexOf("\r\n");
                 if (trailerBytes + (end2 < 0 ? buffer.length : end2 + 2) > maxHeaderBytes)
-                    fail2("TRAILER_TOO_LARGE");
+                    fail3("TRAILER_TOO_LARGE");
                 if (end2 < 0)
                     break;
                 const line = consume(end2 + 2).subarray(0, end2).toString("latin1");
@@ -9912,11 +11342,11 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
                 }
                 const [name] = field(line);
                 if (["content-length", "transfer-encoding", "host", "connection", "trailer"].includes(name))
-                    fail2("INVALID_TRAILER");
+                    fail3("INVALID_TRAILER");
             }
         }
         if (done && buffer.length)
-            fail2("RESPONSE_EXTRA_DATA");
+            fail3("RESPONSE_EXTRA_DATA");
         return { chunks, done };
     }
     function end() {
@@ -9926,7 +11356,7 @@ function createHighwayResponseDecoder({ maxHeaderBytes = 65536, maxBodyBytes = 8
             done = true;
             return;
         }
-        fail2("RESPONSE_TRUNCATED");
+        fail3("RESPONSE_TRUNCATED");
     }
     return { feed, end, get done() {
             return done;
@@ -9938,9 +11368,9 @@ var init_highway_http_decoder = __esm({
     "highway-http-decoder.mjs"() {
     }
 });
-function postHighwayFrame(socket, host, path34, body, { idleMs = 3e4, totalMs = 12e4, maxHeaderBytes = 65536, maxBodyBytes = 8 * 1024 * 1024, signal } = {}) {
+function postHighwayFrame(socket, host, path35, body, { idleMs = 3e4, totalMs = 12e4, maxHeaderBytes = 65536, maxBodyBytes = 8 * 1024 * 1024, signal } = {}) {
     return new Promise((resolve, reject) => {
-        if (![idleMs, totalMs, maxHeaderBytes, maxBodyBytes].every((n2) => Number.isSafeInteger(n2) && n2 > 0) || /[\r\n]/.test(host + path34))
+        if (![idleMs, totalMs, maxHeaderBytes, maxBodyBytes].every((n2) => Number.isSafeInteger(n2) && n2 > 0) || /[\r\n]/.test(host + path35))
             return reject(Error("NERONET_HIGHWAY_INVALID_EXCHANGE"));
         const decoder = createHighwayResponseDecoder({ maxHeaderBytes, maxBodyBytes });
         let done = false, responseReady = false, pendingWrites = body.length ? 2 : 1, received = 0, chunks = [], idle, total;
@@ -10017,7 +11447,7 @@ function postHighwayFrame(socket, host, path34, body, { idleMs = 3e4, totalMs = 
         signal?.addEventListener("abort", abort, { once: true });
         arm();
         total = setTimeout(() => finish2("NERONET_HIGHWAY_RESPONSE_TOTAL_TIMEOUT"), totalMs);
-        const request = `POST ${path34} HTTP/1.1\r
+        const request = `POST ${path35} HTTP/1.1\r
 Host: ${host}\r
 Connection: keep-alive\r
 Accept-Encoding: identity\r
@@ -10047,8 +11477,8 @@ var init_highway_response = __esm({
         init_highway_http_decoder();
     }
 });
-import fs9 from "node:fs";
-import path10 from "node:path";
+import fs10 from "node:fs";
+import path11 from "node:path";
 import { randomUUID as randomUUID2 } from "node:crypto";
 async function reviewHighwayEndpoints(servers2) {
     const directory = process.env.NERONET_HIGHWAY_REVIEW_DIR;
@@ -10058,24 +11488,24 @@ async function reviewHighwayEndpoints(servers2) {
     if (deployment3.mode !== "lab")
         throw Error("NERONET_HIGHWAY_REVIEW_LAB_ONLY");
     assertWithin(directory, deployment3.homeRoot);
-    const policy = JSON.parse(fs9.readFileSync(path10.join(directory, "authorization.json"), "utf8").replace(/^\uFEFF/, ""));
+    const policy = JSON.parse(fs10.readFileSync(path11.join(directory, "authorization.json"), "utf8").replace(/^\uFEFF/, ""));
     const expiry = Date.parse(policy.expiresUtc);
     if (!Number.isFinite(expiry) || Date.now() >= expiry || policy.maxAttempts !== 2)
         throw Error("NERONET_HIGHWAY_REVIEW_AUTHORIZATION_INVALID");
-    const recordPath = path10.join(directory, "attempts.json");
-    const attempts = fs9.existsSync(recordPath) ? JSON.parse(fs9.readFileSync(recordPath, "utf8")) : [];
+    const recordPath = path11.join(directory, "attempts.json");
+    const attempts = fs10.existsSync(recordPath) ? JSON.parse(fs10.readFileSync(recordPath, "utf8")) : [];
     if (attempts.length >= policy.maxAttempts)
         throw Error("NERONET_HIGHWAY_REVIEW_ATTEMPT_LIMIT");
-    const id = randomUUID2(), pending = path10.join(directory, "pending.json");
+    const id = randomUUID2(), pending = path11.join(directory, "pending.json");
     const record3 = { id, utc: (new Date()).toISOString(), source: "fetchHighwaySession decoded HttpConn.0x6ff_501 response", servers: servers2.map(({ host, port: port3 }) => ({ host, port: port3 })) };
-    fs9.writeFileSync(pending, JSON.stringify(record3), { flag: "wx" });
+    fs10.writeFileSync(pending, JSON.stringify(record3), { flag: "wx" });
     attempts.push({ id, utc: record3.utc });
-    fs9.writeFileSync(recordPath, JSON.stringify(attempts));
-    const until = Math.min(expiry, Date.now() + 9e4), ack = path10.join(directory, "approved-" + id + ".json");
+    fs10.writeFileSync(recordPath, JSON.stringify(attempts));
+    const until = Math.min(expiry, Date.now() + 9e4), ack = path11.join(directory, "approved-" + id + ".json");
     try {
         while (Date.now() < until) {
-            if (fs9.existsSync(ack)) {
-                const approved = JSON.parse(fs9.readFileSync(ack, "utf8").replace(/^\uFEFF/, ""));
+            if (fs10.existsSync(ack)) {
+                const approved = JSON.parse(fs10.readFileSync(ack, "utf8").replace(/^\uFEFF/, ""));
                 if (approved.id !== id || approved.allowed !== true)
                     throw Error("NERONET_HIGHWAY_REVIEW_NOT_APPROVED");
                 return;
@@ -10085,7 +11515,7 @@ async function reviewHighwayEndpoints(servers2) {
         throw Error("NERONET_HIGHWAY_REVIEW_TIMEOUT");
     }
     finally {
-        fs9.renameSync(pending, path10.join(directory, "observed-" + id + ".json"));
+        fs10.renameSync(pending, path11.join(directory, "observed-" + id + ".json"));
     }
 }
 var init_highway_endpoint_review = __esm({
@@ -10137,7 +11567,7 @@ function buildExtend({ uKey, ipv4s = [], msgInfoBody = [] }, sha1, fileIndex = 0
         hash: { fileSha1: Array.isArray(sha1) ? sha1 : [sha1] }
     });
 }
-async function postFrame(server, path34, frame, conn) {
+async function postFrame(server, path35, frame, conn) {
     if (!conn.socket || conn.socket.destroyed || conn.server !== server) {
         conn.socket?.destroy();
         conn.socket = await connectHighwayTransport(server.host, server.port, HIGHWAY.connectTimeoutMs);
@@ -10146,7 +11576,7 @@ async function postFrame(server, path34, frame, conn) {
         conn.server = server;
     }
     try {
-        return Buffer.from(await postHighwayFrame(conn.socket, server.host, path34, frame, { idleMs: HIGHWAY.idleMs, totalMs: Math.max(1, conn.deadline - Date.now()) }));
+        return Buffer.from(await postHighwayFrame(conn.socket, server.host, path35, frame, { idleMs: HIGHWAY.idleMs, totalMs: Math.max(1, conn.deadline - Date.now()) }));
     }
     catch (e) {
         conn.socket?.destroy();
@@ -10180,8 +11610,8 @@ var init_highway = __esm({
         RespHead = wireType("highway.proto", "RespDataHighwayHead");
         Ext = wireType("highway.proto", "NTV2RichMediaHighwayExt");
         HighwayError = class extends Error {
-            constructor(stage, detail, cause) {
-                super(`NERONET_HIGHWAY_FAILED: ${stage}: ${detail}`, cause ? { cause } : void 0);
+            constructor(stage, detail, cause2) {
+                super(`NERONET_HIGHWAY_FAILED: ${stage}: ${detail}`, cause2 ? { cause: cause2 } : void 0);
                 this.code = "NERONET_HIGHWAY_FAILED";
                 this.stage = stage;
             }
@@ -10253,7 +11683,7 @@ var init_highway = __esm({
                     throw stopped();
                 const session = await this.session();
                 await reviewHighwayEndpoints(session.servers);
-                const path34 = `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`;
+                const path35 = `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`;
                 const conn = { socket: null, server: null, deadline: Date.now() + HIGHWAY.uploadTimeoutMs, cancelled: false };
                 if (this.closed)
                     throw stopped();
@@ -10280,7 +11710,7 @@ var init_highway = __esm({
                                     throw stopped();
                                 if (Date.now() > conn.deadline)
                                     throw new HighwayError("timeout", `upload exceeded ${HIGHWAY.uploadTimeoutMs} ms at ${offset}/${size}`);
-                                body = await this.post(session.servers[server], path34, packFrame(head, chunk2), conn);
+                                body = await this.post(session.servers[server], path35, packFrame(head, chunk2), conn);
                             }
                             catch (e) {
                                 if (e instanceof HighwayError)
@@ -10329,10 +11759,10 @@ import crypto6 from "node:crypto";
 function md5FromEmojiId(emojiId) {
     const md52 = String(emojiId).split("_")[4];
     if (!md52 || !/^[0-9a-fA-F]{32}$/.test(md52))
-        throw invalid4(`emoji_id has no md5: ${emojiId}`);
+        throw invalid5(`emoji_id has no md5: ${emojiId}`);
     return md52.toUpperCase();
 }
-var T2, ListReq, ListResp, DetailReq, ModifyReq, OpResp, BdhReq, BdhResp, FavHead, RespHead2, FACEROAM_SERVICE, BDH_SERVICE, OS_VERSION, LIST_QQ_VERSION, failed3, invalid4, customFaceUrl, listRequest, CustomFaces;
+var T2, ListReq, ListResp, DetailReq, ModifyReq, OpResp, BdhReq, BdhResp, FavHead, RespHead2, FACEROAM_SERVICE, BDH_SERVICE, OS_VERSION, LIST_QQ_VERSION, failed3, invalid5, customFaceUrl, listRequest, CustomFaces;
 var init_custom_faces = __esm({
     "upper/qq/custom-faces.mjs"() {
         init_schema();
@@ -10353,7 +11783,7 @@ var init_custom_faces = __esm({
         OS_VERSION = "10.0.26200";
         LIST_QQ_VERSION = "9.9.28-46928";
         failed3 = (detail) => Object.assign(new Error(`NERONET_CUSTOM_FACE_FAILED: ${detail}`), { code: "NERONET_CUSTOM_FACE_FAILED" });
-        invalid4 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
+        invalid5 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
         customFaceUrl = (selfUin, emojiId) => `https://p.qpic.cn/qq_expression/${selfUin}/${emojiId}/0`;
         listRequest = (uin) => ListReq.encode({ inner: { field1: 1, osVersion: OS_VERSION, qqVersion: LIST_QQ_VERSION }, uin: BigInt(uin), field3: 1, field6: 1 });
         CustomFaces = class {
@@ -10440,8 +11870,8 @@ var init_custom_faces = __esm({
         };
     }
 });
-import fs10 from "node:fs";
-import path11 from "node:path";
+import fs11 from "node:fs";
+import path12 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function pickMediaSource(data = {}) {
     const file = String(data.file ?? "").trim();
@@ -10462,9 +11892,9 @@ function inlinePayload(source) {
         return null;
     const comma = source.indexOf(",");
     if (comma < 0)
-        throw invalid5("data URL without payload");
+        throw invalid6("data URL without payload");
     if (!/;base64$/i.test(source.slice(5, comma)))
-        throw invalid5("data URL must be base64");
+        throw invalid6("data URL must be base64");
     return source.slice(comma + 1);
 }
 function localPath(source) {
@@ -10474,12 +11904,12 @@ function localPath(source) {
         return fileURLToPath2(source);
     }
     catch {
-        throw invalid5("malformed file URL");
+        throw invalid6("malformed file URL");
     }
 }
 function fileNameFromUrl(url) {
     try {
-        const base = path11.posix.basename(new URL(url).pathname);
+        const base = path12.posix.basename(new URL(url).pathname);
         return /\.[A-Za-z0-9]{1,5}$/.test(base) ? decodeURIComponent(base) : "";
     }
     catch {
@@ -10493,10 +11923,10 @@ async function download(url, what, maxBytes, fetchImpl) {
             resp = await fetchImpl(url, { headers: headers3, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
         }
         catch (e) {
-            throw invalid5(`${what} download failed: ${e?.message ?? e}`);
+            throw invalid6(`${what} download failed: ${e?.message ?? e}`);
         }
         if (!resp.ok)
-            throw invalid5(`${what} download failed: HTTP ${resp.status}`);
+            throw invalid6(`${what} download failed: HTTP ${resp.status}`);
         const declared = Number(resp.headers.get("content-length") ?? 0);
         if (Number.isFinite(declared) && declared > maxBytes)
             throw tooLarge(what, declared, maxBytes);
@@ -10526,7 +11956,7 @@ async function download(url, what, maxBytes, fetchImpl) {
         catch (e) {
             if (e instanceof MediaSourceError)
                 throw e;
-            throw invalid5(`${what} download interrupted: ${e?.message ?? e}`);
+            throw invalid6(`${what} download interrupted: ${e?.message ?? e}`);
         }
         finally {
             try {
@@ -10554,12 +11984,12 @@ async function download(url, what, maxBytes, fetchImpl) {
 }
 async function loadMediaSource(source, { what = "media", maxBytes, fetchImpl = fetch }) {
     if (!source)
-        throw invalid5(`${what} source is empty`);
+        throw invalid6(`${what} source is empty`);
     const inline = inlinePayload(source);
     if (inline !== null) {
         const bytes = Buffer.from(inline, "base64");
         if (bytes.length === 0)
-            throw invalid5(`${what} inline payload is empty`);
+            throw invalid6(`${what} inline payload is empty`);
         if (bytes.length > maxBytes)
             throw tooLarge(what, bytes.length, maxBytes);
         return { bytes, fileName: "" };
@@ -10569,20 +11999,20 @@ async function loadMediaSource(source, { what = "media", maxBytes, fetchImpl = f
     const file = localPath(source);
     let stat;
     try {
-        stat = fs10.statSync(file);
+        stat = fs11.statSync(file);
     }
     catch {
-        throw invalid5(`${what} file not found`);
+        throw invalid6(`${what} file not found`);
     }
     if (!stat.isFile())
-        throw invalid5(`${what} source is not a file`);
+        throw invalid6(`${what} source is not a file`);
     if (stat.size > maxBytes)
         throw tooLarge(what, stat.size, maxBytes);
     if (stat.size === 0)
-        throw invalid5(`${what} file is empty`);
-    return { bytes: fs10.readFileSync(file), fileName: path11.basename(file) };
+        throw invalid6(`${what} file is empty`);
+    return { bytes: fs11.readFileSync(file), fileName: path12.basename(file) };
 }
-var FETCH_TIMEOUT_MS, USER_AGENT, MediaSourceError, invalid5, tooLarge;
+var FETCH_TIMEOUT_MS, USER_AGENT, MediaSourceError, invalid6, tooLarge;
 var init_source = __esm({
     "upper/media/source.mjs"() {
         FETCH_TIMEOUT_MS = 6e4;
@@ -10593,12 +12023,12 @@ var init_source = __esm({
                 this.code = code;
             }
         };
-        invalid5 = (detail) => new MediaSourceError("NERONET_MEDIA_SOURCE_INVALID", detail);
+        invalid6 = (detail) => new MediaSourceError("NERONET_MEDIA_SOURCE_INVALID", detail);
         tooLarge = (what, size, max) => new MediaSourceError("NERONET_MEDIA_TOO_LARGE", `${what} ${size} > ${max} bytes`);
     }
 });
-import fs11 from "node:fs";
-import path12 from "node:path";
+import fs12 from "node:fs";
+import path13 from "node:path";
 import crypto7 from "node:crypto";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 async function openFileSource(source, { fetchImpl = fetch } = {}) {
@@ -10617,7 +12047,7 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
         }
         let st;
         try {
-            st = fs11.statSync(file);
+            st = fs12.statSync(file);
         }
         catch {
             throw invalidSource("file not found");
@@ -10628,10 +12058,10 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
             throw invalidSource("file is empty");
         if (st.size > FILE_LIMITS.localBytes)
             throw Object.assign(new Error(`NERONET_MEDIA_TOO_LARGE: file ${st.size} > ${FILE_LIMITS.localBytes}`), { code: "NERONET_MEDIA_TOO_LARGE" });
-        const fh = await fs11.promises.open(file, "r");
+        const fh = await fs12.promises.open(file, "r");
         return {
             size: st.size,
-            name: path12.basename(file),
+            name: path13.basename(file),
             async read(offset, length) {
                 const buf = Buffer.allocUnsafe(length);
                 let got = 0;
@@ -10644,7 +12074,7 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
                 return buf;
             },
             async assertUnchanged() {
-                const now2 = await fs11.promises.stat(file);
+                const now2 = await fs12.promises.stat(file);
                 if (now2.size !== st.size || now2.mtimeMs !== st.mtimeMs)
                     throw failed4("file source changed between hashing and upload");
             },
@@ -11125,8 +12555,8 @@ var init_media = __esm({
         });
         IMAGE_MAX_BYTES = 30 * 1024 * 1024;
         MediaUploadError = class extends Error {
-            constructor(detail, cause) {
-                super(`NERONET_MEDIA_UPLOAD_FAILED: ${detail}`, cause ? { cause } : void 0);
+            constructor(detail, cause2) {
+                super(`NERONET_MEDIA_UPLOAD_FAILED: ${detail}`, cause2 ? { cause: cause2 } : void 0);
                 this.code = "NERONET_MEDIA_UPLOAD_FAILED";
             }
         };
@@ -11265,8 +12695,8 @@ var init_forward = __esm({
         RecvResp = wireType("forward.proto", "RecvLongMsgResp");
         LongMsgResult = wireType("forward.proto", "LongMsgResult");
         ForwardError = class extends Error {
-            constructor(detail, cause) {
-                super(`NERONET_FORWARD_FAILED: ${detail}`, cause ? { cause } : void 0);
+            constructor(detail, cause2) {
+                super(`NERONET_FORWARD_FAILED: ${detail}`, cause2 ? { cause: cause2 } : void 0);
                 this.code = "NERONET_FORWARD_FAILED";
             }
         };
@@ -11689,8 +13119,8 @@ var init_lib = __esm({
                 throw b;
             }, ea = import.meta.url, v = "", fa, w;
             if (t) {
-                var fs35 = require2("fs"), ha = require2("path");
-                ea.startsWith("file:") && (v = ha.dirname(require2("url").fileURLToPath(ea)) + "/"), w = (a) => (a = y(a) ? new URL(a) : a, fs35.readFileSync(a)), fa = async (a) => (a = y(a) ? new URL(a) : a, fs35.readFileSync(a, void 0)), process.argv.slice(2), u = (a, b) => {
+                var fs36 = require2("fs"), ha = require2("path");
+                ea.startsWith("file:") && (v = ha.dirname(require2("url").fileURLToPath(ea)) + "/"), w = (a) => (a = y(a) ? new URL(a) : a, fs36.readFileSync(a)), fa = async (a) => (a = y(a) ? new URL(a) : a, fs36.readFileSync(a, void 0)), process.argv.slice(2), u = (a, b) => {
                     throw process.exitCode = a, b;
                 };
             }
@@ -12318,8 +13748,8 @@ return ret;
         wavFileTypeAudioEncodings = [0, 0, 0, 1];
     }
 });
-import fs12 from "node:fs";
-import { spawn as spawn2, spawnSync } from "node:child_process";
+import fs13 from "node:fs";
+import { spawn as spawn3, spawnSync } from "node:child_process";
 function findFfmpeg(env = process.env) {
     if (ffmpegChecked && env === process.env)
         return ffmpegPath;
@@ -12343,7 +13773,7 @@ function runFfmpeg(args, input) {
     if (!exe)
         return Promise.reject(new Error("this audio/video format needs ffmpeg: " + FFMPEG_HINT));
     return new Promise((resolve, reject) => {
-        const p2 = spawn2(exe, ["-hide_banner", "-loglevel", "error", ...args], { windowsHide: true });
+        const p2 = spawn3(exe, ["-hide_banner", "-loglevel", "error", ...args], { windowsHide: true });
         const out = [], err2 = [];
         p2.stdout.on("data", (d) => out.push(d));
         p2.stderr.on("data", (d) => err2.push(d));
@@ -12360,9 +13790,9 @@ function ffmpegInfo(file) {
     if (!exe)
         return null;
     const r = spawnSync(exe, ["-hide_banner", "-i", file], { windowsHide: true, timeout: 15e3, encoding: "utf8" });
-    const text = r.stderr || "";
-    const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(text);
-    const v = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(text);
+    const text2 = r.stderr || "";
+    const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(text2);
+    const v = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(text2);
     return { duration: d ? +d[1] * 3600 + +d[2] * 60 + parseFloat(d[3]) : 0, width: v ? +v[1] : 0, height: v ? +v[2] : 0 };
 }
 function normalizeSilk(bytes) {
@@ -12482,7 +13912,7 @@ var init_audio_addon = __esm({
         audioAddon = Object.freeze({
             neronet: true,
             async getDuration(file) {
-                const b = fs12.readFileSync(file);
+                const b = fs13.readFileSync(file);
                 if (isSilkBytes(b))
                     return getDuration(normalizeSilk(b)) / 1e3;
                 if (isWav(b)) {
@@ -12496,29 +13926,29 @@ var init_audio_addon = __esm({
                 return ffmpegInfo(file)?.duration || 1;
             },
             async convertToNTSilkTct(input, output) {
-                const b = fs12.readFileSync(input);
+                const b = fs13.readFileSync(input);
                 if (isSilkBytes(b)) {
-                    fs12.writeFileSync(output, normalizeSilk(b));
+                    fs13.writeFileSync(output, normalizeSilk(b));
                     return;
                 }
                 const { pcm, rate } = await toPcm(b);
                 if (!pcm.length)
                     throw new Error("audio has no samples");
                 const e = await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate);
-                fs12.writeFileSync(output, Buffer.from(e.data));
+                fs13.writeFileSync(output, Buffer.from(e.data));
             },
             async decodeAudioToFmt(input, output, format2) {
-                const { pcm, rate } = await toPcm(fs12.readFileSync(input));
+                const { pcm, rate } = await toPcm(fs13.readFileSync(input));
                 const fmt = String(format2).toLowerCase();
                 if (fmt === "wav")
-                    fs12.writeFileSync(output, s16ToWav(pcm, rate));
+                    fs13.writeFileSync(output, s16ToWav(pcm, rate));
                 else if (fmt === "pcm")
-                    fs12.writeFileSync(output, Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+                    fs13.writeFileSync(output, Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
                 else if (fmt === "silk")
-                    fs12.writeFileSync(output, Buffer.from((await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate)).data));
+                    fs13.writeFileSync(output, Buffer.from((await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate)).data));
                 else {
                     const out = await runFfmpeg(["-f", "s16le", "-ar", String(rate), "-ac", "1", "-i", "pipe:0", "-f", fmt === "m4a" ? "ipod" : fmt, "pipe:1"], Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
-                    fs12.writeFileSync(output, out);
+                    fs13.writeFileSync(output, out);
                 }
                 return { result: true };
             },
@@ -12539,9 +13969,9 @@ var init_audio_addon = __esm({
     }
 });
 import crypto10 from "node:crypto";
-import fs13 from "node:fs";
+import fs14 from "node:fs";
 import os from "node:os";
-import path13 from "node:path";
+import path14 from "node:path";
 import zlib3 from "node:zlib";
 function uploadRequest(scene, target, { requestId, businessType, uploadInfo, extBizInfo, compat }) {
     return {
@@ -12609,24 +14039,24 @@ function waveform(pcm, channels2 = 1, bins = 30) {
     return Buffer.from(PttWaveform.encode({ size: bins, amplitudes: out }));
 }
 async function prepareVoice(bytes, { addon = audioAddon, tmp = os.tmpdir() } = {}) {
-    const dir = fs13.mkdtempSync(path13.join(tmp, "neronet-voice-"));
+    const dir = fs14.mkdtempSync(path14.join(tmp, "neronet-voice-"));
     try {
-        const input = path13.join(dir, "in"), out = path13.join(dir, "out.silk"), wav = path13.join(dir, "wave.wav");
-        fs13.writeFileSync(input, bytes);
+        const input = path14.join(dir, "in"), out = path14.join(dir, "out.silk"), wav = path14.join(dir, "wave.wav");
+        fs14.writeFileSync(input, bytes);
         try {
             await addon.convertToNTSilkTct(input, out);
         }
         catch (e) {
-            throw invalid6(`voice conversion failed: ${e?.message ?? e}`);
+            throw invalid7(`voice conversion failed: ${e?.message ?? e}`);
         }
-        const silk = fs13.readFileSync(out);
+        const silk = fs14.readFileSync(out);
         if (!silk.length)
-            throw invalid6("voice is empty after SILK conversion");
+            throw invalid7("voice is empty after SILK conversion");
         const duration = Math.max(1, Math.round(await addon.getDuration(out)));
         let wave;
         try {
             await addon.decodeAudioToFmt(out, wav, "wav");
-            const w = fs13.readFileSync(wav), data = w.indexOf("data", 12);
+            const w = fs14.readFileSync(wav), data = w.indexOf("data", 12);
             if (data > 0)
                 wave = waveform(w.subarray(data + 8, data + 8 + w.readUInt32LE(data + 4)), w.readUInt16LE(22) || 1);
         }
@@ -12635,7 +14065,7 @@ async function prepareVoice(bytes, { addon = audioAddon, tmp = os.tmpdir() } = {
         return { silk, duration, waveform: wave };
     }
     finally {
-        fs13.rmSync(dir, { recursive: true, force: true });
+        fs14.rmSync(dir, { recursive: true, force: true });
     }
 }
 function voiceRequest(scene, target, v) {
@@ -12701,27 +14131,27 @@ function placeholderCover() {
 async function prepareVideo(source, { thumb, addon = audioAddon } = {}) {
     let file = source.path, tmpDir = null;
     if (!file) {
-        tmpDir = fs13.mkdtempSync(path13.join(os.tmpdir(), "neronet-video-"));
-        file = path13.join(tmpDir, "in.mp4");
-        fs13.writeFileSync(file, source.bytes);
+        tmpDir = fs14.mkdtempSync(path14.join(os.tmpdir(), "neronet-video-"));
+        file = path14.join(tmpDir, "in.mp4");
+        fs14.writeFileSync(file, source.bytes);
     }
     const cleanup = () => {
         if (tmpDir)
-            fs13.rmSync(tmpDir, { recursive: true, force: true });
+            fs14.rmSync(tmpDir, { recursive: true, force: true });
     };
     try {
-        const st = fs13.statSync(file), size = st.size;
+        const st = fs14.statSync(file), size = st.size;
         if (!size)
-            throw invalid6("video is empty");
+            throw invalid7("video is empty");
         if (size > VIDEO_MAX_BYTES)
             throw Object.assign(new Error(`NERONET_MEDIA_TOO_LARGE: video ${size} > ${VIDEO_MAX_BYTES}`), { code: "NERONET_MEDIA_TOO_LARGE" });
         const md52 = crypto10.createHash("md5"), sha1 = crypto10.createHash("sha1"), sha1Blocks = [];
-        const fd = fs13.openSync(file, "r"), buf = Buffer.allocUnsafe(BLOCK);
+        const fd = fs14.openSync(file, "r"), buf = Buffer.allocUnsafe(BLOCK);
         try {
             for (let off = 0; off < size;) {
-                const n2 = fs13.readSync(fd, buf, 0, Math.min(BLOCK, size - off), off);
+                const n2 = fs14.readSync(fd, buf, 0, Math.min(BLOCK, size - off), off);
                 if (!n2)
-                    throw invalid6("video file shrank while hashing");
+                    throw invalid7("video file shrank while hashing");
                 const c = buf.subarray(0, n2);
                 md52.update(c);
                 sha1.update(c);
@@ -12730,7 +14160,7 @@ async function prepareVideo(source, { thumb, addon = audioAddon } = {}) {
             }
         }
         finally {
-            fs13.closeSync(fd);
+            fs14.closeSync(fd);
         }
         let info = null;
         try {
@@ -12777,10 +14207,10 @@ function videoRequest(scene, target, v) {
     });
 }
 async function uploadVideo(transport, highway, scene, target, v) {
-    const st = fs13.statSync(v.file);
+    const st = fs14.statSync(v.file);
     if (st.size !== v.size || st.mtimeMs !== v.mtimeMs)
         throw new AvUploadError("video source changed between hashing and upload");
-    const fh = await fs13.promises.open(v.file, "r");
+    const fh = await fs14.promises.open(v.file, "r");
     try {
         const source = { size: v.size, async read(off, len) {
                 const b = Buffer.allocUnsafe(len);
@@ -12805,7 +14235,7 @@ async function uploadVideo(transport, highway, scene, target, v) {
         await fh.close();
     }
 }
-var UploadRequest2, UploadResponse2, MediaMsgInfo2, PttWaveform, VOICE, VIDEO, VIDEO_MAX_BYTES, VOICE_MAX_BYTES, BLOCK, AvUploadError, invalid6, hashes, randomId2, cover;
+var UploadRequest2, UploadResponse2, MediaMsgInfo2, PttWaveform, VOICE, VIDEO, VIDEO_MAX_BYTES, VOICE_MAX_BYTES, BLOCK, AvUploadError, invalid7, hashes, randomId2, cover;
 var init_av = __esm({
     "upper/qq/av.mjs"() {
         init_schema();
@@ -12823,17 +14253,1191 @@ var init_av = __esm({
         VOICE_MAX_BYTES = 100 * 1024 * 1024;
         BLOCK = 1024 * 1024;
         AvUploadError = class extends Error {
-            constructor(message2, cause) {
-                super(`NERONET_MEDIA_UPLOAD_FAILED: ${message2}`, { cause });
+            constructor(message2, cause2) {
+                super(`NERONET_MEDIA_UPLOAD_FAILED: ${message2}`, { cause: cause2 });
                 this.code = "NERONET_MEDIA_UPLOAD_FAILED";
             }
         };
-        invalid6 = (m) => Object.assign(new Error(`NERONET_MEDIA_SOURCE_INVALID: ${m}`), { code: "NERONET_MEDIA_SOURCE_INVALID" });
+        invalid7 = (m) => Object.assign(new Error(`NERONET_MEDIA_SOURCE_INVALID: ${m}`), { code: "NERONET_MEDIA_SOURCE_INVALID" });
         hashes = (b) => ({ md5: crypto10.createHash("md5").update(b).digest(), sha1: crypto10.createHash("sha1").update(b).digest() });
         randomId2 = () => crypto10.randomBytes(8).readBigUInt64BE() & 0x7fffffffffffffffn;
     }
 });
-import fs14 from "node:fs";
+async function readText(response, maxBytes, where) {
+    const declared = Number(response.headers.get("content-length") ?? 0);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+        await response.body?.cancel().catch(() => {
+        });
+        throw new WebHttpError("too-large", `response of ${declared} bytes exceeds ${maxBytes}`, { ...where, sent: true });
+    }
+    if (!response.body)
+        return "";
+    const reader = response.body.getReader(), chunks = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done)
+            break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+            await reader.cancel().catch(() => {
+            });
+            throw new WebHttpError("too-large", `response exceeds ${maxBytes} bytes`, { ...where, sent: true });
+        }
+        chunks.push(value);
+    }
+    return new TextDecoder("utf-8").decode(Buffer.concat(chunks, total));
+}
+var USER_AGENT2, NOT_SENT, PUBLIC_SUFFIX, SEP, WebHttpError, domainMatch, pathMatch, defaultPath, CookieJar, WebHttp;
+var init_http_client = __esm({
+    "upper/web/http-client.mjs"() {
+        USER_AGENT2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+        NOT_SENT = /^(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|EADDRNOTAVAIL|UND_ERR_CONNECT_TIMEOUT|CERT_[A-Z_]+|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT(_LOCALLY)?|ERR_TLS_CERT_ALTNAME_INVALID|ERR_SSL_[A-Z_]+)$/;
+        PUBLIC_SUFFIX = new Set(["com", "cn", "net", "org", "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn"]);
+        SEP = "\0";
+        WebHttpError = class extends Error {
+            constructor(kind, detail, { sent = false, host = "", path: path35 = "", cause: cause2 = "" } = {}) {
+                super(`${kind}: ${detail}`);
+                this.kind = kind;
+                this.sent = sent;
+                this.host = host;
+                this.path = path35;
+                this.causeCode = cause2;
+            }
+        };
+        domainMatch = (host, domain) => host === domain || host.endsWith("." + domain);
+        pathMatch = (path35, cookiePath) => path35 === cookiePath || path35.startsWith(cookiePath) && (cookiePath.endsWith("/") || path35[cookiePath.length] === "/");
+        defaultPath = (pathname) => {
+            const i = pathname.lastIndexOf("/");
+            return i <= 0 ? "/" : pathname.slice(0, i);
+        };
+        CookieJar = class {
+            #cookies = new Map();
+            store(setCookieHeaders, url, now2 = Date.now()) {
+                const target = url instanceof URL ? url : new URL(url), host = target.hostname.toLowerCase();
+                const accepted = [], rejected = [];
+                for (const header2 of setCookieHeaders ?? []) {
+                    const parts = String(header2).split(";");
+                    const first = parts.shift() ?? "", eq = first.indexOf("=");
+                    if (eq <= 0)
+                        continue;
+                    const name = first.slice(0, eq).trim(), value = first.slice(eq + 1).trim();
+                    if (!name)
+                        continue;
+                    let domain = host, hostOnly = true, path35 = defaultPath(target.pathname), secure = false, expires = Infinity;
+                    for (const raw of parts) {
+                        const i = raw.indexOf("="), key2 = (i < 0 ? raw : raw.slice(0, i)).trim().toLowerCase(), v = i < 0 ? "" : raw.slice(i + 1).trim();
+                        if (key2 === "domain" && v) {
+                            domain = v.replace(/^\./, "").toLowerCase();
+                            hostOnly = false;
+                        }
+                        else if (key2 === "path" && v.startsWith("/"))
+                            path35 = v;
+                        else if (key2 === "secure")
+                            secure = true;
+                        else if (key2 === "max-age" && /^-?\d+$/.test(v))
+                            expires = now2 + Number(v) * 1e3;
+                        else if (key2 === "expires" && expires === Infinity) {
+                            const t = Date.parse(v);
+                            if (Number.isFinite(t))
+                                expires = t;
+                        }
+                    }
+                    if (!hostOnly && (!domainMatch(host, domain) || !domain.includes(".") || PUBLIC_SUFFIX.has(domain))) {
+                        rejected.push({ name, reason: "domain" });
+                        continue;
+                    }
+                    if (secure && target.protocol !== "https:") {
+                        rejected.push({ name, reason: "secure" });
+                        continue;
+                    }
+                    const key = domain + SEP + path35 + SEP + name;
+                    if (!value || expires <= now2) {
+                        this.#cookies.delete(key);
+                        continue;
+                    }
+                    this.#cookies.set(key, { name, value, domain, hostOnly, path: path35, secure, expires });
+                    accepted.push(name);
+                }
+                return { accepted, rejected };
+            }
+            set({ name, value, domain, path: path35 = "/", secure = true }) {
+                this.#cookies.set(domain + SEP + path35 + SEP + name, { name, value, domain, hostOnly: false, path: path35, secure, expires: Infinity });
+            }
+            #matching(url, now2) {
+                const target = url instanceof URL ? url : new URL(url), host = target.hostname.toLowerCase();
+                const list = [];
+                for (const c of this.#cookies.values()) {
+                    if (c.expires <= now2)
+                        continue;
+                    if (c.hostOnly ? host !== c.domain : !domainMatch(host, c.domain))
+                        continue;
+                    if (!pathMatch(target.pathname || "/", c.path))
+                        continue;
+                    if (c.secure && target.protocol !== "https:")
+                        continue;
+                    list.push(c);
+                }
+                list.sort((a, b) => b.path.length - a.path.length || b.domain.length - a.domain.length);
+                const seen = new Set();
+                return list.filter((c) => seen.has(c.name) ? false : (seen.add(c.name), true));
+            }
+            header(url, now2 = Date.now()) {
+                return this.#matching(url, now2).map((c) => `${c.name}=${c.value}`).join("; ");
+            }
+            get(name, url, now2 = Date.now()) {
+                return this.#matching(url, now2).find((c) => c.name === name)?.value ?? "";
+            }
+            names() {
+                return [...new Set([...this.#cookies.values()].map((c) => c.name))].sort();
+            }
+            values() {
+                return [...this.#cookies.values()].map((c) => c.value);
+            }
+            clear() {
+                this.#cookies.clear();
+            }
+        };
+        WebHttp = class {
+            constructor({ fetchImpl = fetch, hostAllowed, maxConcurrent = 3 }) {
+                this.fetchImpl = fetchImpl;
+                this.hostAllowed = hostAllowed;
+                this.maxConcurrent = maxConcurrent;
+                this.lifetime = new AbortController();
+                this.active = 0;
+                this.waiting = [];
+            }
+            get closed() {
+                return this.lifetime.signal.aborted;
+            }
+            close() {
+                this.lifetime.abort();
+                for (const wake of this.waiting.splice(0))
+                    wake();
+            }
+            async #slot() {
+                while (this.active >= this.maxConcurrent && !this.closed)
+                    await new Promise((resolve) => this.waiting.push(resolve));
+                if (this.closed)
+                    throw new WebHttpError("cancelled", "the web client is closed");
+                this.active++;
+                return () => {
+                    this.active--;
+                    this.waiting.shift()?.();
+                };
+            }
+            async request({ url, method = "GET", headers: headers2 = {}, body, jar = null, timeoutMs, maxBytes, readBody: readBody2 = true }) {
+                const target = url instanceof URL ? url : new URL(url);
+                const where = { host: target.hostname, path: target.pathname };
+                if (target.protocol !== "https:" || target.username || target.password)
+                    throw new WebHttpError("blocked", "only https URLs without credentials are requested", where);
+                if (!this.hostAllowed(target.hostname.toLowerCase()))
+                    throw new WebHttpError("blocked", `host ${target.hostname} is outside the allowed web hosts`, where);
+                for (const name of Object.keys(headers2))
+                    if (/^(cookie|authorization|host)$/i.test(name))
+                        throw new WebHttpError("blocked", `header ${name} is set by the client only`, where);
+                const release = await this.#slot();
+                const timeout = AbortSignal.timeout(timeoutMs), signal = AbortSignal.any([this.lifetime.signal, timeout]);
+                let stage = "connect";
+                try {
+                    const cookie2 = jar?.header(target) ?? "";
+                    const response = await this.fetchImpl(target, {
+                        method,
+                        body,
+                        redirect: "manual",
+                        signal,
+                        headers: { "User-Agent": USER_AGENT2, Accept: "*/*", ...headers2, ...cookie2 ? { Cookie: cookie2 } : {} }
+                    });
+                    stage = "response";
+                    const cookies = jar ? jar.store(response.headers.getSetCookie?.() ?? [], target) : { accepted: [], rejected: [] };
+                    let location = null;
+                    if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
+                        try {
+                            location = new URL(response.headers.get("location"), target);
+                        }
+                        catch {
+                            location = null;
+                        }
+                    }
+                    let text2 = "";
+                    if (readBody2 && !location)
+                        text2 = await readText(response, maxBytes, where);
+                    else
+                        await response.body?.cancel().catch(() => {
+                        });
+                    return { status: response.status, location, text: text2, cookies };
+                }
+                catch (error) {
+                    if (error instanceof WebHttpError)
+                        throw error;
+                    if (this.lifetime.signal.aborted)
+                        throw new WebHttpError("cancelled", "the web client was closed during the request", { ...where, sent: true });
+                    if (timeout.aborted)
+                        throw new WebHttpError("timeout", `no complete response within ${timeoutMs} ms`, { ...where, sent: true });
+                    const code = String(error?.cause?.code ?? error?.code ?? "");
+                    const proxyRefused = /proxy response/i.test(String(error?.cause?.message ?? ""));
+                    const sent = !(stage === "connect" && (NOT_SENT.test(code) || proxyRefused));
+                    throw new WebHttpError(sent ? "interrupted" : "not-sent", `${stage} failed${code ? ` (${code})` : proxyRefused ? " (proxy refused the connection)" : ""}`, { ...where, sent, cause: code });
+                }
+                finally {
+                    release();
+                }
+            }
+        };
+    }
+});
+function projectSensitive(value, registry = secrets, depth = 0) {
+    if (typeof value === "string")
+        return maskUrlCredentials(registry.scrub(value));
+    if (value === null || typeof value !== "object")
+        return value;
+    if (depth > 12)
+        return "[omitted]";
+    if (Array.isArray(value))
+        return value.map((item) => projectSensitive(item, registry, depth + 1));
+    if (value instanceof Uint8Array)
+        return value;
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+        out[key] = SENSITIVE_KEY.test(key) && item !== null && item !== void 0 && item !== "" ? MASK : projectSensitive(item, registry, depth + 1);
+    }
+    return out;
+}
+var MASK, SENSITIVE_KEY, URL_PARAM, SecretRegistry, secrets, maskUrlCredentials;
+var init_sensitive_projection = __esm({
+    "upper/onebot/sensitive-projection.mjs"() {
+        MASK = "***";
+        SENSITIVE_KEY = /^(set-?cookie|cookies?|p_?skey|skey|pskey|client_?key|pt4_token|pt_?key|super_?key|bkn|g_tk|csrf_token|token|access_token|authorization|password|secret)$/i;
+        URL_PARAM = /([?&](?:clientkey|client_key|p_skey|pskey|skey|g_tk|bkn|pt4_token|access_token)=)[^&#\s"']*/gi;
+        SecretRegistry = class {
+            #values = new Set();
+            get size() {
+                return this.#values.size;
+            }
+            add(value) {
+                const text2 = typeof value === "number" ? String(value) : value;
+                if (typeof text2 !== "string" || text2.length < 6)
+                    return;
+                this.#values.add(text2);
+                const encoded = encodeURIComponent(text2);
+                if (encoded !== text2)
+                    this.#values.add(encoded);
+            }
+            remove(value) {
+                const text2 = String(value ?? "");
+                this.#values.delete(text2);
+                this.#values.delete(encodeURIComponent(text2));
+            }
+            clear() {
+                this.#values.clear();
+            }
+            scrub(text2) {
+                if (typeof text2 !== "string" || !this.#values.size)
+                    return text2;
+                let out = text2;
+                for (const value of this.#values)
+                    if (out.includes(value))
+                        out = out.split(value).join(MASK);
+                return out;
+            }
+        };
+        secrets = new SecretRegistry();
+        maskUrlCredentials = (text2) => text2.replace(URL_PARAM, `$1${MASK}`);
+    }
+});
+var WEB_ERRORS, clip, WebServiceError, webError;
+var init_errors = __esm({
+    "upper/web/errors.mjs"() {
+        init_sensitive_projection();
+        WEB_ERRORS = Object.freeze({
+            NERONET_QZONE_PARAM_INVALID: { retcode: 1400, meaning: "参数不正确", advice: "按动作说明修正参数后重试" },
+            NERONET_WEB_DOMAIN_NOT_ALLOWED: { retcode: 1400, meaning: "该域名的网页登录态没有开放", advice: "只使用文档列出的功能" },
+            NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE: { retcode: 100, meaning: "机器人 QQ 不在线或业务已暂停", advice: "等 QQ 恢复在线后重试" },
+            NERONET_WEB_CREDENTIALS_UNAVAILABLE: { retcode: 100, meaning: "没有取得网页登录态", advice: "确认机器人 QQ 在线后重试；持续出现时带上阶段和代码反馈" },
+            NERONET_QZONE_AUTH_EXPIRED: { retcode: 100, meaning: "QQ 空间不接受当前登录态", advice: "登录态已自动刷新过一次；确认机器人账号能正常打开 QQ 空间后重试" },
+            NERONET_QZONE_VERIFICATION_REQUIRED: { retcode: 100, meaning: "QQ 空间要求人工验证", advice: "用机器人账号在 QQ 或浏览器中打开空间完成验证后重试，NeroNet 不会绕过验证" },
+            NERONET_QZONE_PERMISSION_DENIED: { retcode: 100, meaning: "QQ 空间拒绝了这次操作（没有权限）", advice: "确认说说属于机器人账号、对方空间允许访问" },
+            NERONET_QZONE_RATE_LIMITED: { retcode: 100, meaning: "QQ 空间提示操作过于频繁", advice: "过一段时间再手动重试，不要连续调用" },
+            NERONET_QZONE_REMOTE_ERROR: { retcode: 100, meaning: "QQ 空间返回了错误", advice: "按返回的代码和提示处理" },
+            NERONET_QZONE_RESPONSE_INVALID: { retcode: 100, meaning: "QQ 空间的响应无法识别或缺少必要内容", advice: "写入类操作请先到空间核对是否已生效，再决定是否重试" },
+            NERONET_QZONE_POST_NOT_FOUND: { retcode: 100, meaning: "说说不存在或已经删除", advice: "用 get_qzone_msg_list 核对 tid" },
+            NERONET_QZONE_DELETE_NOT_CONFIRMED: { retcode: 100, meaning: "QQ 空间接受了删除请求，但说说仍然存在", advice: "过一会儿再调用一次 delete_qzone_msg，并用 get_qzone_msg_list 核对" },
+            NERONET_QZONE_UPLOAD_FAILED: { retcode: 100, meaning: "图片没有准备好或上传失败，说说没有发表", advice: "检查这张图片后重试" },
+            NERONET_QZONE_OUTCOME_UNKNOWN: { retcode: 100, meaning: "请求已经发出但没有收到结果，不确定是否生效", advice: "先到空间或用 get_qzone_msg_list 核对，确认没有生效再重新调用；NeroNet 不会自动重发" },
+            NERONET_QZONE_NETWORK_FAILED: { retcode: 100, meaning: "与 QQ 空间的连接失败", advice: "检查网络和代理设置后重试" },
+            NERONET_QZONE_BUSY: { retcode: 100, meaning: "等待处理的空间请求太多", advice: "等前面的请求结束后重试" },
+            NERONET_SESSION_CHANGED: { retcode: 100, meaning: "账号会话已变化或程序正在停止，结果没有交付", advice: "程序恢复后重新调用；写入类操作请先核对是否已生效" }
+        });
+        clip = (text2, max) => {
+            const s = String(text2 ?? "").replace(/[\x00-\x1f\x7f]+/g, " ").trim();
+            return s.length > max ? s.slice(0, max) + "…" : s;
+        };
+        WebServiceError = class extends Error {
+            constructor(code, { stage, detail = "", image, http: http7, remoteCode, remoteSubcode, remoteMessage, cause: cause2, note = "" } = {}) {
+                const entry = WEB_ERRORS[code] ?? WEB_ERRORS.NERONET_QZONE_REMOTE_ERROR;
+                const facts = [`阶段 ${stage}`];
+                if (image !== void 0)
+                    facts.push(`第 ${image} 张图片`);
+                if (http7 !== void 0)
+                    facts.push(`HTTP ${http7}`);
+                if (remoteCode !== void 0)
+                    facts.push(`code ${remoteCode}`);
+                if (remoteSubcode !== void 0)
+                    facts.push(`subcode ${remoteSubcode}`);
+                if (remoteMessage)
+                    facts.push(`提示“${clip(remoteMessage, 80)}”`);
+                const text2 = `${code}: ${entry.meaning}（${facts.join("，")}）${detail ? `：${clip(detail, 160)}` : ""}。处理：${entry.advice}${note ? `；${note}` : ""}。`;
+                super(secrets.scrub(text2));
+                this.code = code;
+                this.retcode = entry.retcode;
+                this.stage = stage;
+                if (image !== void 0)
+                    this.image = image;
+                if (http7 !== void 0)
+                    this.http = http7;
+                if (remoteCode !== void 0)
+                    this.remoteCode = remoteCode;
+                if (remoteSubcode !== void 0)
+                    this.remoteSubcode = remoteSubcode;
+                if (cause2)
+                    this.cause = cause2;
+            }
+        };
+        webError = (code, info) => new WebServiceError(code, info);
+    }
+});
+function objectEnd(text2, start) {
+    let depth = 0, inString = false;
+    for (let i = start; i < text2.length; i++) {
+        const c = text2[i];
+        if (inString) {
+            if (c === "\\")
+                i++;
+            else if (c === '"')
+                inString = false;
+            continue;
+        }
+        if (c === '"')
+            inString = true;
+        else if (c === "{")
+            depth++;
+        else if (c === "}") {
+            if (--depth === 0)
+                return i + 1;
+        }
+    }
+    return -1;
+}
+function tryObject(text2, start) {
+    const end = objectEnd(text2, start);
+    if (end < 0)
+        return null;
+    try {
+        const value = JSON.parse(text2.slice(start, end));
+        return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+    }
+    catch {
+        return null;
+    }
+}
+function parseEnvelope(text2, stage) {
+    const body = String(text2 ?? "");
+    if (body.length > MAX_OBJECT_CHARS)
+        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage, detail: "response is larger than the parser accepts" });
+    const trimmed = body.trim();
+    if (trimmed.startsWith("{")) {
+        const value = tryObject(trimmed, 0);
+        if (value)
+            return value;
+    }
+    CALLBACK.lastIndex = 0;
+    for (let m; m = CALLBACK.exec(body);) {
+        const value = tryObject(body, m.index + m[0].length - 1);
+        if (value)
+            return value;
+    }
+    if (/ptlogin2?\.qq\.com|xui\.ptlogin|<title>[^<]*登录/i.test(body))
+        throw webError("NERONET_QZONE_AUTH_EXPIRED", { stage, detail: "the server answered with the login page" });
+    throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage, detail: trimmed ? "no response object found" : "empty response" });
+}
+function checkEnvelope(data, stage, extra = {}) {
+    const code = asNumber(data.code), subcode = asNumber(data.subcode);
+    if (!code && !subcode)
+        return data;
+    const message2 = String(data.message ?? data.msg ?? "");
+    const info = { stage, ...extra, ...code !== void 0 ? { remoteCode: code } : {}, ...subcode !== void 0 ? { remoteSubcode: subcode } : {}, remoteMessage: message2 };
+    if (code === -3e3 || /请先登录|登录态|尚未登录|未登录|重新登录/.test(message2))
+        throw webError("NERONET_QZONE_AUTH_EXPIRED", info);
+    if (/验证码|安全验证|需要验证/.test(message2))
+        throw webError("NERONET_QZONE_VERIFICATION_REQUIRED", info);
+    if (code === -1e4 || /使用人数过多|频繁/.test(message2))
+        throw webError("NERONET_QZONE_RATE_LIMITED", info);
+    if (/已经被删除|已被删除|不存在/.test(message2) || stage === "delete" && !code && subcode === -200)
+        throw webError("NERONET_QZONE_POST_NOT_FOUND", info);
+    if (/没有权限|无权|权限/.test(message2))
+        throw webError("NERONET_QZONE_PERMISSION_DENIED", info);
+    throw webError("NERONET_QZONE_REMOTE_ERROR", info);
+}
+function mapMsgList(data, { pos = 0 } = {}) {
+    const total = asNumber(data.total);
+    if (!Array.isArray(data.msglist)) {
+        if (total !== void 0 && total >= 0 && (total === 0 || pos >= total))
+            return { total, msglist: [] };
+        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "list", detail: "the reply has no post list" });
+    }
+    const msglist = data.msglist.filter((e) => e && typeof e === "object" && text(e.tid)).map((e) => ({
+        tid: text(e.tid),
+        content: text(e.content),
+        time: count2(e.created_time),
+        comment_num: count2(e.cmtnum),
+        is_private: count2(e.secret) !== 0,
+        images: pictures(e.pic)
+    }));
+    return { total: total ?? msglist.length, msglist };
+}
+function comment(value) {
+    if (!value || typeof value !== "object")
+        return null;
+    const id = text(value.tid);
+    if (!id)
+        return null;
+    return { comment_id: id, uin: count2(value.uin), name: text(value.name), time: count2(value.create_time), content: text(value.content) };
+}
+function mapMsgDetail(data, tid) {
+    if (text(data.tid) !== tid)
+        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "detail", detail: "the reply is not about the requested post" });
+    const right = asNumber(data.ugc_right);
+    const comments = (Array.isArray(data.commentlist) ? data.commentlist : []).map((c) => {
+        const mapped = comment(c);
+        return mapped ? { ...mapped, replies: (Array.isArray(c.list_3) ? c.list_3 : []).map(comment).filter(Boolean) } : null;
+    }).filter(Boolean);
+    return {
+        tid,
+        uin: count2(data.uin),
+        content: detailContent(data),
+        time: count2(data.created_time),
+        images: pictures(data.pic),
+        comment_num: count2(data.cmtnum),
+        comments,
+        ...right !== void 0 ? { ugc_right: right } : {}
+    };
+}
+function detailContent(data) {
+    const parts = (Array.isArray(data.conlist) ? data.conlist : []).map((c) => c?.con).filter((c) => typeof c === "string");
+    return parts.length ? parts.join("") : text(data.content);
+}
+function publishResult(data) {
+    const tid = text(data.t1_tid ?? data.tid);
+    if (!tid)
+        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "publish", detail: "the reply carries no post id" });
+    return { tid, time: count2(data.t1_time ?? data.now) };
+}
+function uploadResult(data, image) {
+    const d = data.data;
+    if (!d || typeof d !== "object" || !text(d.albumid) || !text(d.lloc) || !text(d.url))
+        throw webError("NERONET_QZONE_UPLOAD_FAILED", { stage: "upload", image, detail: "the reply lacks the album, picture id or address" });
+    const albumid = text(d.albumid), lloc = text(d.lloc), type = count2(d.type), height = count2(d.height), width = count2(d.width);
+    if (/[,\t]/.test(albumid) || /[,\t]/.test(lloc))
+        throw webError("NERONET_QZONE_UPLOAD_FAILED", { stage: "upload", image, detail: "unexpected characters in the picture id" });
+    return { albumid, lloc, url: text(d.url), type, width, height, richval: `,${albumid},${lloc},${lloc},${type},${height},${width},,${height},${width}` };
+}
+function updateForm(detail, selfUin) {
+    const tid = text(detail.tid);
+    if (!tid)
+        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "set-right", detail: "the post detail has no id" });
+    const pics = Array.isArray(detail.pic) ? detail.pic : [];
+    const richvals = [], bo = [];
+    for (const pic of pics) {
+        const id = text(pic?.pic_id);
+        if (!id)
+            continue;
+        const [, albumid = "", lloc = ""] = id.split(",");
+        if (!albumid || !lloc)
+            throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "set-right", detail: "a picture of the post cannot be carried over" });
+        richvals.push(`,${albumid},${lloc},${lloc},${text(pic.pictype ?? pic.type ?? 22)},${text(pic.height ?? pic.b_height ?? 0)},${text(pic.width ?? pic.b_width ?? 0)},,0,0`);
+        for (const key of ["smallurl", "url1", "url2", "url3"]) {
+            const m = /[?&]bo=([^&#]+)/.exec(text(pic[key]));
+            if (m) {
+                try {
+                    bo.push(decodeURIComponent(m[1]));
+                }
+                catch {
+                    bo.push(m[1]);
+                }
+                break;
+            }
+        }
+    }
+    const richtype = detail.richtype !== void 0 ? text(asNumber(detail.richtype) ?? "") : pics.length ? "1" : "";
+    if (richtype === "1" && !richvals.length)
+        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "set-right", detail: "the picture post has no picture data" });
+    const group = bo.join(","), hostuin = text(detail.uin ?? selfUin) || selfUin;
+    return new URLSearchParams({
+        syn_tweet_verson: "1",
+        tid,
+        paramstr: "1",
+        pic_template: text(detail.pic_template),
+        richtype,
+        richval: richvals.length ? richvals.join("	") : text(detail.richval),
+        special_url: text(detail.special_url),
+        subrichtype: text(detail.t1_subtype ?? detail.subrichtype ?? (richvals.length ? 1 : "")),
+        pic_bo: group ? `${group}	${group}` : "",
+        con: detailContent(detail).trim(),
+        feedversion: text(detail.feedversion ?? 1),
+        ver: text(detail.ver ?? 1),
+        ugc_right: text(asNumber(detail.ugc_right) ?? 1),
+        to_sign: text(asNumber(detail.to_sign) ?? 0),
+        ugcright_id: text(detail.ugcright_id ?? tid),
+        hostuin,
+        code_version: text(detail.code_version ?? 1),
+        format: "fs",
+        qzreferrer: `https://user.qzone.qq.com/${hostuin}`
+    });
+}
+var MAX_OBJECT_CHARS, CALLBACK, asNumber, text, count2, pictureUrl, pictures;
+var init_qzone_parser = __esm({
+    "upper/web/qzone-parser.mjs"() {
+        init_errors();
+        MAX_OBJECT_CHARS = 4 * 1024 * 1024;
+        CALLBACK = /[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\(\s*\{/g;
+        asNumber = (v) => typeof v === "number" ? v : typeof v === "string" && /^-?\d+$/.test(v.trim()) ? Number(v) : void 0;
+        text = (v) => typeof v === "string" ? v : v === void 0 || v === null ? "" : String(v);
+        count2 = (v) => {
+            const n2 = asNumber(v);
+            return n2 !== void 0 && n2 >= 0 ? n2 : 0;
+        };
+        pictureUrl = (pic) => text(pic?.url3 || pic?.url2 || pic?.url1 || pic?.smallurl);
+        pictures = (list) => Array.isArray(list) ? list.map(pictureUrl).filter(Boolean) : [];
+    }
+});
+function normalizeRight(value) {
+    const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+    if (!QZONE_RIGHTS.includes(n2))
+        throw bad("ugc_right must be one of 1, 4, 16, 64, 128");
+    return n2;
+}
+function normalizeTargets(right, value, limits = QZONE_LIMITS) {
+    if (right !== 16 && right !== 128)
+        return [];
+    const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[|,\s]+/) : value === void 0 || value === null ? [] : [value];
+    const seen = new Set();
+    for (const item of list) {
+        const s = String(item ?? "").trim();
+        if (!s)
+            continue;
+        if (!/^[1-9]\d{4,9}$/.test(s) || Number(s) > 4294967295)
+            throw bad("target_uins must be QQ numbers");
+        seen.add(s);
+    }
+    if (!seen.size)
+        throw bad("target_uins is required when ugc_right is 16 or 128");
+    if (seen.size > limits.maxTargets)
+        throw bad(`target_uins holds more than ${limits.maxTargets} numbers`);
+    return [...seen];
+}
+function tidOf(value) {
+    const tid = String(value ?? "").trim();
+    if (!/^[0-9A-Za-z_]{8,64}$/.test(tid))
+        throw bad("tid is required and must be a post id");
+    return tid;
+}
+function intIn(value, name, min, max, fallback) {
+    if (value === void 0 || value === null || value === "")
+        return fallback;
+    const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+    if (!Number.isSafeInteger(n2) || n2 < min || n2 > max)
+        throw bad(`${name} must be an integer from ${min} to ${max}`);
+    return n2;
+}
+function uinOf(value, fallback) {
+    if (value === void 0 || value === null || value === "" || value === 0 || value === "0")
+        return fallback;
+    const s = String(value).trim();
+    if (!/^[1-9]\d{4,9}$/.test(s) || Number(s) > 4294967295)
+        throw bad("target_uin must be a QQ number");
+    return s;
+}
+var QZONE_DOMAIN, QZONE_RIGHTS, QZONE_LIMITS, ENDPOINTS, LIST_ROUTE_MEMORY_MS, TIMEOUT, RESPONSE_BYTES, FORM, bad, QzoneService;
+var init_qzone = __esm({
+    "upper/web/qzone.mjs"() {
+        init_errors();
+        init_qzone_parser();
+        init_image_format();
+        QZONE_DOMAIN = "qzone.qq.com";
+        QZONE_RIGHTS = Object.freeze([1, 4, 16, 64, 128]);
+        QZONE_LIMITS = Object.freeze({
+            maxImages: 9,
+            maxImageBytes: 10 * 1024 * 1024,
+            maxTotalImageBytes: 40 * 1024 * 1024,
+            maxContentChars: 1e4,
+            maxTargets: 200,
+            maxPageSize: 40,
+            maxOffset: 1e5,
+            maxPending: 16
+        });
+        ENDPOINTS = Object.freeze({
+            list: "https://h5.qzone.qq.com/proxy/domain/taotao.qzone.qq.com/cgi-bin/emotion_cgi_msglist_v6",
+            listAlternate: "https://user.qzone.qq.com/proxy/domain/taotao.qq.com/cgi-bin/emotion_cgi_msglist_v6",
+            detail: "https://h5.qzone.qq.com/proxy/domain/taotao.qq.com/cgi-bin/emotion_cgi_msgdetail_v6",
+            publish: "https://h5.qzone.qq.com/proxy/domain/taotao.qzone.qq.com/cgi-bin/emotion_cgi_publish_v6",
+            remove: "https://h5.qzone.qq.com/proxy/domain/taotao.qzone.qq.com/cgi-bin/emotion_cgi_delete_v6",
+            update: "https://h5.qzone.qq.com/proxy/domain/taotao.qzone.qq.com/cgi-bin/emotion_cgi_update",
+            upload: "https://up.qzone.qq.com/cgi-bin/upload/cgi_upload_image"
+        });
+        LIST_ROUTE_MEMORY_MS = 10 * 6e4;
+        TIMEOUT = Object.freeze({ read: 2e4, write: 3e4, upload: 9e4, settle: 2e3 });
+        RESPONSE_BYTES = 2 * 1024 * 1024;
+        FORM = { "Content-Type": "application/x-www-form-urlencoded" };
+        bad = (detail) => webError("NERONET_QZONE_PARAM_INVALID", { stage: "parameters", detail });
+        QzoneService = class {
+            constructor({ credentials, http: http7, selfUin, online, loadImage, isCurrent = () => true, limits = QZONE_LIMITS, timeouts = {}, log = () => {
+            } }) {
+                this.credentials = credentials;
+                this.http = http7;
+                this.selfUin = selfUin;
+                this.online = online;
+                this.loadImage = loadImage;
+                this.isCurrent = isCurrent;
+                this.limits = limits;
+                this.timeouts = { ...TIMEOUT, ...timeouts };
+                this.log = log;
+                this.closed = false;
+                this.pending = 0;
+                this.writes = Promise.resolve();
+                this.account = "";
+                this.alternateListUntil = 0;
+            }
+            close() {
+                if (this.closed)
+                    return;
+                this.closed = true;
+                this.http.close();
+                this.credentials.close();
+            }
+            #assertActive(stage) {
+                const uin = String(this.selfUin() ?? "");
+                if (this.closed || !this.isCurrent() || this.account && uin !== this.account)
+                    throw webError("NERONET_SESSION_CHANGED", { stage });
+                if (!uin || !this.online())
+                    throw webError("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE", { stage });
+                this.account = uin;
+                return uin;
+            }
+            async #enter(stage, write, work) {
+                this.#assertActive(stage);
+                if (this.pending >= this.limits.maxPending)
+                    throw webError("NERONET_QZONE_BUSY", { stage });
+                this.pending++;
+                const started = Date.now();
+                const run = async () => {
+                    const result = await work(this.#assertActive(stage));
+                    this.#assertActive(stage);
+                    return result;
+                };
+                try {
+                    let result;
+                    if (write) {
+                        const queued = this.writes.then(run);
+                        this.writes = queued.catch(() => {
+                        });
+                        result = await queued;
+                    }
+                    else
+                        result = await run();
+                    this.log({ qzone: stage, ok: true, ms: Date.now() - started });
+                    return result;
+                }
+                catch (error) {
+                    const failure2 = error instanceof WebServiceError ? error : webError("NERONET_QZONE_REMOTE_ERROR", { stage, detail: "unexpected failure" });
+                    this.log({ qzone: stage, ok: false, ms: Date.now() - started, error: failure2.code, at: failure2.stage, ...failure2.remoteCode !== void 0 ? { remoteCode: failure2.remoteCode } : {}, ...failure2.remoteSubcode !== void 0 ? { remoteSubcode: failure2.remoteSubcode } : {}, ...failure2.http !== void 0 ? { http: failure2.http } : {} });
+                    throw failure2;
+                }
+                finally {
+                    this.pending--;
+                }
+            }
+            async #call(stage, { method = "GET", url, form, write = false, timeoutMs, image, headers: headers2 = {} }) {
+                const extra = image !== void 0 ? { image } : {};
+                const attempt = async (cred) => {
+                    this.#assertActive(stage);
+                    const target = new URL(url);
+                    target.searchParams.set("g_tk", cred.gtk);
+                    const body = form ? form(cred).toString() : void 0;
+                    let reply;
+                    try {
+                        reply = await this.http.request({ url: target, method, body, headers: body === void 0 ? headers2 : { ...headers2, ...FORM }, jar: cred.jar, timeoutMs, maxBytes: RESPONSE_BYTES });
+                    }
+                    catch (error) {
+                        const sent = error?.sent !== false;
+                        if (error?.kind === "cancelled")
+                            throw webError(write && sent ? "NERONET_QZONE_OUTCOME_UNKNOWN" : "NERONET_SESSION_CHANGED", { stage, ...extra });
+                        if (write && sent)
+                            throw webError("NERONET_QZONE_OUTCOME_UNKNOWN", { stage, ...extra, detail: String(error?.message ?? error) });
+                        throw webError("NERONET_QZONE_NETWORK_FAILED", { stage, ...extra, detail: `${sent ? "" : "请求没有发出；"}${error?.message ?? error}` });
+                    }
+                    this.#assertActive(stage);
+                    if (reply.location) {
+                        if (/ptlogin|login/i.test(reply.location.hostname + reply.location.pathname))
+                            throw webError("NERONET_QZONE_AUTH_EXPIRED", { stage, ...extra, http: reply.status, detail: "redirected to the login page" });
+                        throw webError("NERONET_QZONE_REMOTE_ERROR", { stage, ...extra, http: reply.status, detail: `unexpected redirect to ${reply.location.hostname}` });
+                    }
+                    if (reply.status >= 500 && write)
+                        throw webError("NERONET_QZONE_OUTCOME_UNKNOWN", { stage, ...extra, http: reply.status });
+                    if (reply.status < 200 || reply.status >= 300)
+                        throw webError("NERONET_QZONE_REMOTE_ERROR", { stage, ...extra, http: reply.status });
+                    return checkEnvelope(parseEnvelope(reply.text, stage), stage, extra);
+                };
+                const first = await this.credentials.get(QZONE_DOMAIN);
+                try {
+                    return await attempt(first);
+                }
+                catch (error) {
+                    if (error?.code !== "NERONET_QZONE_AUTH_EXPIRED")
+                        throw error;
+                    this.credentials.invalidate(QZONE_DOMAIN);
+                    const fresh2 = await this.credentials.get(QZONE_DOMAIN);
+                    return attempt(fresh2);
+                }
+            }
+            list({ targetUin, pos, num: num2 } = {}) {
+                const offset = intIn(pos, "pos", 0, this.limits.maxOffset, 0), size = intIn(num2, "num", 1, this.limits.maxPageSize, 20);
+                return this.#enter("list", false, async (self2) => {
+                    const uin = uinOf(targetUin, self2);
+                    const page = { uin, ftype: "0", sort: "0", pos: String(offset), num: String(size) };
+                    const first = () => {
+                        const url = new URL(ENDPOINTS.list);
+                        url.search = new URLSearchParams({ ...page, replynum: "100", callback: "_preloadCallback", code_version: "1", format: "jsonp", need_private_comment: "1" }).toString();
+                        return this.#call("list", { url, timeoutMs: this.timeouts.read });
+                    };
+                    const alternate = () => {
+                        const url = new URL(ENDPOINTS.listAlternate);
+                        url.search = new URLSearchParams({ ...page, code_version: "1", format: "json" }).toString();
+                        return this.#call("list", { url, timeoutMs: this.timeouts.read, headers: { Referer: `https://user.qzone.qq.com/${uin}` } });
+                    };
+                    let data;
+                    if (Date.now() < this.alternateListUntil)
+                        data = await alternate();
+                    else {
+                        try {
+                            data = await first();
+                        }
+                        catch (error) {
+                            if (error?.code !== "NERONET_QZONE_RATE_LIMITED" || error.remoteCode !== -1e4)
+                                throw error;
+                            data = await alternate();
+                            this.alternateListUntil = Date.now() + LIST_ROUTE_MEMORY_MS;
+                        }
+                    }
+                    const mapped = mapMsgList(data, { pos: offset });
+                    return { total: mapped.total, pos: offset, num: size, msglist: mapped.msglist };
+                });
+            }
+            #detailUrl(uin, tid, page) {
+                const url = new URL(ENDPOINTS.detail);
+                url.search = new URLSearchParams({ tid, uin, t1_source: "1", not_trunc_con: "1", need_right: "1", not_adapt_outpic: "1", ...page ? { pos: String(page.pos), num: String(page.num) } : {} }).toString();
+                return url;
+            }
+            detail({ tid, targetUin, pos, num: num2 } = {}) {
+                const id = tidOf(tid), offset = intIn(pos, "pos", 0, this.limits.maxOffset, 0), size = intIn(num2, "num", 1, this.limits.maxPageSize, 20);
+                return this.#enter("detail", false, async (self2) => {
+                    const uin = uinOf(targetUin, self2);
+                    return mapMsgDetail(await this.#call("detail", { url: this.#detailUrl(uin, id, { pos: offset, num: size }), timeoutMs: this.timeouts.read }), id);
+                });
+            }
+            publish({ content, images, ugcRight, targetUins } = {}) {
+                if (typeof content !== "string" || !content.trim())
+                    throw bad("content is required");
+                if ([...content].length > this.limits.maxContentChars)
+                    throw bad(`content is longer than ${this.limits.maxContentChars} characters`);
+                const right = normalizeRight(ugcRight), targets = normalizeTargets(right, targetUins, this.limits);
+                const sources = images === void 0 || images === null ? [] : images;
+                if (!Array.isArray(sources) || sources.some((s) => typeof s !== "string" || !s.trim()))
+                    throw bad("images must be an array of picture sources");
+                if (sources.length > this.limits.maxImages)
+                    throw bad(`at most ${this.limits.maxImages} pictures per post`);
+                return this.#enter("publish", true, async (self2) => {
+                    const pictures2 = await this.#loadPictures(sources);
+                    const richvals = [];
+                    for (let i = 0; i < pictures2.length; i++)
+                        richvals.push((await this.#upload(self2, pictures2[i], i + 1)).richval);
+                    const data = await this.#call("publish", {
+                        method: "POST",
+                        url: ENDPOINTS.publish,
+                        write: true,
+                        timeoutMs: this.timeouts.write,
+                        form: () => {
+                            const form = new URLSearchParams({
+                                syn_tweet_verson: "1",
+                                paramstr: "1",
+                                pic_template: "",
+                                richtype: richvals.length ? "1" : "",
+                                richval: richvals.join("	"),
+                                special_url: "",
+                                subrichtype: "",
+                                con: content,
+                                feedversion: "1",
+                                ver: "1",
+                                ugc_right: String(right),
+                                to_sign: "0",
+                                who: "1",
+                                hostuin: self2,
+                                code_version: "1",
+                                format: "json",
+                                qzreferrer: `https://user.qzone.qq.com/${self2}`
+                            });
+                            if (targets.length)
+                                form.set("allow_uins", targets.join("|"));
+                            return form;
+                        }
+                    });
+                    return publishResult(data);
+                });
+            }
+            async #loadPictures(sources) {
+                const out = [];
+                let total = 0;
+                for (let i = 0; i < sources.length; i++) {
+                    const image = i + 1;
+                    let bytes;
+                    try {
+                        ({ bytes } = await this.loadImage(sources[i].trim(), this.limits.maxImageBytes));
+                    }
+                    catch (error) {
+                        throw webError("NERONET_QZONE_UPLOAD_FAILED", { stage: "load", image, detail: String(error?.message ?? error) });
+                    }
+                    this.#assertActive("load");
+                    const format2 = detectImageFormat(bytes);
+                    if (!(format2.width > 0 && format2.height > 0))
+                        throw webError("NERONET_QZONE_UPLOAD_FAILED", { stage: "decode", image, detail: "not a JPEG, PNG, GIF, WebP or BMP picture" });
+                    total += bytes.length;
+                    if (total > this.limits.maxTotalImageBytes)
+                        throw webError("NERONET_QZONE_UPLOAD_FAILED", { stage: "load", image, detail: `pictures exceed ${this.limits.maxTotalImageBytes} bytes in total` });
+                    out.push(bytes);
+                }
+                return out;
+            }
+            async #upload(self2, bytes, image) {
+                try {
+                    const data = await this.#call("upload", {
+                        method: "POST",
+                        url: ENDPOINTS.upload,
+                        timeoutMs: this.timeouts.upload,
+                        image,
+                        form: (cred) => new URLSearchParams({
+                            filename: "filename",
+                            uin: self2,
+                            skey: cred.skey,
+                            zzpaneluin: self2,
+                            p_uin: self2,
+                            p_skey: cred.pskey,
+                            uploadtype: "1",
+                            albumtype: "7",
+                            exttype: "0",
+                            refer: "shuoshuo",
+                            output_type: "jsonhtml",
+                            charset: "utf-8",
+                            output_charset: "utf-8",
+                            upload_hd: "1",
+                            hd_width: "2048",
+                            hd_height: "10000",
+                            hd_quality: "96",
+                            base64: "1",
+                            jsonhtml_callback: "callback",
+                            picfile: bytes.toString("base64"),
+                            qzreferrer: `https://user.qzone.qq.com/${self2}/main`
+                        })
+                    });
+                    return uploadResult(data, image);
+                }
+                catch (error) {
+                    if (!(error instanceof WebServiceError) || error.code === "NERONET_QZONE_UPLOAD_FAILED" || error.code === "NERONET_SESSION_CHANGED")
+                        throw error;
+                    throw webError("NERONET_QZONE_UPLOAD_FAILED", { stage: "upload", image, detail: error.code, http: error.http, remoteCode: error.remoteCode, remoteSubcode: error.remoteSubcode, cause: error, note: image > 1 ? "前面已上传的图片会留在空间相册中" : "" });
+                }
+            }
+            remove({ tid } = {}) {
+                const id = tidOf(tid);
+                return this.#enter("delete", true, async (self2) => {
+                    const send2 = () => this.#call("delete", {
+                        method: "POST",
+                        url: ENDPOINTS.remove,
+                        write: true,
+                        timeoutMs: this.timeouts.write,
+                        form: () => new URLSearchParams({ hostuin: self2, tid: id, t1_source: "1", code_version: "1", format: "fs", qzreferrer: `https://user.qzone.qq.com/${self2}` })
+                    });
+                    const present2 = async () => {
+                        try {
+                            return String((await this.#call("delete-verify", { url: this.#detailUrl(self2, id), timeoutMs: this.timeouts.read })).tid ?? "") === id;
+                        }
+                        catch (error) {
+                            if (error?.code === "NERONET_QZONE_POST_NOT_FOUND")
+                                return false;
+                            if (error?.code === "NERONET_SESSION_CHANGED")
+                                throw error;
+                            return null;
+                        }
+                    };
+                    const settle = async () => {
+                        await new Promise((resolve) => setTimeout(resolve, this.timeouts.settle));
+                        this.#assertActive("delete-verify");
+                    };
+                    await send2();
+                    if (await present2() !== true)
+                        return null;
+                    await settle();
+                    if (await present2() !== true)
+                        return null;
+                    try {
+                        await send2();
+                    }
+                    catch (error) {
+                        if (error?.code !== "NERONET_QZONE_POST_NOT_FOUND")
+                            throw error;
+                        return null;
+                    }
+                    await settle();
+                    if (await present2() !== true)
+                        return null;
+                    throw webError("NERONET_QZONE_DELETE_NOT_CONFIRMED", { stage: "delete-verify" });
+                });
+            }
+            setRight({ tid, ugcRight, targetUins } = {}) {
+                const id = tidOf(tid), right = normalizeRight(ugcRight), targets = normalizeTargets(right, targetUins, this.limits);
+                return this.#enter("set-right", true, async (self2) => {
+                    const detail = await this.#call("set-right-read", { url: this.#detailUrl(self2, id), timeoutMs: this.timeouts.read });
+                    if (String(detail.tid ?? "") !== id)
+                        throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "set-right-read", detail: "the reply is not about the requested post" });
+                    const form = updateForm(detail, self2);
+                    form.set("ugc_right", String(right));
+                    if (targets.length)
+                        form.set("allow_uins", targets.join("|"));
+                    await this.#call("set-right", { method: "POST", url: ENDPOINTS.update, write: true, timeoutMs: this.timeouts.write, form: () => form });
+                    let confirmed = false;
+                    try {
+                        const after = await this.#call("set-right-verify", { url: this.#detailUrl(self2, id), timeoutMs: this.timeouts.read });
+                        const now2 = Number(after.ugc_right);
+                        if (String(after.tid ?? "") === id && Number.isInteger(now2)) {
+                            if (now2 !== right)
+                                throw webError("NERONET_QZONE_RESPONSE_INVALID", { stage: "set-right-verify", detail: `the post still reports right ${now2}` });
+                            confirmed = true;
+                        }
+                    }
+                    catch (error) {
+                        if (error?.code === "NERONET_QZONE_RESPONSE_INVALID" || error?.code === "NERONET_SESSION_CHANGED")
+                            throw error;
+                    }
+                    return { tid: id, ugc_right: right, target_uins: targets.map(Number), confirmed };
+                });
+            }
+        };
+    }
+});
+function webToken(key) {
+    let hash3 = 5381n;
+    for (let i = 0; i < key.length; i++)
+        hash3 = hash3 + (hash3 << 5n) + BigInt(key.charCodeAt(i)) & 0xffffffffffffffffn;
+    return String(hash3 & 0x7fffffffn);
+}
+function oidbDetail(error) {
+    if (typeof error?.oidbCode === "number")
+        return `account service code ${error.oidbCode}`;
+    const code = String(error?.code ?? error?.message ?? "").match(/^NERONET_[A-Z0-9_]+/);
+    return code ? code[0] : "account service request failed";
+}
+var CLIENT_KEY_SERVICE, PSKEY_SERVICE, WEB_DOMAINS, CLIENT_KEY_INDEX_FALLBACK, CREDENTIAL_TTL_MS, JUMP_URL, MAX_HOPS, HOP_TIMEOUT_MS, CHAIN_TIMEOUT_MS, WebCredentials;
+var init_web_credentials = __esm({
+    "upper/qq/web-credentials.mjs"() {
+        init_schema();
+        init_oidb();
+        init_http_client();
+        init_errors();
+        init_sensitive_projection();
+        CLIENT_KEY_SERVICE = Object.freeze({ command: 4138, subCommand: 1, reserved: 0, request: wireType("web_auth.proto", "ClientKeyRequest"), response: wireType("web_auth.proto", "ClientKeyResponse") });
+        PSKEY_SERVICE = Object.freeze({ command: 4138, subCommand: 0, reserved: 0, request: wireType("web_auth.proto", "PskeyRequest"), response: wireType("web_auth.proto", "PskeyResponse") });
+        WEB_DOMAINS = Object.freeze(["qzone.qq.com"]);
+        CLIENT_KEY_INDEX_FALLBACK = 19;
+        CREDENTIAL_TTL_MS = 10 * 6e4;
+        JUMP_URL = "https://ssl.ptlogin2.qq.com/jump";
+        MAX_HOPS = 5;
+        HOP_TIMEOUT_MS = 8e3;
+        CHAIN_TIMEOUT_MS = 2e4;
+        WebCredentials = class {
+            constructor(transport, { http: http7, isCurrent = () => true, now: now2 = Date.now, jumpUrl = JUMP_URL, ttlMs = CREDENTIAL_TTL_MS, registry = secrets, log = () => {
+            } }) {
+                this.transport = transport;
+                this.http = http7;
+                this.isCurrent = isCurrent;
+                this.now = now2;
+                this.jumpUrl = jumpUrl;
+                this.ttlMs = ttlMs;
+                this.registry = registry;
+                this.log = log;
+                this.cache = new Map();
+                this.refreshing = new Map();
+                this.epoch = 0;
+                this.closed = false;
+                this.registered = new Set();
+                this.account = String(transport.uin ?? "");
+                this.onNetwork = () => {
+                    if (!this.transport.isLoggedIn)
+                        this.invalidate();
+                };
+                transport.on?.("network", this.onNetwork);
+            }
+            close() {
+                this.closed = true;
+                this.transport.off?.("network", this.onNetwork);
+                this.invalidate();
+                for (const value of this.registered)
+                    this.registry.remove(value);
+                this.registered.clear();
+            }
+            invalidate(domain) {
+                this.epoch++;
+                if (domain)
+                    this.cache.delete(domain);
+                else
+                    this.cache.clear();
+            }
+            #assertActive(stage, epoch2) {
+                if (this.closed || !this.isCurrent() || String(this.transport.uin ?? "") !== this.account || epoch2 !== void 0 && epoch2 !== this.epoch)
+                    throw webError("NERONET_SESSION_CHANGED", { stage });
+                if (!this.account || !this.transport.isLoggedIn || this.transport.businessPaused)
+                    throw webError("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE", { stage });
+            }
+            #remember(value) {
+                if (typeof value === "string" && value.length >= 6) {
+                    this.registry.add(value);
+                    this.registered.add(value);
+                }
+            }
+            async get(domain) {
+                if (!WEB_DOMAINS.includes(domain))
+                    throw webError("NERONET_WEB_DOMAIN_NOT_ALLOWED", { stage: "credentials", detail: String(domain).slice(0, 60) });
+                this.#assertActive("credentials");
+                const cached = this.cache.get(domain);
+                if (cached && this.now() - cached.obtainedAt < this.ttlMs)
+                    return cached;
+                let running = this.refreshing.get(domain);
+                if (!running || running.epoch !== this.epoch) {
+                    const epoch2 = this.epoch;
+                    const promise = this.#refresh(domain, epoch2).finally(() => {
+                        if (this.refreshing.get(domain)?.promise === promise)
+                            this.refreshing.delete(domain);
+                    });
+                    running = { epoch: epoch2, promise };
+                    this.refreshing.set(domain, running);
+                }
+                return running.promise;
+            }
+            async #refresh(domain, epoch2) {
+                const uin = this.account, report2 = { webCredentials: domain, hops: [], pskeySource: null, cookies: [], rejected: [] };
+                try {
+                    let key;
+                    try {
+                        key = await invokeOidb(this.transport, CLIENT_KEY_SERVICE, {});
+                    }
+                    catch (error) {
+                        throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "client-key", detail: oidbDetail(error), cause: error });
+                    }
+                    this.#assertActive("client-key", epoch2);
+                    const clientKey = typeof key.clientKey === "string" ? key.clientKey : "";
+                    if (!clientKey)
+                        throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "client-key", detail: "the account service returned no client key" });
+                    this.#remember(clientKey);
+                    const keyIndex = key.keyIndex || CLIENT_KEY_INDEX_FALLBACK;
+                    report2.keyIndexFallback = !key.keyIndex;
+                    const jar = new CookieJar(), site = new URL(`https://${domain}/`);
+                    const first = new URL(this.jumpUrl);
+                    first.search = `ptlang=1033&clientuin=${uin}&clientkey=${encodeURIComponent(clientKey)}&u1=${encodeURIComponent(`https://${domain}/${uin}/infocenter`)}&keyindex=${keyIndex}`;
+                    const deadline = this.now() + CHAIN_TIMEOUT_MS;
+                    let next = first;
+                    for (let hop = 0; hop <= MAX_HOPS && next; hop++) {
+                        const left = deadline - this.now();
+                        let response;
+                        try {
+                            if (left <= 0)
+                                throw new WebHttpError("timeout", "login redirect chain exceeded its deadline", { host: next.hostname, path: next.pathname, sent: true });
+                            response = await this.http.request({ url: next, jar, timeoutMs: Math.min(HOP_TIMEOUT_MS, left), maxBytes: 64 * 1024, readBody: false });
+                        }
+                        catch (error) {
+                            report2.hops.push({ host: next.hostname, failed: error?.kind ?? "error" });
+                            if (hop === 0 || error?.kind === "cancelled")
+                                throw error?.kind === "cancelled" ? webError("NERONET_SESSION_CHANGED", { stage: "jump" }) : webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "jump", detail: `${next.hostname}: ${error?.message ?? error}`, cause: error });
+                            break;
+                        }
+                        report2.hops.push({ host: next.hostname, status: response.status });
+                        for (const r of response.cookies.rejected)
+                            report2.rejected.push(r.name);
+                        if (jar.get("p_skey", site))
+                            break;
+                        next = response.location;
+                    }
+                    for (const value of jar.values())
+                        this.#remember(value);
+                    this.#assertActive("jump", epoch2);
+                    if (!jar.get("uin", site))
+                        throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "jump", detail: "the login jump set no account cookie", http: report2.hops[0]?.status });
+                    let pskey = jar.get("p_skey", site);
+                    report2.pskeySource = pskey ? "jump" : null;
+                    if (!pskey) {
+                        let reply;
+                        try {
+                            reply = await invokeOidb(this.transport, PSKEY_SERVICE, { domainList: [domain] });
+                        }
+                        catch (error) {
+                            throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "pskey", detail: oidbDetail(error), cause: error });
+                        }
+                        this.#assertActive("pskey", epoch2);
+                        const item = (reply.pskeyItems ?? []).find((i) => i.domain === domain && typeof i.pskey === "string" && i.pskey);
+                        if (!item)
+                            throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "pskey", detail: `no p_skey for ${domain}` });
+                        pskey = item.pskey;
+                        this.#remember(pskey);
+                        jar.set({ name: "p_skey", value: pskey, domain });
+                        report2.pskeySource = "account-service";
+                    }
+                    const gtk = webToken(pskey);
+                    this.#remember(gtk);
+                    report2.cookies = jar.names();
+                    const result = { domain, uin, jar, gtk, skey: jar.get("skey", site), pskey, obtainedAt: this.now() };
+                    this.#assertActive("credentials", epoch2);
+                    this.cache.set(domain, result);
+                    this.log({ ...report2, ok: true });
+                    return result;
+                }
+                catch (error) {
+                    this.log({ ...report2, ok: false, error: String(error?.code ?? "error") });
+                    throw error;
+                }
+            }
+        };
+    }
+});
+function createQzoneService(transport, { isCurrent, loadImage, log = () => {
+}, fetchImpl = fetch }) {
+    const http7 = new WebHttp({ fetchImpl, hostAllowed: qqWebHost });
+    const credentials = new WebCredentials(transport, { http: http7, isCurrent, log });
+    return new QzoneService({
+        credentials,
+        http: http7,
+        isCurrent,
+        loadImage,
+        log,
+        selfUin: () => String(transport.uin ?? ""),
+        online: () => !!transport.isLoggedIn && !transport.businessPaused
+    });
+}
+var qqWebHost;
+var init_service = __esm({
+    "upper/web/service.mjs"() {
+        init_http_client();
+        init_qzone();
+        init_web_credentials();
+        qqWebHost = (host) => host === "qq.com" || host.endsWith(".qq.com");
+    }
+});
+import fs15 from "node:fs";
 import crypto11 from "node:crypto";
 import { EventEmitter as EventEmitter2 } from "node:events";
 function treeHas(nodes, pred) {
@@ -12883,6 +15487,7 @@ var init_core = __esm({
         init_directory();
         init_history();
         init_friend_history();
+        init_read_state();
         init_interaction();
         init_media_urls();
         init_notices();
@@ -12898,6 +15503,7 @@ var init_core = __esm({
         init_cards();
         init_elements();
         init_av();
+        init_service();
         MEDIA_URL_WAIT_MS = 5e3;
         DELIVERY_DRAIN_MS = 2e3;
         within = (p2, ms) => {
@@ -12908,7 +15514,7 @@ var init_core = __esm({
         };
         UpperCore = class extends EventEmitter2 {
             constructor(transport, { index = new MessageIndex(), log = () => {
-            }, capture = null, directory = null, highway = null, fetchImpl = fetch, images = null } = {}) {
+            }, capture = null, directory = null, highway = null, fetchImpl = fetch, images = null, qzone = null, webFetch = fetch } = {}) {
                 super();
                 this.transport = transport;
                 this.index = index;
@@ -12920,6 +15526,7 @@ var init_core = __esm({
                 const pacer = new RequestPacer();
                 this.history = new GroupHistory(transport, { selfUin: () => this.selfUin, pacer });
                 this.friendHistory = new FriendHistory(transport, { selfUin: () => this.selfUin, pacer });
+                this.readState = new ReadState(transport, { pacer, isCurrent: () => !this.closed && this.deliveries?.accepting !== false });
                 this.highway = highway ?? new HighwayClient(transport);
                 this.rkeys = new RkeyCache(transport, { log: (e) => this.log.limited("rkey", e) });
                 this.fetchImpl = fetchImpl;
@@ -12936,6 +15543,12 @@ var init_core = __esm({
                 this.stats = { packets: 0, messages: 0, undecoded: 0, unhandledTypes: new Map() };
                 this.deliveries = new DeliveryQueue({ onError: (error) => this.log.write({ upperDeliveryFailed: true, error: String(error?.message ?? error).slice(0, 160) }) });
                 this.closed = false;
+                this.qzone = qzone ?? createQzoneService(transport, {
+                    isCurrent: () => !this.closed && this.deliveries.accepting !== false,
+                    fetchImpl: webFetch,
+                    log: (e) => this.log.write(e),
+                    loadImage: (source, maxBytes) => loadMediaSource(source, { what: "image", maxBytes, fetchImpl: this.fetchImpl })
+                });
             }
             get deliveryQueue() {
                 return this.deliveries.idle();
@@ -13216,7 +15829,7 @@ var init_core = __esm({
                         continue;
                     }
                     let source = pickMediaSource(seg.data ?? {});
-                    const known = source && !/[\\/:]/.test(source) && !fs14.existsSync(source) ? this.index.findMedia?.(source) : null;
+                    const known = source && !/[\\/:]/.test(source) && !fs15.existsSync(source) ? this.index.findMedia?.(source) : null;
                     if (known?.url)
                         source = known.url;
                     if (/^https:\/\//i.test(source))
@@ -13247,7 +15860,7 @@ var init_core = __esm({
                 }
                 const local = source && !/^(base64:\/\/|data:|https?:\/\/)/i.test(source) ? /^file:\/\//i.test(source) ? new URL(source) : source : null;
                 let prepared;
-                if (local && fs14.existsSync(local))
+                if (local && fs15.existsSync(local))
                     prepared = await prepareVideo({ path: typeof local === "string" ? local : local.pathname.replace(/^\/(\w:)/, "$1") }, { thumb });
                 else
                     prepared = await prepareVideo({ bytes: (await loadMediaSource(source, { what: "video", maxBytes: 200 * 1024 * 1024, fetchImpl: this.fetchImpl })).bytes }, { thumb });
@@ -13412,9 +16025,9 @@ var init_core = __esm({
                 const conversation = target ?? { kind: "private", id: String(this.selfUin) };
                 const uploadedImages = [];
                 const build = async (node) => {
-                    const bad3 = node.segments.find((s) => !FORWARD_NODE_TYPES.has(s.type));
-                    if (bad3)
-                        throw invalidForward(`segment ${bad3.type} is not supported inside a forward node`);
+                    const bad4 = node.segments.find((s) => !FORWARD_NODE_TYPES.has(s.type));
+                    if (bad4)
+                        throw invalidForward(`segment ${bad4.type} is not supported inside a forward node`);
                     const resolved2 = await this.#resolve(conversation, node.segments);
                     const images = new Map(), segments = [], media = [];
                     for (const seg2 of node.segments) {
@@ -13578,13 +16191,13 @@ var init_core = __esm({
                 this.#requireOnline();
                 return (await this.#privateFile(String(userId), { source, name }, { upload })).fileId;
             }
-            async customFaceIds(count) {
+            async customFaceIds(count3) {
                 this.#requireOnline();
-                return (await this.customFaces.ids()).slice(0, count);
+                return (await this.customFaces.ids()).slice(0, count3);
             }
-            async customFaceDetails(count) {
+            async customFaceDetails(count3) {
                 this.#requireOnline();
-                return this.customFaces.details((await this.customFaces.ids()).slice(0, count));
+                return this.customFaces.details((await this.customFaces.ids()).slice(0, count3));
             }
             async modifyCustomFace(emojiId, desc) {
                 this.#requireOnline();
@@ -13610,7 +16223,7 @@ var init_core = __esm({
                 this.#requireOnline();
                 await recallMessage(this.transport, record3, (uin) => this.index.uidOf(uin));
             }
-            async groupHistory(groupId, messageId, count) {
+            async groupHistory(groupId, messageId, count3) {
                 groupId = String(groupId);
                 let anchor = 0;
                 if (messageId) {
@@ -13623,7 +16236,7 @@ var init_core = __esm({
                     anchor = this.index.latestSequence("group", groupId);
                 if (anchor > 0 && this.online) {
                     try {
-                        const events = await this.history.before(groupId, anchor, count);
+                        const events = await this.history.before(groupId, anchor, count3);
                         if (events.length) {
                             const out = events.map((ev) => {
                                 this.#enrichGroupSender(ev);
@@ -13642,7 +16255,7 @@ var init_core = __esm({
                         this.log.limited(`history:${groupId}`, { upperHistoryFailed: groupId, error: String(e?.message ?? e).slice(0, 120) });
                     }
                 }
-                const stored = this.index.listBefore("group", groupId, anchor > 0 ? anchor : Number.MAX_SAFE_INTEGER, normalizeCount(count)).map((r) => ({ kind: "group", groupId, sequence: r.sequence, time: r.time, sender: r.sender, segments: r.segments, self: r.self, messageId: r.messageId }));
+                const stored = this.index.listBefore("group", groupId, anchor > 0 ? anchor : Number.MAX_SAFE_INTEGER, normalizeCount(count3)).map((r) => ({ kind: "group", groupId, sequence: r.sequence, time: r.time, sender: r.sender, segments: r.segments, self: r.self, messageId: r.messageId }));
                 for (const ev of stored)
                     ev.segments = await this.#currentImageUrls(ev.segments, true);
                 return stored;
@@ -13666,14 +16279,14 @@ var init_core = __esm({
                 }
                 return out;
             }
-            async friendHistoryOf(userId, messageId, count, reverseOrder = true) {
+            async friendHistoryOf(userId, messageId, count3, reverseOrder = true) {
                 userId = String(userId);
                 let anchor = 0;
                 if (messageId) {
                     const r = this.index.get(messageId);
                     if (!r || r.scene !== "private" || r.peer !== userId || !(r.sequence > 0)) {
                         const seq = r?.scene === "private" && r.peer === userId ? r.sequence : Number.MAX_SAFE_INTEGER;
-                        const stored = this.index.listBefore("private", userId, seq > 0 ? seq : Number.MAX_SAFE_INTEGER, normalizeCount(count)).map((x) => ({ kind: "private", peer: userId, sequence: x.sequence, time: x.time, sender: x.sender, segments: x.segments, self: x.self, messageId: x.messageId }));
+                        const stored = this.index.listBefore("private", userId, seq > 0 ? seq : Number.MAX_SAFE_INTEGER, normalizeCount(count3)).map((x) => ({ kind: "private", peer: userId, sequence: x.sequence, time: x.time, sender: x.sender, segments: x.segments, self: x.self, messageId: x.messageId }));
                         for (const ev of stored)
                             ev.segments = await this.#currentImageUrls(ev.segments, false);
                         return stored;
@@ -13684,7 +16297,7 @@ var init_core = __esm({
                 const uid2 = this.index.uidOf(userId) || (await this.directory.profile(userId)).uid;
                 if (!uid2)
                     throw Object.assign(new Error(`NERONET_HISTORY_FAILED: uid of ${userId} unknown`), { code: "NERONET_HISTORY_FAILED" });
-                const events = !anchor ? await this.friendHistory.latest(uid2, count) : reverseOrder ? await this.friendHistory.before(uid2, anchor, count) : await this.friendHistory.after(uid2, anchor, count);
+                const events = !anchor ? await this.friendHistory.latest(uid2, count3) : reverseOrder ? await this.friendHistory.before(uid2, anchor, count3) : await this.friendHistory.after(uid2, anchor, count3);
                 const out = events.map((ev) => {
                     if (ev.reply)
                         this.#linkReply(ev);
@@ -13695,6 +16308,20 @@ var init_core = __esm({
                 for (const ev of out)
                     ev.segments = await this.#currentImageUrls(ev.segments, false);
                 return out;
+            }
+            async markMessageRead(messageId, { kind, targetId } = {}) {
+                this.#requireOnline();
+                const message2 = this.index.get(messageId);
+                if (!message2)
+                    throw Object.assign(new Error("NERONET_MESSAGE_NOT_FOUND"), { code: "NERONET_MESSAGE_NOT_FOUND" });
+                if (!["group", "private"].includes(message2.scene) || kind && message2.scene !== kind || targetId !== void 0 && String(targetId) !== String(message2.peer))
+                    throw Object.assign(new Error("NERONET_READ_TARGET_INVALID"), { code: "NERONET_READ_TARGET_INVALID" });
+                const peer = String(message2.peer);
+                const account = String(this.selfUin);
+                const uid2 = message2.scene === "private" ? this.index.uidOf(peer) || (await this.directory.profile(peer)).uid : "";
+                if (this.closed || this.deliveries.accepting === false || String(this.selfUin) !== account)
+                    throw Object.assign(new Error("NERONET_READ_GENERATION_CLOSED"), { code: "NERONET_READ_GENERATION_CLOSED" });
+                return this.readState.mark({ kind: message2.scene, id: peer, uid: uid2 });
             }
             async poke({ group, peer, target }) {
                 this.#requireOnline();
@@ -13714,6 +16341,8 @@ var init_core = __esm({
             async close({ drainMs = DELIVERY_DRAIN_MS } = {}) {
                 if (this.closed)
                     return { drained: true, cancelled: 0 };
+                this.readState.close();
+                this.qzone.close();
                 const result = await this.deliveries.close({ drainMs });
                 this.closed = true;
                 if (!result.drained || result.cancelled)
@@ -13740,13 +16369,13 @@ function toCqString(segments) {
         return `[CQ:${seg.type}${params}]`;
     }).join("");
 }
-function parseCqString(text) {
+function parseCqString(text2) {
     const segments = [];
     const re = /\[CQ:([a-zA-Z0-9_.-]+)((?:,[^,\]]*)*)\]/g;
     let last = 0;
-    for (const m of text.matchAll(re)) {
+    for (const m of text2.matchAll(re)) {
         if (m.index > last)
-            segments.push({ type: "text", data: { text: unescape(text.slice(last, m.index)) } });
+            segments.push({ type: "text", data: { text: unescape(text2.slice(last, m.index)) } });
         const data = {};
         for (const part of m[2].split(",").slice(1)) {
             const eq = part.indexOf("=");
@@ -13757,8 +16386,8 @@ function parseCqString(text) {
         segments.push({ type: m[1], data });
         last = m.index + m[0].length;
     }
-    if (last < text.length)
-        segments.push({ type: "text", data: { text: unescape(text.slice(last)) } });
+    if (last < text2.length)
+        segments.push({ type: "text", data: { text: unescape(text2.slice(last)) } });
     return segments;
 }
 function normalizeMessage(message2, autoEscape = false) {
@@ -13934,58 +16563,58 @@ function checkMeta(data, i) {
         if (k === "news") {
             if (Array.isArray(v) && v.every((x) => typeof obj(x)?.text === "string"))
                 continue;
-            throw bad(`forward messages[${i}].news must be an array of {text}`);
+            throw bad2(`forward messages[${i}].news must be an array of {text}`);
         }
         if (["title", "source", "summary", "prompt"].includes(k)) {
             if (typeof v === "string")
                 continue;
-            throw bad(`forward messages[${i}].${k} must be a string`);
+            throw bad2(`forward messages[${i}].${k} must be a string`);
         }
         if (v === null || ["string", "number", "boolean"].includes(typeof v))
             continue;
-        throw bad(`forward messages[${i}].${k} must be a scalar value`);
+        throw bad2(`forward messages[${i}].${k} must be a scalar value`);
     }
 }
 function forwardMeta(p2) {
     for (const k of ["source", "summary", "prompt"])
         if (p2[k] != null && typeof p2[k] !== "string")
-            throw bad(`${k} must be a string`);
+            throw bad2(`${k} must be a string`);
     if (p2.news != null && !(Array.isArray(p2.news) && p2.news.every((x) => typeof x === "string" || typeof obj(x)?.text === "string")))
-        throw bad("news must be an array of strings or {text}");
+        throw bad2("news must be an array of strings or {text}");
     const news = Array.isArray(p2.news) ? p2.news.map((x) => typeof x === "string" ? { text: x } : obj(x) && x.text != null ? { text: String(x.text) } : null).filter((x) => x?.text) : void 0;
     return { source: p2.source || void 0, summary: p2.summary || void 0, prompt: p2.prompt || void 0, news: news?.length ? news : void 0 };
 }
 function parseForwardNodes(messages, ctx, depth = 0) {
     if (depth >= FORWARD.maxDepth)
-        throw bad(`forward nesting depth exceeds ${FORWARD.maxDepth}`);
+        throw bad2(`forward nesting depth exceeds ${FORWARD.maxDepth}`);
     if (!Array.isArray(messages))
-        throw bad("forward messages must be an array of node segments");
+        throw bad2("forward messages must be an array of node segments");
     if (!messages.length)
-        throw bad("forward messages must contain at least one node");
+        throw bad2("forward messages must contain at least one node");
     const nodes = [];
     messages.forEach((item, i) => {
         const seg = obj(item);
         if (!seg)
-            throw bad(`forward messages[${i}] must be an object`);
+            throw bad2(`forward messages[${i}] must be an object`);
         if (seg.type !== void 0 && seg.type !== "node")
-            throw bad(`forward messages[${i}] has type ${String(seg.type)}; only node is allowed`);
+            throw bad2(`forward messages[${i}] has type ${String(seg.type)}; only node is allowed`);
         const data = seg.type === "node" ? obj(seg.data) : seg;
         if (!data)
-            throw bad(`forward messages[${i}].data must be an object`);
+            throw bad2(`forward messages[${i}].data must be an object`);
         if (seg.type !== "node" && data.content === void 0 && data.message === void 0)
-            throw bad(`forward messages[${i}] needs type:"node" data or content`);
+            throw bad2(`forward messages[${i}] needs type:"node" data or content`);
         checkMeta(data, i);
         const refId = posInt(data.id ?? data.message_id);
         if (refId) {
             const r = ctx.getMessage(refId);
             if (!r)
-                throw bad(`forward node message_id not found: ${refId}`);
+                throw bad2(`forward node message_id not found: ${refId}`);
             const userUin2 = String(r.sender?.uin ?? "");
             if (!/^\d+$/.test(userUin2) || userUin2 === "0")
-                throw bad(`forward node message_id ${refId} has no sender`);
+                throw bad2(`forward node message_id ${refId} has no sender`);
             const segments = (r.segments ?? []).filter((s) => s.type !== "reply");
             if (!segments.length)
-                throw bad(`forward node message_id ${refId} has no content besides a reply`);
+                throw bad2(`forward node message_id ${refId} has no content besides a reply`);
             nodes.push({
                 userUin: userUin2,
                 nickname: String(r.sender?.card || r.sender?.nickname || data.nickname || data.name || userUin2),
@@ -13999,7 +16628,7 @@ function parseForwardNodes(messages, ctx, depth = 0) {
         const rawUin = data.user_id ?? data.uin;
         const n2 = posInt(rawUin);
         if (rawUin != null && rawUin !== "" && (n2 < 1 || n2 > 4294967295))
-            throw bad(`forward messages[${i}].user_id must be a QQ number`);
+            throw bad2(`forward messages[${i}].user_id must be a QQ number`);
         const userUin = String(n2 || ctx.selfUin);
         const nickname = String(data.nickname ?? data.name ?? userUin);
         const t = posInt(data.time);
@@ -14015,14 +16644,14 @@ function parseForwardNodes(messages, ctx, depth = 0) {
         else {
             node.segments = normalizeMessage(content);
             if (node.segments.some((s) => s.type === "node"))
-                throw bad(`forward messages[${i}] mixes node segments with other content`);
+                throw bad2(`forward messages[${i}] mixes node segments with other content`);
             if (!node.segments.length || node.segments.every((s) => s.type === "text" && !String(s.data.text ?? "")))
-                throw bad(`forward node content is empty: ${userUin}`);
+                throw bad2(`forward node content is empty: ${userUin}`);
         }
         nodes.push(node);
     });
     if (!nodes.length)
-        throw bad("forward node list is empty");
+        throw bad2("forward node list is empty");
     return nodes;
 }
 function forwardNodeEvent(node, selfUin) {
@@ -14046,18 +16675,43 @@ function forwardNodeEvent(node, selfUin) {
         ...isGroup && Number(node.groupId) > 0 ? { group_id: Number(node.groupId) } : {}
     };
 }
-var bad, obj, posInt, isNodeArray;
+var bad2, obj, posInt, isNodeArray;
 var init_forward_nodes = __esm({
     "upper/onebot/forward-nodes.mjs"() {
         init_message_format();
         init_forward();
-        bad = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
+        bad2 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
         obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
         posInt = (v) => {
             const n2 = typeof v === "string" && v.trim() ? Number(v) : v;
             return typeof n2 === "number" && Number.isFinite(n2) ? Math.max(0, Math.trunc(n2)) : 0;
         };
         isNodeArray = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => obj(x)?.type === "node");
+    }
+});
+function createQzoneActions(core2, fail3) {
+    const run = async (work) => {
+        try {
+            return await work();
+        }
+        catch (error) {
+            if (error instanceof WebServiceError)
+                throw fail3(error.retcode, error.message);
+            throw error;
+        }
+    };
+    const images = (p2) => typeof p2.images === "string" ? [p2.images] : p2.images;
+    return {
+        send_qzone_msg: (p2) => run(() => core2.qzone.publish({ content: p2.content, images: images(p2), ugcRight: p2.ugc_right ?? 1, targetUins: p2.target_uins })),
+        delete_qzone_msg: (p2) => run(() => core2.qzone.remove({ tid: p2.tid })),
+        get_qzone_msg_list: (p2) => run(() => core2.qzone.list({ targetUin: p2.target_uin, pos: p2.pos, num: p2.num })),
+        get_qzone_msg_detail: (p2) => run(() => core2.qzone.detail({ tid: p2.tid, targetUin: p2.target_uin, pos: p2.pos, num: p2.num })),
+        set_qzone_msg_right: (p2) => run(() => core2.qzone.setRight({ tid: p2.tid, ugcRight: p2.ugc_right, targetUins: p2.target_uins }))
+    };
+}
+var init_qzone_actions = __esm({
+    "upper/onebot/qzone-actions.mjs"() {
+        init_errors();
     }
 });
 function codeOf(e) {
@@ -14070,22 +16724,22 @@ function asActionError(e, fallback) {
     if (e instanceof ActionError)
         return e;
     if (e instanceof MessageFormatError)
-        return bad2(e.message);
+        return bad3(e.message);
     const code = codeOf(e);
     if (code && BAD_REQUEST_CODES.has(code))
-        return bad2(e.message);
+        return bad3(e.message);
     return new ActionError(RETCODE.FAILED, code ? String(e.message).slice(0, 200) : fallback);
 }
 function qqId(value, name) {
     const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
     if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > MAX_UIN)
-        throw bad2(`${name} is required and must be a QQ number`);
+        throw bad3(`${name} is required and must be a QQ number`);
     return String(n2);
 }
 function messageIdParam(value) {
     const n2 = typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : value;
     if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > 2147483647)
-        throw bad2("message_id is required");
+        throw bad3("message_id is required");
     return n2;
 }
 async function wrap(fn) {
@@ -14100,14 +16754,14 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
     const forward = async (target, p2) => {
         const messages = p2.messages ?? p2.message;
         if (messages === void 0)
-            throw bad2("message/messages is required");
+            throw bad3("message/messages is required");
         const nodes = parseForwardNodes(messages, { selfUin: String(core2.selfUin), getMessage: (id) => core2.getMessage(id) });
         const r = await core2.sendForward(target, nodes, forwardMeta(p2));
         return { message_id: r.messageId, res_id: r.resId, forward_id: r.resId };
     };
     const send2 = async (kind, id, params) => {
         if (params.message === void 0)
-            throw bad2("message is required");
+            throw bad3("message is required");
         let segments;
         try {
             segments = normalizeMessage(params.message, truthy(params.auto_escape));
@@ -14121,7 +16775,15 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
             throw asActionError(e, "NERONET_SEND_FAILED");
         }
     };
+    const markRead = (p2, kind, target) => wrap(async () => {
+        await core2.markMessageRead(messageIdParam(p2.message_id), { kind, ...p2[target] !== void 0 ? { targetId: qqId(p2[target], target) } : {} });
+        return null;
+    });
     return {
+        ...createQzoneActions(core2, (retcode, wording) => new ActionError(retcode, wording)),
+        mark_msg_as_read: async (p2) => markRead(p2, void 0, "target_id"),
+        mark_group_msg_as_read: async (p2) => markRead(p2, "group", "group_id"),
+        mark_private_msg_as_read: async (p2) => markRead(p2, "private", "user_id"),
         get_login_info: async () => ({ user_id: Number(core2.selfUin), nickname: core2.nickname ?? "" }),
         get_status: async () => ({ online: core2.online, good: core2.online }),
         get_version_info: async () => ({ app_name: "NeroNet", app_version: appVersion, protocol_version: "v11" }),
@@ -14133,7 +16795,7 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
                 return send2("group", qqId(p2.group_id, "group_id"), p2);
             if (type === "private")
                 return send2("private", qqId(p2.user_id, "user_id"), p2);
-            throw bad2("user_id or group_id is required");
+            throw bad3("user_id or group_id is required");
         },
         get_msg: async (p2) => {
             const r = core2.getMessage(messageIdParam(p2.message_id));
@@ -14170,14 +16832,14 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
                 id = String(seg?.data?.id ?? seg?.data?.res_id ?? seg?.data?.forward_id ?? p2.message_id);
             }
             if (!id)
-                throw bad2("id or message_id is required");
+                throw bad3("id or message_id is required");
             const nodes = await core2.getForward(id);
             return { messages: nodes.map((n2) => forwardNodeEvent(n2, core2.selfUin)) };
         }),
         get_image: async (p2) => wrap(async () => {
             const file = String(p2.file || p2.file_id || "");
             if (!file)
-                throw bad2("file is required");
+                throw bad3("file is required");
             let r;
             try {
                 r = core2.imageContent ? await core2.imageContent(file) : { info: await core2.imageInfo(file), bytes: null };
@@ -14194,11 +16856,11 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
         get_record: async (p2) => wrap(async () => {
             const file = String(p2.file || p2.file_id || "");
             if (!file)
-                throw bad2("file is required");
+                throw bad3("file is required");
             if (p2.out_format !== void 0 && p2.out_format !== null && p2.out_format !== "") {
                 const fmt = String(p2.out_format).toLowerCase();
                 if (!RECORD_FORMATS.includes(fmt))
-                    throw bad2(`NERONET_RECORD_FORMAT_UNSUPPORTED: out_format must be one of ${RECORD_FORMATS.join(", ")}`);
+                    throw bad3(`NERONET_RECORD_FORMAT_UNSUPPORTED: out_format must be one of ${RECORD_FORMATS.join(", ")}`);
                 const r = await core2.recordContent(file);
                 if (!r)
                     throw new ActionError(RETCODE.FAILED, "NERONET_RECORD_NOT_FOUND");
@@ -14219,21 +16881,21 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
         get_group_file_url: async (p2) => wrap(async () => {
             const fileId = String(p2.file_id ?? "").trim();
             if (!fileId)
-                throw bad2("file_id is required");
+                throw bad3("file_id is required");
             const bus = Number(p2.busid ?? 102);
             return { url: await core2.groupFileUrl(qqId(p2.group_id, "group_id"), fileId, Number.isInteger(bus) && bus > 0 ? bus : 102) };
         }),
         get_private_file_url: async (p2) => wrap(async () => {
             const fileId = String(p2.file_id ?? "").trim();
             if (!fileId)
-                throw bad2("file_id is required");
+                throw bad3("file_id is required");
             return { url: await core2.privateFileUrl(fileId, String(p2.file_hash ?? "")) };
         }),
         upload_group_file: async (p2) => wrap(async () => {
             const gid2 = qqId(p2.group_id, "group_id");
             const file = String(p2.file ?? "").trim();
             if (!file)
-                throw bad2("file is required");
+                throw bad3("file is required");
             const folder = String(p2.folder || p2.folder_id || "/");
             return { file_id: await core2.uploadGroupFile(gid2, file, { name: String(p2.name ?? ""), folder, upload: p2.upload_file === void 0 ? true : truthy(p2.upload_file) }) };
         }),
@@ -14241,7 +16903,7 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
             const uid2 = qqId(p2.user_id, "user_id");
             const file = String(p2.file ?? "").trim();
             if (!file)
-                throw bad2("file is required");
+                throw bad3("file is required");
             return { file_id: await core2.uploadPrivateFile(uid2, file, { name: String(p2.name ?? ""), upload: p2.upload_file === void 0 ? true : truthy(p2.upload_file) }) };
         }),
         get_group_list: async (p2) => wrap(async () => (await core2.directory.groups({ fresh: truthy(p2.no_cache) })).map(groupInfo)),
@@ -14298,40 +16960,40 @@ function createActions(core2, { appVersion, fileUploads = () => true }) {
         set_msg_emoji_like: async (p2) => wrap(async () => {
             const emoji = String(p2.emoji_id ?? "").trim();
             if (!emoji)
-                throw bad2("emoji_id is required");
+                throw bad3("emoji_id is required");
             await core2.setEmojiLike(messageIdParam(p2.message_id), emoji, p2.set === void 0 ? true : truthy(p2.set));
             return null;
         }),
         fetch_custom_face: async (p2) => wrap(async () => {
-            const count = p2.count === void 0 ? 10 : Number(p2.count);
-            if (!Number.isInteger(count) || count < 0)
-                throw bad2("count must be a non-negative integer");
-            const ids = await core2.customFaceIds(count);
+            const count3 = p2.count === void 0 ? 10 : Number(p2.count);
+            if (!Number.isInteger(count3) || count3 < 0)
+                throw bad3("count must be a non-negative integer");
+            const ids = await core2.customFaceIds(count3);
             return (p2.return_type ?? "url") === "id" ? ids : ids.map((id) => `https://p.qpic.cn/qq_expression/${core2.selfUin}/${id}/0`);
         }),
         fetch_custom_face_detail: async (p2) => wrap(async () => {
-            const count = p2.count === void 0 ? 48 : Number(p2.count);
-            if (!Number.isInteger(count) || count < 0)
-                throw bad2("count must be a non-negative integer");
-            return (await core2.customFaceDetails(count)).map((d) => ({ emoji_id: d.emojiId, resId: d.emojiId, url: d.url, md5: d.md5, desc: d.desc }));
+            const count3 = p2.count === void 0 ? 48 : Number(p2.count);
+            if (!Number.isInteger(count3) || count3 < 0)
+                throw bad3("count must be a non-negative integer");
+            return (await core2.customFaceDetails(count3)).map((d) => ({ emoji_id: d.emojiId, resId: d.emojiId, url: d.url, md5: d.md5, desc: d.desc }));
         }),
         modify_custom_face: async (p2) => wrap(async () => {
             const id = String(p2.emoji_id ?? "").trim();
             if (!id)
-                throw bad2("emoji_id is required");
+                throw bad3("emoji_id is required");
             await core2.modifyCustomFace(id, String(p2.desc ?? ""));
             return null;
         }),
         add_custom_face: async (p2) => wrap(async () => {
             const file = String(p2.file ?? "").trim();
             if (!file)
-                throw bad2("file is required");
+                throw bad3("file is required");
             return { emoji_id: await core2.addCustomFace(file) };
         }),
         fetch_face_entity: async (p2) => wrap(async () => {
             const id = Number(p2.face_id);
             if (!Number.isInteger(id) || id < 0 || id > 65535)
-                throw bad2("face_id must be a face number");
+                throw bad3("face_id must be a face number");
             return core2.faceEntity(id, truthy(p2.refresh));
         }),
         can_send_image: async () => ({ yes: true }),
@@ -14373,7 +17035,7 @@ function createDispatcher(actions, allowed, { log = () => {
         }
     };
 }
-var RETCODE, MAX_UIN, ActionError, bad2, ok, failed5, BAD_REQUEST_CODES, NERONET_CODE, truthy, groupInfo, memberInfo;
+var RETCODE, MAX_UIN, ActionError, bad3, ok, failed5, BAD_REQUEST_CODES, NERONET_CODE, truthy, groupInfo, memberInfo;
 var init_actions = __esm({
     "upper/onebot/actions.mjs"() {
         init_message_format();
@@ -14381,6 +17043,7 @@ var init_actions = __esm({
         init_events();
         init_record_convert();
         init_forward_nodes();
+        init_qzone_actions();
         RETCODE = Object.freeze({ OK: 0, FAILED: 100, INTERNAL: 1200, BAD_REQUEST: 1400, NOT_SUPPORTED: 1404 });
         MAX_UIN = 4294967295;
         ActionError = class extends Error {
@@ -14390,10 +17053,10 @@ var init_actions = __esm({
                 this.wording = wording;
             }
         };
-        bad2 = (w) => new ActionError(RETCODE.BAD_REQUEST, w);
+        bad3 = (w) => new ActionError(RETCODE.BAD_REQUEST, w);
         ok = (data = null) => ({ status: "ok", retcode: 0, data });
         failed5 = (retcode, wording) => ({ status: "failed", retcode, data: null, message: wording, wording });
-        BAD_REQUEST_CODES = new Set(["NERONET_SEGMENT_UNSUPPORTED", "NERONET_SEGMENT_INVALID", "NERONET_MESSAGE_EMPTY", "NERONET_MESSAGE_INVALID", "NERONET_MEDIA_SOURCE_INVALID", "NERONET_MEDIA_TOO_LARGE"]);
+        BAD_REQUEST_CODES = new Set(["NERONET_SEGMENT_UNSUPPORTED", "NERONET_SEGMENT_INVALID", "NERONET_MESSAGE_EMPTY", "NERONET_MESSAGE_INVALID", "NERONET_MEDIA_SOURCE_INVALID", "NERONET_MEDIA_TOO_LARGE", "NERONET_READ_TARGET_INVALID"]);
         NERONET_CODE = /^NERONET_[A-Z0-9_]+/;
         truthy = (v) => v === true || v === "true" || v === 1 || v === "1";
         groupInfo = (g) => ({ group_id: Number(g.groupId), group_name: g.name, group_remark: g.remark ?? "", member_count: g.memberCount, max_member_count: g.maxMemberCount, group_all_shut: 0 });
@@ -16195,7 +18858,7 @@ var require_websocket = __commonJS({
         "use strict";
         var EventEmitter3 = __require("events");
         var https3 = __require("https");
-        var http6 = __require("http");
+        var http7 = __require("http");
         var net5 = __require("net");
         var tls4 = __require("tls");
         var { randomBytes, createHash: createHash2 } = __require("crypto");
@@ -16607,7 +19270,7 @@ var require_websocket = __commonJS({
             }
             const defaultPort = isSecure ? 443 : 80;
             const key = randomBytes(16).toString("base64");
-            const request = isSecure ? https3.request : http6.request;
+            const request = isSecure ? https3.request : http7.request;
             const protocolSet = new Set();
             let perMessageDeflate;
             opts.createConnection = opts.createConnection || (isSecure ? tlsConnect : netConnect);
@@ -16734,8 +19397,8 @@ var require_websocket = __commonJS({
                     abortHandshake(websocket, socket, "Invalid Upgrade header");
                     return;
                 }
-                const digest = createHash2("sha1").update(key + GUID).digest("base64");
-                if (res.headers["sec-websocket-accept"] !== digest) {
+                const digest2 = createHash2("sha1").update(key + GUID).digest("base64");
+                if (res.headers["sec-websocket-accept"] !== digest2) {
                     abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
                     return;
                 }
@@ -17119,7 +19782,7 @@ var require_websocket_server = __commonJS({
     "vendor/ws/lib/websocket-server.js"(exports2, module2) {
         "use strict";
         var EventEmitter3 = __require("events");
-        var http6 = __require("http");
+        var http7 = __require("http");
         var { Duplex } = __require("stream");
         var { createHash: createHash2 } = __require("crypto");
         var extension = require_extension();
@@ -17156,8 +19819,8 @@ var require_websocket_server = __commonJS({
                     throw new TypeError('One and only one of the "port", "server", or "noServer" options must be specified');
                 }
                 if (options.port != null) {
-                    this._server = http6.createServer((req, res) => {
-                        const body = http6.STATUS_CODES[426];
+                    this._server = http7.createServer((req, res) => {
+                        const body = http7.STATUS_CODES[426];
                         res.writeHead(426, {
                             "Content-Length": body.length,
                             "Content-Type": "text/plain"
@@ -17334,12 +19997,12 @@ var require_websocket_server = __commonJS({
                 }
                 if (this._state > RUNNING)
                     return abortHandshake(socket, 503);
-                const digest = createHash2("sha1").update(key + GUID).digest("base64");
+                const digest2 = createHash2("sha1").update(key + GUID).digest("base64");
                 const headers2 = [
                     "HTTP/1.1 101 Switching Protocols",
                     "Upgrade: websocket",
                     "Connection: Upgrade",
-                    `Sec-WebSocket-Accept: ${digest}`
+                    `Sec-WebSocket-Accept: ${digest2}`
                 ];
                 const ws = new this.options.WebSocket(null, void 0, this.options);
                 if (protocols.size) {
@@ -17395,7 +20058,7 @@ var require_websocket_server = __commonJS({
             this.destroy();
         }
         function abortHandshake(socket, code, message2, headers2) {
-            message2 = message2 || http6.STATUS_CODES[code];
+            message2 = message2 || http7.STATUS_CODES[code];
             headers2 = {
                 Connection: "close",
                 "Content-Type": "text/html",
@@ -17403,7 +20066,7 @@ var require_websocket_server = __commonJS({
                 ...headers2
             };
             socket.once("finish", socket.destroy);
-            socket.end(`HTTP/1.1 ${code} ${http6.STATUS_CODES[code]}\r
+            socket.end(`HTTP/1.1 ${code} ${http7.STATUS_CODES[code]}\r
 ` + Object.keys(headers2).map((h) => `${h}: ${headers2[h]}`).join("\r\n") + "\r\n\r\n" + message2);
         }
         function abortHandshakeOrEmitwsClientError(server, req, socket, code, message2, headers2) {
@@ -17591,10 +20254,10 @@ var init_http_post = __esm({
                 }
                 let op;
                 try {
-                    const text = await res.text();
-                    if (!text.trim())
+                    const text2 = await res.text();
+                    if (!text2.trim())
                         return;
-                    op = JSON.parse(text);
+                    op = JSON.parse(text2);
                 }
                 catch {
                     this.log({ oneBotQuickOperationInvalid: this.name });
@@ -17791,7 +20454,7 @@ var init_reverse_ws = __esm({
         };
     }
 });
-import http2 from "node:http";
+import http3 from "node:http";
 import crypto13 from "node:crypto";
 function tokenOk(expected, req, url) {
     if (!expected)
@@ -17835,10 +20498,10 @@ function basePath(p2) {
     const s = String(p2 ?? "/").replace(/\/+$/, "");
     return s === "" ? "" : s.startsWith("/") ? s : "/" + s;
 }
-function refuseUpgrade(socket, status, text) {
+function refuseUpgrade(socket, status, text2) {
     socket.on("error", () => {
     });
-    socket.end(`HTTP/1.1 ${status} ${text}\r
+    socket.end(`HTTP/1.1 ${status} ${text2}\r
 Connection: close\r
 Content-Length: 0\r
 \r
@@ -17933,7 +20596,7 @@ var init_servers = __esm({
             }
             async #startHttp(cfg, signal) {
                 const base = basePath(cfg.path);
-                const server = await startListening(() => http2.createServer((req, res) => {
+                const server = await startListening(() => http3.createServer((req, res) => {
                     this.#http(cfg, base, req, res).catch(() => {
                         try {
                             if (!res.headersSent) {
@@ -18027,7 +20690,7 @@ var init_servers = __esm({
             }
             async #startWs(cfg, signal) {
                 const forced = FORCED_ROLE[String(cfg.role ?? "Universal").toLowerCase()] ?? null;
-                const httpServer = http2.createServer((req, res) => {
+                const httpServer = http3.createServer((req, res) => {
                     res.writeHead(426);
                     res.end("Upgrade Required");
                 });
@@ -18145,14 +20808,14 @@ var init_servers = __esm({
         };
     }
 });
-import fs15 from "node:fs";
-import path14 from "node:path";
+import fs16 from "node:fs";
+import path15 from "node:path";
 import crypto14 from "node:crypto";
 function localToken(configDir) {
-    const file = path14.join(configDir, "local-token");
-    if (!fs15.existsSync(file))
-        fs15.writeFileSync(file, crypto14.randomBytes(32).toString("base64url"), { flag: "wx" });
-    const token = fs15.readFileSync(file, "utf8").trim();
+    const file = path15.join(configDir, "local-token");
+    if (!fs16.existsSync(file))
+        fs16.writeFileSync(file, crypto14.randomBytes(32).toString("base64url"), { flag: "wx" });
+    const token = fs16.readFileSync(file, "utf8").trim();
     if (token.length < 32)
         throw new Error("NERONET_LOCAL_TOKEN_INVALID");
     return token;
@@ -18192,16 +20855,16 @@ function applyPortOverrides(config, env) {
 function loadOrCreateOneBotConfig(configDir, uin, env = process.env) {
     if (!/^\d{5,12}$/.test(String(uin)))
         throw new Error("NERONET_ACCOUNT_UNKNOWN");
-    const file = path14.join(configDir, `onebot_${uin}.json`);
+    const file = path15.join(configDir, `onebot_${uin}.json`);
     const notes = [];
     let config, created = false;
-    if (!fs15.existsSync(file)) {
+    if (!fs16.existsSync(file)) {
         config = defaultOneBotConfig(localToken(configDir));
-        fs15.writeFileSync(file, JSON.stringify(config, null, 2) + "\n", { flag: "wx" });
+        fs16.writeFileSync(file, JSON.stringify(config, null, 2) + "\n", { flag: "wx" });
         created = true;
     }
     else {
-        config = JSON.parse(fs15.readFileSync(file, "utf8"));
+        config = JSON.parse(fs16.readFileSync(file, "utf8"));
     }
     const n2 = config.networks;
     if (!n2 || typeof n2 !== "object")
@@ -18220,7 +20883,7 @@ function loadOrCreateOneBotConfig(configDir, uin, env = process.env) {
     }
     for (const s of [...n2.httpServers, ...n2.wsServers])
         port(s.port, s.name ?? "server");
-    if (config.mode !== void 0 && config.mode !== "snapshot" && fs15.existsSync(path14.join(configDir, "onebot.json")))
+    if (config.mode !== void 0 && config.mode !== "snapshot" && fs16.existsSync(path15.join(configDir, "onebot.json")))
         notes.push("global config/onebot.json overlay is not applied by the independent upper layer");
     applyPortOverrides(config, env);
     return { config, created, notes };
@@ -18229,8 +20892,8 @@ var init_config = __esm({
     "upper/onebot/config.mjs"() {
     }
 });
-import fs16 from "node:fs";
-import path15 from "node:path";
+import fs17 from "node:fs";
+import path16 from "node:path";
 import crypto15 from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 var MAX_ID, SCHEMA_VERSION, SqliteMessageStore;
@@ -18242,7 +20905,7 @@ var init_message_store = __esm({
         SqliteMessageStore = class {
             constructor(file, { maxRows = 2e5, firstId } = {}) {
                 if (file !== ":memory:")
-                    fs16.mkdirSync(path15.dirname(file), { recursive: true });
+                    fs17.mkdirSync(path16.dirname(file), { recursive: true });
                 this.db = new DatabaseSync(file);
                 this.maxRows = maxRows;
                 this.db.exec(`
@@ -18407,23 +21070,23 @@ var init_message_store = __esm({
         };
     }
 });
-import fs17 from "node:fs";
-import path16 from "node:path";
+import fs18 from "node:fs";
+import path17 from "node:path";
 function listLogFiles(root) {
     const out = [];
     const scan = (dir) => {
         let entries;
         try {
-            entries = fs17.readdirSync(dir, { withFileTypes: true });
+            entries = fs18.readdirSync(dir, { withFileTypes: true });
         }
         catch {
             return;
         }
         for (const e of entries) {
-            const full = path16.join(dir, e.name);
+            const full = path17.join(dir, e.name);
             if (e.isFile() && FILE_RE.test(e.name)) {
                 try {
-                    const st = fs17.statSync(full);
+                    const st = fs18.statSync(full);
                     out.push({ path: full, date: FILE_RE.exec(e.name)[1], size: st.size, mtimeMs: st.mtimeMs });
                 }
                 catch {
@@ -18458,8 +21121,8 @@ var init_file_transport = __esm({
                     this.date = date;
                     this.index = 0;
                     for (const f of listLogFiles(this.dir))
-                        if (path16.dirname(f.path) === this.dir && f.date === date) {
-                            const n2 = Number(FILE_RE.exec(path16.basename(f.path))[2] ?? 0);
+                        if (path17.dirname(f.path) === this.dir && f.date === date) {
+                            const n2 = Number(FILE_RE.exec(path17.basename(f.path))[2] ?? 0);
                             if (n2 >= this.index)
                                 this.index = n2;
                         }
@@ -18472,10 +21135,10 @@ var init_file_transport = __esm({
                 return this.path;
             }
             open() {
-                fs17.mkdirSync(this.dir, { recursive: true });
-                this.path = path16.join(this.dir, `neronet-${this.date}${this.index ? `.${this.index}` : ""}.log`);
+                fs18.mkdirSync(this.dir, { recursive: true });
+                this.path = path17.join(this.dir, `neronet-${this.date}${this.index ? `.${this.index}` : ""}.log`);
                 try {
-                    this.size = fs17.statSync(this.path).size;
+                    this.size = fs18.statSync(this.path).size;
                 }
                 catch {
                     this.size = 0;
@@ -18484,13 +21147,13 @@ var init_file_transport = __esm({
             write(line, date) {
                 const file = this.target(date);
                 const data = line + "\n";
-                fs17.appendFileSync(file, data, "utf8");
+                fs18.appendFileSync(file, data, "utf8");
                 this.size += Buffer.byteLength(data);
             }
         };
         FileTransport = class {
             constructor({ directory, maxFileMb = 50, maxTotalMb = 1024, retainDays = 7, perUinEnabled = false, enabled = true, now: now2 = () => new Date() } = {}) {
-                this.dir = path16.resolve(directory);
+                this.dir = path17.resolve(directory);
                 this.maxFileBytes = maxFileMb * MiB2;
                 this.now = now2;
                 this.enabled = enabled;
@@ -18504,7 +21167,7 @@ var init_file_transport = __esm({
                 this.day = "";
                 if (enabled) {
                     try {
-                        fs17.mkdirSync(this.dir, { recursive: true });
+                        fs18.mkdirSync(this.dir, { recursive: true });
                         this.maintain();
                     }
                     catch (e) {
@@ -18546,7 +21209,7 @@ var init_file_transport = __esm({
                     if (this.perUinEnabled && uin !== void 0) {
                         let w = this.perUin.get(uin);
                         if (!w) {
-                            w = new Writer(path16.join(this.dir, String(uin)), this.maxFileBytes);
+                            w = new Writer(path17.join(this.dir, String(uin)), this.maxFileBytes);
                             this.perUin.set(uin, w);
                         }
                         w.write(line, date);
@@ -18575,7 +21238,7 @@ var init_file_transport = __esm({
                     for (const f of listLogFiles(this.dir))
                         if (dated(f.date) < cutoff && !this.active().has(f.path)) {
                             try {
-                                fs17.unlinkSync(f.path);
+                                fs18.unlinkSync(f.path);
                             }
                             catch {
                             }
@@ -18593,7 +21256,7 @@ var init_file_transport = __esm({
                     if (active.has(f.path))
                         continue;
                     try {
-                        fs17.unlinkSync(f.path);
+                        fs18.unlinkSync(f.path);
                         total -= f.size;
                     }
                     catch {
@@ -18608,12 +21271,12 @@ var init_file_transport = __esm({
                     if (active.has(f.path))
                         continue;
                     try {
-                        fs17.unlinkSync(f.path);
+                        fs18.unlinkSync(f.path);
                         deletedFiles++;
                         freedBytes += f.size;
                     }
                     catch (e) {
-                        failures.push({ path: path16.relative(this.dir, f.path), message: String(e?.code ?? e?.message ?? e) });
+                        failures.push({ path: path17.relative(this.dir, f.path), message: String(e?.code ?? e?.message ?? e) });
                     }
                 }
                 return { deletedFiles, freedBytes, failures };
@@ -18700,7 +21363,8 @@ var init_logger = __esm({
         ASSIGN = /(["']?)([A-Za-z_][A-Za-z0-9_.-]*)\1(\s*[:=]\s*)("([^"\\]|\\.)*"|'[^']*'|[^\s,;&}\])]+)/g;
         plain2 = (s) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, "");
         Logger = class {
-            constructor({ level = levelFromEnv(), fileLevel = "debug", file = null, console: toConsole = true, now: now2 = () => new Date() } = {}) {
+            constructor({ level = levelFromEnv(), fileLevel = "debug", file = null, console: toConsole = true, now: now2 = () => new Date(), scrub = null } = {}) {
+                this.scrub = scrub;
                 this.level = level;
                 this.fileLevel = fileLevel;
                 this.file = file;
@@ -18740,7 +21404,8 @@ var init_logger = __esm({
                     return;
                 const realArgs = level === "trace" && args.length === 1 && typeof args[0] === "function" ? args[0]() : args;
                 const raw = format(...realArgs);
-                const message2 = level === "trace" ? raw : redact(raw);
+                const safe = this.scrub ? this.scrub(raw) : raw;
+                const message2 = level === "trace" ? safe : redact(safe);
                 const d = this.now();
                 const ts = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n2) => String(n2).padStart(2, "0")).join(":");
                 const line = plain2(`${ts} ${LABEL[level].padEnd(5)} ${(uin !== void 0 ? `[${uin}]` : "").padEnd(12)} [${scope}] ${message2}`);
@@ -18782,8 +21447,8 @@ var init_logger = __esm({
         };
     }
 });
-import fs18 from "node:fs";
-import path17 from "node:path";
+import fs19 from "node:fs";
+import path18 from "node:path";
 function bool(v, fallback) {
     if (typeof v === "boolean")
         return v;
@@ -18880,12 +21545,12 @@ var init_runtime_config = __esm({
         isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
         RuntimeConfig = class {
             constructor(configDir, env = process.env) {
-                this.file = path17.join(configDir, "runtime.json");
+                this.file = path18.join(configDir, "runtime.json");
                 this.env = env;
             }
             readRaw() {
                 try {
-                    const v = JSON.parse(fs18.readFileSync(this.file, "utf8"));
+                    const v = JSON.parse(fs19.readFileSync(this.file, "utf8"));
                     return isObj(v) ? v : null;
                 }
                 catch {
@@ -18915,16 +21580,16 @@ var init_runtime_config = __esm({
                 return next;
             }
             write(value) {
-                fs18.mkdirSync(path17.dirname(this.file), { recursive: true });
+                fs19.mkdirSync(path18.dirname(this.file), { recursive: true });
                 const tmp = `${this.file}.tmp-${process.pid}`;
-                fs18.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-                fs18.renameSync(tmp, this.file);
+                fs19.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
+                fs19.renameSync(tmp, this.file);
             }
         };
     }
 });
-import fs19 from "node:fs";
-import path18 from "node:path";
+import fs20 from "node:fs";
+import path19 from "node:path";
 function compile(pattern) {
     if (pattern === "*")
         return { re: /^.*$/, names: [] };
@@ -19004,7 +21669,7 @@ var init_http = __esm({
             ".map": "application/json; charset=utf-8",
             ".wasm": "application/wasm"
         };
-        mimeOf = (file) => MIME[path18.extname(file).toLowerCase()] ?? "application/octet-stream";
+        mimeOf = (file) => MIME[path19.extname(file).toLowerCase()] ?? "application/octet-stream";
         Context = class {
             constructor(req, res, url) {
                 this.req = req;
@@ -19073,8 +21738,8 @@ var init_http = __esm({
             reply(status, value) {
                 this.send(status, JSON.stringify(value), { "Content-Type": "application/json; charset=utf-8" });
             }
-            text(status, text, type = "text/plain; charset=utf-8") {
-                this.send(status, text, { "Content-Type": type });
+            text(status, text2, type = "text/plain; charset=utf-8") {
+                this.send(status, text2, { "Content-Type": type });
             }
             sse(start, shutdownSignal) {
                 this.done = true;
@@ -19141,20 +21806,20 @@ var init_http = __esm({
                 }
             }
             file(root, rel, headers2 = {}) {
-                const base = path18.resolve(root);
-                const full = path18.resolve(base, "." + path18.posix.normalize("/" + rel));
-                if (full !== base && !full.startsWith(base + path18.sep))
+                const base = path19.resolve(root);
+                const full = path19.resolve(base, "." + path19.posix.normalize("/" + rel));
+                if (full !== base && !full.startsWith(base + path19.sep))
                     return false;
                 let st;
                 try {
-                    st = fs19.statSync(full);
+                    st = fs20.statSync(full);
                 }
                 catch {
                     return false;
                 }
                 if (!st.isFile())
                     return false;
-                this.send(200, fs19.readFileSync(full), { "Content-Type": mimeOf(full), "Content-Length": st.size, ...headers2 });
+                this.send(200, fs20.readFileSync(full), { "Content-Type": mimeOf(full), "Content-Length": st.size, ...headers2 });
                 return true;
             }
         };
@@ -19243,8 +21908,8 @@ function base32Encode(buf) {
         out += B32[value << 5 - bits & 31];
     return out;
 }
-function base32Decode(text) {
-    const clean = String(text).toUpperCase().replace(/=+$/, "").replace(/\s/g, "");
+function base32Decode(text2) {
+    const clean = String(text2).toUpperCase().replace(/=+$/, "").replace(/\s/g, "");
     let bits = 0, value = 0;
     const out = [];
     for (const ch of clean) {
@@ -19386,8 +22051,8 @@ var init_totp = __esm({
         HEX = /^[0-9a-f]+$/i;
     }
 });
-import fs20 from "node:fs";
-import path19 from "node:path";
+import fs21 from "node:fs";
+import path20 from "node:path";
 import crypto17 from "node:crypto";
 function checkCredentialState(v) {
     if (!v || typeof v !== "object" || Array.isArray(v))
@@ -19416,7 +22081,7 @@ function fresh(password, mustChange) {
 function storedPasswordMatches(configDir, password) {
     let state;
     try {
-        const { totp, ...rest } = JSON.parse(fs20.readFileSync(path19.join(configDir, "webui.json"), "utf8"));
+        const { totp, ...rest } = JSON.parse(fs21.readFileSync(path20.join(configDir, "webui.json"), "utf8"));
         state = checkCredentialState(rest);
     }
     catch {
@@ -19456,13 +22121,13 @@ var init_credentials = __esm({
             }
             static load(configDir, { env = process.env, log = () => {
             } } = {}) {
-                const file = path19.join(configDir, "webui.json");
-                fs20.mkdirSync(configDir, { recursive: true });
+                const file = path20.join(configDir, "webui.json");
+                fs21.mkdirSync(configDir, { recursive: true });
                 const write = (s2) => _Credentials.write(file, s2);
-                if (fs20.existsSync(file)) {
+                if (fs21.existsSync(file)) {
                     let parsed = null, broken = false;
                     try {
-                        const raw = JSON.parse(fs20.readFileSync(file, "utf8"));
+                        const raw = JSON.parse(fs21.readFileSync(file, "utf8"));
                         const { totp, ...rest } = raw && typeof raw === "object" ? raw : {};
                         parsed = checkCredentialState(rest);
                         if (totp !== void 0) {
@@ -19487,7 +22152,7 @@ var init_credentials = __esm({
                         return new _Credentials(file, parsed, null, log);
                     if (broken) {
                         try {
-                            fs20.renameSync(file, `${file}.bak.${Date.now()}`);
+                            fs21.renameSync(file, `${file}.bak.${Date.now()}`);
                             log("error", "webui.json is invalid; the previous file was backed up and new credentials were generated");
                         }
                         catch {
@@ -19507,13 +22172,13 @@ var init_credentials = __esm({
             }
             static write(file, state) {
                 const tmp = file + ".tmp";
-                fs20.writeFileSync(tmp, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 384 });
+                fs21.writeFileSync(tmp, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 384 });
                 try {
-                    fs20.chmodSync(tmp, 384);
+                    fs21.chmodSync(tmp, 384);
                 }
                 catch {
                 }
-                fs20.renameSync(tmp, file);
+                fs21.renameSync(tmp, file);
             }
             takeInitialPassword() {
                 const p2 = this.initial;
@@ -19571,8 +22236,8 @@ var init_credentials = __esm({
         };
     }
 });
-import fs21 from "node:fs";
-import path20 from "node:path";
+import fs22 from "node:fs";
+import path21 from "node:path";
 import crypto18 from "node:crypto";
 function envAccept(env, name) {
     const raw = env[`NERONET_${name}`];
@@ -19591,21 +22256,21 @@ var init_agreements = __esm({
         FILES = [{ id: "eula", file: "EULA.md" }, { id: "privacy", file: "PRIVACY.md" }];
         Agreements = class {
             constructor({ noticesDir, configDir, env = process.env }) {
-                this.consentFile = path20.join(configDir, "consent.json");
+                this.consentFile = path21.join(configDir, "consent.json");
                 this.env = env;
                 const docs = FILES.map(({ id, file }) => {
-                    let text = "";
+                    let text2 = "";
                     try {
-                        text = fs21.readFileSync(path20.join(noticesDir, file), "utf8");
+                        text2 = fs22.readFileSync(path21.join(noticesDir, file), "utf8");
                     }
                     catch {
                     }
                     return {
                         id,
-                        text,
-                        title: text.match(/^#\s+(.+?)\s*$/m)?.[1]?.trim() ?? "",
-                        declaredVersion: text.match(/(?:Version|版本)[^\n0-9]*([0-9][0-9A-Za-z.-]*)/)?.[1]?.trim() ?? "",
-                        effectiveDate: text.match(/(?:Effective date|生效日期)[^\n0-9]*(\d{4}-\d{2}-\d{2})/)?.[1] ?? ""
+                        text: text2,
+                        title: text2.match(/^#\s+(.+?)\s*$/m)?.[1]?.trim() ?? "",
+                        declaredVersion: text2.match(/(?:Version|版本)[^\n0-9]*([0-9][0-9A-Za-z.-]*)/)?.[1]?.trim() ?? "",
+                        effectiveDate: text2.match(/(?:Effective date|生效日期)[^\n0-9]*(\d{4}-\d{2}-\d{2})/)?.[1] ?? ""
                     };
                 });
                 const h = crypto18.createHash("sha256");
@@ -19615,7 +22280,7 @@ var init_agreements = __esm({
                     h.update(d.text);
                     h.update("\0");
                 }
-                this.docs = docs.map(({ id, title, declaredVersion, effectiveDate, text }) => ({ id, title, declaredVersion, effectiveDate, text }));
+                this.docs = docs.map(({ id, title, declaredVersion, effectiveDate, text: text2 }) => ({ id, title, declaredVersion, effectiveDate, text: text2 }));
                 this.version = h.digest("hex").slice(0, 16);
             }
             environmentAccepted() {
@@ -19623,7 +22288,7 @@ var init_agreements = __esm({
             }
             record() {
                 try {
-                    const v = JSON.parse(fs21.readFileSync(this.consentFile, "utf8"));
+                    const v = JSON.parse(fs22.readFileSync(this.consentFile, "utf8"));
                     return typeof v?.version === "string" && v.version && typeof v.acceptedAt === "string" ? v : null;
                 }
                 catch {
@@ -19642,18 +22307,18 @@ var init_agreements = __esm({
             }
             accept(version) {
                 const rec = { version, acceptedAt: (new Date()).toISOString() };
-                fs21.mkdirSync(path20.dirname(this.consentFile), { recursive: true });
+                fs22.mkdirSync(path21.dirname(this.consentFile), { recursive: true });
                 const tmp = this.consentFile + ".tmp";
-                fs21.writeFileSync(tmp, JSON.stringify(rec, null, 2), "utf8");
-                fs21.renameSync(tmp, this.consentFile);
+                fs22.writeFileSync(tmp, JSON.stringify(rec, null, 2), "utf8");
+                fs22.renameSync(tmp, this.consentFile);
                 return rec;
             }
         };
     }
 });
-import fs22 from "node:fs";
+import fs23 from "node:fs";
 import net3 from "node:net";
-import path21 from "node:path";
+import path22 from "node:path";
 function validBindHost(value) {
     const h = String(value).trim();
     if (!h || h !== value || h.length > 253 || /[\s/?#@]/u.test(h))
@@ -19666,108 +22331,108 @@ function validBindHost(value) {
 }
 function validateOneBotConfig(v) {
     if (!isObj2(v))
-        invalid7("configuration must be an object");
+        invalid8("configuration must be an object");
     if (!isObj2(v.networks))
-        invalid7("networks must be an object");
+        invalid8("networks must be an object");
     const names = new Map(), bindings = new Map();
     const list = (kind, specific) => {
         const items2 = v.networks[kind];
         if (!Array.isArray(items2))
-            invalid7(`networks.${kind} must be an array`);
+            invalid8(`networks.${kind} must be an array`);
         items2.forEach((it, i) => {
             const at = `networks.${kind}[${i}]`;
             if (!isObj2(it))
-                invalid7(`${at} must be an object`);
+                invalid8(`${at} must be an object`);
             if (typeof it.name !== "string" || !it.name.trim())
-                invalid7(`${at}.name must be a non-empty string`);
+                invalid8(`${at}.name must be a non-empty string`);
             if (it.name !== it.name.trim())
-                invalid7(`${at}.name must not have surrounding whitespace`);
+                invalid8(`${at}.name must not have surrounding whitespace`);
             if (it.enabled !== void 0 && typeof it.enabled !== "boolean")
-                invalid7(`${at}.enabled must be a boolean`);
+                invalid8(`${at}.enabled must be a boolean`);
             if (it.accessToken !== void 0 && typeof it.accessToken !== "string")
-                invalid7(`${at}.accessToken must be a string`);
+                invalid8(`${at}.accessToken must be a string`);
             if (it.messageFormat !== "array" && it.messageFormat !== "string")
-                invalid7(`${at}.messageFormat must be "array" or "string"`);
+                invalid8(`${at}.messageFormat must be "array" or "string"`);
             if (typeof it.reportSelfMessage !== "boolean")
-                invalid7(`${at}.reportSelfMessage must be a boolean`);
+                invalid8(`${at}.reportSelfMessage must be a boolean`);
             if (names.has(it.name))
-                invalid7(`network adapter name "${it.name}" is duplicated in ${names.get(it.name)} and ${kind}`);
+                invalid8(`network adapter name "${it.name}" is duplicated in ${names.get(it.name)} and ${kind}`);
             names.set(it.name, kind);
             specific(it, at);
         });
     };
     const server = (it, at) => {
         if (!Number.isInteger(it.port) || it.port <= 0 || it.port > 65535)
-            invalid7(`${at}.port must be an integer between 1 and 65535`);
+            invalid8(`${at}.port must be an integer between 1 and 65535`);
         if (it.host !== void 0) {
             if (typeof it.host !== "string")
-                invalid7(`${at}.host must be a string`);
+                invalid8(`${at}.host must be a string`);
             if (!it.host.trim())
-                invalid7(`${at}.host must be a non-empty string when provided`);
+                invalid8(`${at}.host must be a non-empty string when provided`);
             if (it.host !== it.host.trim())
-                invalid7(`${at}.host must not have surrounding whitespace`);
+                invalid8(`${at}.host must not have surrounding whitespace`);
             if (!validBindHost(it.host))
-                invalid7(`${at}.host must be a valid TCP bind host`);
+                invalid8(`${at}.host must be a valid TCP bind host`);
         }
         if (it.path !== void 0) {
             if (typeof it.path !== "string")
-                invalid7(`${at}.path must be a string`);
+                invalid8(`${at}.path must be a string`);
             if (it.path !== it.path.trim())
-                invalid7(`${at}.path must not have surrounding whitespace`);
+                invalid8(`${at}.path must not have surrounding whitespace`);
             const p2 = it.path || "/";
             if (!p2.startsWith("/"))
-                invalid7(`${at}.path must be empty or start with /`);
+                invalid8(`${at}.path must be empty or start with /`);
             if (p2.includes("?") || p2.includes("#"))
-                invalid7(`${at}.path must not include query or hash`);
+                invalid8(`${at}.path must not include query or hash`);
             if (new URL(`http://127.0.0.1${p2}`).pathname !== p2)
-                invalid7(`${at}.path must already be a normalized URL pathname`);
+                invalid8(`${at}.path must already be a normalized URL pathname`);
         }
         if (it.enabled === false)
             return;
         const host = typeof it.host === "string" && it.host.trim() ? it.host.trim().toLowerCase() : "0.0.0.0";
         const key = `${host}:${it.port}`, wild = `*:${it.port}`;
         if (bindings.has(key))
-            invalid7(`${at} conflicts with ${bindings.get(key)} on server binding ${key}`);
+            invalid8(`${at} conflicts with ${bindings.get(key)} on server binding ${key}`);
         if (bindings.has(wild))
-            invalid7(`${at} conflicts with ${bindings.get(wild)} on wildcard server port ${it.port}`);
+            invalid8(`${at} conflicts with ${bindings.get(wild)} on wildcard server port ${it.port}`);
         if (["0.0.0.0", "::", "[::]"].includes(host)) {
             const same = [...bindings.entries()].find(([k]) => k.endsWith(`:${it.port}`));
             if (same)
-                invalid7(`${at} conflicts with ${same[1]} on wildcard server port ${it.port}`);
+                invalid8(`${at} conflicts with ${same[1]} on wildcard server port ${it.port}`);
             bindings.set(wild, at);
         }
         bindings.set(key, at);
     };
     const client2 = (it, at, protocols) => {
         if (typeof it.url !== "string")
-            invalid7(`${at}.url must be a string`);
+            invalid8(`${at}.url must be a string`);
         if (it.enabled === false)
             return;
         if (!it.url.trim())
-            invalid7(`${at}.url must be non-empty while the adapter is enabled`);
+            invalid8(`${at}.url must be non-empty while the adapter is enabled`);
         let u;
         try {
             u = new URL(it.url);
         }
         catch {
-            invalid7(`${at}.url must be a valid absolute URL`);
+            invalid8(`${at}.url must be a valid absolute URL`);
         }
         if (!protocols.includes(u.protocol))
-            invalid7(`${at}.url protocol must be one of ${protocols.join(", ")}`);
+            invalid8(`${at}.url protocol must be one of ${protocols.join(", ")}`);
     };
     const role = (r, at) => {
         if (r !== void 0 && !["Api", "Event", "Universal"].includes(r))
-            invalid7(`${at} must be Api, Event, or Universal`);
+            invalid8(`${at} must be Api, Event, or Universal`);
     };
     list("httpServers", (it, at) => {
         server(it, at);
         if (it.enableWebSocket !== void 0 && typeof it.enableWebSocket !== "boolean")
-            invalid7(`${at}.enableWebSocket must be a boolean`);
+            invalid8(`${at}.enableWebSocket must be a boolean`);
     });
     list("httpClients", (it, at) => {
         client2(it, at, ["http:", "https:"]);
         if (it.timeoutMs !== void 0 && (!Number.isSafeInteger(it.timeoutMs) || it.timeoutMs <= 0 || it.timeoutMs > TIMER_MAX))
-            invalid7(`${at}.timeoutMs must be an integer between 1 and ${TIMER_MAX}`);
+            invalid8(`${at}.timeoutMs must be an integer between 1 and ${TIMER_MAX}`);
     });
     list("wsServers", (it, at) => {
         server(it, at);
@@ -19777,27 +22442,27 @@ function validateOneBotConfig(v) {
         client2(it, at, ["ws:", "wss:"]);
         role(it.role, `${at}.role`);
         if (it.reconnectIntervalMs !== void 0 && (!Number.isSafeInteger(it.reconnectIntervalMs) || it.reconnectIntervalMs < 1e3 || it.reconnectIntervalMs > TIMER_MAX))
-            invalid7(`${at}.reconnectIntervalMs must be an integer between 1000 and ${TIMER_MAX}`);
+            invalid8(`${at}.reconnectIntervalMs must be an integer between 1000 and ${TIMER_MAX}`);
     });
     const s = v.statusCommand;
     if (!isObj2(s))
-        invalid7("statusCommand must be an object");
+        invalid8("statusCommand must be an object");
     if (typeof s.enabled !== "boolean")
-        invalid7("statusCommand.enabled must be a boolean");
+        invalid8("statusCommand.enabled must be a boolean");
     if (typeof s.swallow !== "boolean")
-        invalid7("statusCommand.swallow must be a boolean");
+        invalid8("statusCommand.swallow must be a boolean");
     if (!Number.isInteger(s.cooldownSeconds) || s.cooldownSeconds < 0)
-        invalid7("statusCommand.cooldownSeconds must be a non-negative integer");
+        invalid8("statusCommand.cooldownSeconds must be a non-negative integer");
     if (typeof s.trigger !== "string" || !s.trigger.trim() || s.trigger.length > 32 || /[\r\n]/.test(s.trigger))
-        invalid7("statusCommand.trigger must be non-empty, single-line, and <= 32 characters");
+        invalid8("statusCommand.trigger must be non-empty, single-line, and <= 32 characters");
     if (!isObj2(v.historySync) || typeof v.historySync.enabled !== "boolean")
-        invalid7(isObj2(v.historySync) ? "historySync.enabled must be a boolean" : "historySync must be an object");
+        invalid8(isObj2(v.historySync) ? "historySync.enabled must be a boolean" : "historySync must be an object");
     if (v.notifications !== void 0) {
         if (!isObj2(v.notifications) || !Array.isArray(v.notifications.channelIds))
-            invalid7("notifications.channelIds must be an array");
+            invalid8("notifications.channelIds must be an array");
         v.notifications.channelIds.forEach((id, i) => {
             if (typeof id !== "string" || !id || id.length > 64 || !/^[\w.-]+$/.test(id))
-                invalid7(`notifications.channelIds[${i}] is invalid`);
+                invalid8(`notifications.channelIds[${i}] is invalid`);
         });
     }
 }
@@ -19852,21 +22517,21 @@ function checkTokenChanges(previous, next, { clientIp, uin }) {
                 return;
             if (!token) {
                 if (!loopbackClient(clientIp) && !loopbackHost(a.host))
-                    invalid7(`节点“${a.name}”未绑定本机地址，远程保存必须填写令牌；请生成令牌或将主机改为 127.0.0.1。`);
+                    invalid8(`节点“${a.name}”未绑定本机地址，远程保存必须填写令牌；请生成令牌或将主机改为 127.0.0.1。`);
                 return;
             }
             const r = tokenStrength(token, [uin, a.name, kind, a.host ?? "0.0.0.0", a.port]);
             if (r.reason === "too-short")
-                invalid7(`节点“${a.name}”的令牌至少需要 16 个字符；请重新生成或继续补充。`);
+                invalid8(`节点“${a.name}”的令牌至少需要 16 个字符；请重新生成或继续补充。`);
             if (!r.acceptable)
-                invalid7(`节点“${a.name}”的令牌容易被猜中；请重新生成随机令牌。`);
+                invalid8(`节点“${a.name}”的令牌容易被猜中；请重新生成随机令牌。`);
         });
     }
 }
 function readOneBotConfig(configDir, uin) {
     let raw = {};
     try {
-        raw = JSON.parse(fs22.readFileSync(path21.join(configDir, `onebot_${uin}.json`), "utf8"));
+        raw = JSON.parse(fs23.readFileSync(path22.join(configDir, `onebot_${uin}.json`), "utf8"));
     }
     catch {
     }
@@ -19879,11 +22544,11 @@ function readOneBotConfig(configDir, uin) {
     };
 }
 function writeOneBotConfig(configDir, uin, config) {
-    const file = path21.join(configDir, `onebot_${uin}.json`), tmp = `${file}.tmp-${process.pid}`;
-    fs22.writeFileSync(tmp, JSON.stringify(canonicalOneBotConfig(config), null, 2) + "\n", "utf8");
-    fs22.renameSync(tmp, file);
+    const file = path22.join(configDir, `onebot_${uin}.json`), tmp = `${file}.tmp-${process.pid}`;
+    fs23.writeFileSync(tmp, JSON.stringify(canonicalOneBotConfig(config), null, 2) + "\n", "utf8");
+    fs23.renameSync(tmp, file);
 }
-var ConfigValidationError, invalid7, isObj2, TIMER_MAX, loopbackHost, loopbackClient, GlobalSettings;
+var ConfigValidationError, invalid8, isObj2, TIMER_MAX, loopbackHost, loopbackClient, GlobalSettings;
 var init_onebot_config = __esm({
     "upper/management/onebot-config.mjs"() {
         ConfigValidationError = class extends Error {
@@ -19892,7 +22557,7 @@ var init_onebot_config = __esm({
                 this.name = "ConfigValidationError";
             }
         };
-        invalid7 = (m) => {
+        invalid8 = (m) => {
             throw new ConfigValidationError(m);
         };
         isObj2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
@@ -19904,7 +22569,7 @@ var init_onebot_config = __esm({
         loopbackClient = (ip) => loopbackHost(ip);
         GlobalSettings = class _GlobalSettings {
             constructor(configDir) {
-                this.file = path21.join(configDir, "neronet.json");
+                this.file = path22.join(configDir, "neronet.json");
             }
             static normalize(v) {
                 const urls = (a) => {
@@ -19933,7 +22598,7 @@ var init_onebot_config = __esm({
             }
             load() {
                 try {
-                    return _GlobalSettings.normalize(JSON.parse(fs22.readFileSync(this.file, "utf8")));
+                    return _GlobalSettings.normalize(JSON.parse(fs23.readFileSync(this.file, "utf8")));
                 }
                 catch {
                     return _GlobalSettings.normalize({});
@@ -19941,16 +22606,16 @@ var init_onebot_config = __esm({
             }
             save(incoming) {
                 const cur = this.load(), n2 = _GlobalSettings.normalize({ ...cur, ...isObj2(incoming) ? incoming : {}, rkey: isObj2(incoming?.rkey) ? incoming.rkey : cur.rkey });
-                fs22.mkdirSync(path21.dirname(this.file), { recursive: true });
-                fs22.writeFileSync(this.file + ".tmp", JSON.stringify(n2, null, 2), "utf8");
-                fs22.renameSync(this.file + ".tmp", this.file);
+                fs23.mkdirSync(path22.dirname(this.file), { recursive: true });
+                fs23.writeFileSync(this.file + ".tmp", JSON.stringify(n2, null, 2), "utf8");
+                fs23.renameSync(this.file + ".tmp", this.file);
                 return n2;
             }
         };
     }
 });
-import fs23 from "node:fs";
-import path22 from "node:path";
+import fs24 from "node:fs";
+import path23 from "node:path";
 function imageState(bg) {
     const v = isObj3(bg) ? bg : {};
     const version = Math.trunc(T3.range(0, Number.MAX_SAFE_INTEGER)(v.imageVersion, 0));
@@ -20149,14 +22814,14 @@ var init_ui_config = __esm({
         layout = (v) => Object.fromEntries(Object.entries(LAYOUT).map(([k, d]) => [k, layoutItems(isObj3(v) ? v[k] : void 0, d)]));
         UiConfig = class {
             constructor(configDir) {
-                this.file = path22.join(configDir, "ui.json");
-                this.image = path22.join(configDir, "ui-assets", "background");
+                this.file = path23.join(configDir, "ui.json");
+                this.image = path23.join(configDir, "ui-assets", "background");
                 this.cached = null;
             }
             write(c) {
-                fs23.mkdirSync(path22.dirname(this.file), { recursive: true });
-                fs23.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), "utf8");
-                fs23.renameSync(this.file + ".tmp", this.file);
+                fs24.mkdirSync(path23.dirname(this.file), { recursive: true });
+                fs24.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), "utf8");
+                fs24.renameSync(this.file + ".tmp", this.file);
                 this.cached = c;
             }
             load() {
@@ -20164,7 +22829,7 @@ var init_ui_config = __esm({
                     return this.cached;
                 let parsed = null;
                 try {
-                    parsed = JSON.parse(fs23.readFileSync(this.file, "utf8"));
+                    parsed = JSON.parse(fs24.readFileSync(this.file, "utf8"));
                 }
                 catch {
                 }
@@ -20195,9 +22860,9 @@ var init_ui_config = __esm({
                 return { ...this.load().appearance, customCss: "" };
             }
             setBackground(bytes, mime) {
-                fs23.mkdirSync(path22.dirname(this.image), { recursive: true });
-                fs23.writeFileSync(this.image + ".tmp", bytes);
-                fs23.renameSync(this.image + ".tmp", this.image);
+                fs24.mkdirSync(path23.dirname(this.image), { recursive: true });
+                fs24.writeFileSync(this.image + ".tmp", bytes);
+                fs24.renameSync(this.image + ".tmp", this.image);
                 const c = this.load();
                 const next = { ...c, appearance: { ...c.appearance, background: { ...c.appearance.background, type: "image", hasImage: true, imageMime: mime, imageVersion: c.appearance.background.imageVersion + 1 } } };
                 this.write(next);
@@ -20205,7 +22870,7 @@ var init_ui_config = __esm({
             }
             clearBackground() {
                 try {
-                    fs23.rmSync(this.image, { force: true });
+                    fs24.rmSync(this.image, { force: true });
                 }
                 catch {
                 }
@@ -20219,7 +22884,7 @@ var init_ui_config = __esm({
                 if (!bg.hasImage)
                     return null;
                 try {
-                    return { bytes: fs23.readFileSync(this.image), mime: bg.imageMime };
+                    return { bytes: fs24.readFileSync(this.image), mime: bg.imageMime };
                 }
                 catch {
                     return null;
@@ -20228,15 +22893,15 @@ var init_ui_config = __esm({
         };
     }
 });
-import fs24 from "node:fs";
-import path23 from "node:path";
+import fs25 from "node:fs";
+import path24 from "node:path";
 import tls from "node:tls";
 function tlsPair(configDir) {
-    const cert = path23.join(configDir, "cert.pem"), key = path23.join(configDir, "key.pem");
-    if (!fs24.existsSync(cert) || !fs24.existsSync(key))
+    const cert = path24.join(configDir, "cert.pem"), key = path24.join(configDir, "key.pem");
+    if (!fs25.existsSync(cert) || !fs25.existsSync(key))
         return { ok: false, reason: "cert.pem or key.pem missing in config dir" };
     try {
-        const pair = { cert: fs24.readFileSync(cert), key: fs24.readFileSync(key) };
+        const pair = { cert: fs25.readFileSync(cert), key: fs25.readFileSync(key) };
         tls.createSecureContext(pair);
         return { ok: true, ...pair };
     }
@@ -20267,7 +22932,7 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
         }
         try {
             validateOneBotConfig(body);
-            checkTokenChanges(fs24.existsSync(path23.join(configDir, `onebot_${uin}.json`)) ? readOneBotConfig(configDir, uin) : null, body, { clientIp: clientIp(ctx), uin });
+            checkTokenChanges(fs25.existsSync(path24.join(configDir, `onebot_${uin}.json`)) ? readOneBotConfig(configDir, uin) : null, body, { clientIp: clientIp(ctx), uin });
             writeOneBotConfig(configDir, uin, body);
         }
         catch (e) {
@@ -20356,7 +23021,7 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
         ctx.send(200, a.bytes, { "Content-Type": a.mime, "Cache-Control": "public, max-age=31536000, immutable" });
     });
     const view = (s) => ({ webuiPort: s.webuiPort, webuiHost: s.webuiHost, tlsEnabled: s.webuiTls?.enabled ?? false, trustProxy: s.trustProxy ?? "" });
-    const hasCert = () => fs24.existsSync(path23.join(configDir, "cert.pem")) && fs24.existsSync(path23.join(configDir, "key.pem"));
+    const hasCert = () => fs25.existsSync(path24.join(configDir, "cert.pem")) && fs25.existsSync(path24.join(configDir, "key.pem"));
     router.get("/api/system/settings", (ctx) => ctx.reply(200, { settings: view(app.runtime.saved()), hasCert: hasCert(), envOverrides: app.runtime.overrideKeys(), listeningPort: listeningPort(), restartRequiredToApply: true }));
     router.post("/api/system/settings", async (ctx) => {
         const body = await ctx.json();
@@ -20407,11 +23072,11 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
             return ctx.reply(400, { success: false, message: `invalid cert/key: ${e.message}` });
         }
         try {
-            fs24.mkdirSync(configDir, { recursive: true });
-            fs24.writeFileSync(path23.join(configDir, "cert.pem"), body.cert.endsWith("\n") ? body.cert : body.cert + "\n", "utf8");
-            fs24.writeFileSync(path23.join(configDir, "key.pem"), body.key.endsWith("\n") ? body.key : body.key + "\n", { encoding: "utf8", mode: 384 });
+            fs25.mkdirSync(configDir, { recursive: true });
+            fs25.writeFileSync(path24.join(configDir, "cert.pem"), body.cert.endsWith("\n") ? body.cert : body.cert + "\n", "utf8");
+            fs25.writeFileSync(path24.join(configDir, "key.pem"), body.key.endsWith("\n") ? body.key : body.key + "\n", { encoding: "utf8", mode: 384 });
             try {
-                fs24.chmodSync(path23.join(configDir, "key.pem"), 384);
+                fs25.chmodSync(path24.join(configDir, "key.pem"), 384);
             }
             catch {
             }
@@ -20426,8 +23091,8 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
         if (app.runtime.saved().webuiTls.enabled)
             return ctx.reply(400, { success: false, message: "请先关闭 TLS 再删除证书" });
         try {
-            fs24.rmSync(path23.join(configDir, "cert.pem"), { force: true });
-            fs24.rmSync(path23.join(configDir, "key.pem"), { force: true });
+            fs25.rmSync(path24.join(configDir, "cert.pem"), { force: true });
+            fs25.rmSync(path24.join(configDir, "key.pem"), { force: true });
         }
         catch (e) {
             log.warn("remove cert/key failed: %s", e.message);
@@ -20507,8 +23172,8 @@ var init_notification_config_view = __esm({
         };
     }
 });
-import fs25 from "node:fs";
-import path24 from "node:path";
+import fs26 from "node:fs";
+import path25 from "node:path";
 function emailAddress(value) {
     const t = String(value ?? "").trim();
     if (!t)
@@ -20657,15 +23322,15 @@ QQ号：{uin}
         normalizeNotifications = (v) => ({ version: 1, debounceSeconds: debounce(isObj4(v) ? v.debounceSeconds : void 0, 30), channels: channels(isObj4(v) ? v.channels : void 0) });
         NotificationStore = class {
             constructor(configDir) {
-                this.file = path24.join(configDir, "notifications.json");
+                this.file = path25.join(configDir, "notifications.json");
                 this.cached = null;
             }
             write(c) {
-                fs25.mkdirSync(path24.dirname(this.file), { recursive: true });
-                fs25.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), { encoding: "utf8", mode: 384 });
+                fs26.mkdirSync(path25.dirname(this.file), { recursive: true });
+                fs26.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), { encoding: "utf8", mode: 384 });
                 if (process.platform !== "win32")
-                    fs25.chmodSync(this.file + ".tmp", 384);
-                fs25.renameSync(this.file + ".tmp", this.file);
+                    fs26.chmodSync(this.file + ".tmp", 384);
+                fs26.renameSync(this.file + ".tmp", this.file);
                 this.cached = c;
             }
             load() {
@@ -20673,10 +23338,10 @@ QQ号：{uin}
                     return this.cached;
                 let parsed = null;
                 try {
-                    parsed = JSON.parse(fs25.readFileSync(this.file, "utf8"));
+                    parsed = JSON.parse(fs26.readFileSync(this.file, "utf8"));
                 }
                 catch (e) {
-                    if (e.code !== "ENOENT" && fs25.existsSync(this.file)) {
+                    if (e.code !== "ENOENT" && fs26.existsSync(this.file)) {
                         this.cached = normalizeNotifications({});
                         return this.cached;
                     }
@@ -20701,26 +23366,26 @@ QQ号：{uin}
         };
     }
 });
-import fs26 from "node:fs";
-import path25 from "node:path";
+import fs27 from "node:fs";
+import path26 from "node:path";
 import tls2 from "node:tls";
 import crypto20 from "node:crypto";
 function safePath(configDir, name) {
-    const dir = path25.resolve(configDir);
-    const st = fs26.lstatSync(dir, { throwIfNoEntry: false });
+    const dir = path26.resolve(configDir);
+    const st = fs27.lstatSync(dir, { throwIfNoEntry: false });
     if (st && (!st.isDirectory() || st.isSymbolicLink()))
         throw new UnsafeConfigPath(dir);
     if (!name)
         return dir;
-    const file = path25.resolve(dir, name);
-    if (!file.startsWith(dir + path25.sep))
+    const file = path26.resolve(dir, name);
+    if (!file.startsWith(dir + path26.sep))
         throw new UnsafeConfigPath(name);
-    for (let p2 = path25.dirname(file); p2 !== dir; p2 = path25.dirname(p2)) {
-        const s2 = fs26.lstatSync(p2, { throwIfNoEntry: false });
+    for (let p2 = path26.dirname(file); p2 !== dir; p2 = path26.dirname(p2)) {
+        const s2 = fs27.lstatSync(p2, { throwIfNoEntry: false });
         if (s2 && (!s2.isDirectory() || s2.isSymbolicLink()))
             throw new UnsafeConfigPath(name);
     }
-    const s = fs26.lstatSync(file, { throwIfNoEntry: false });
+    const s = fs27.lstatSync(file, { throwIfNoEntry: false });
     if (s && (!s.isFile() || s.isSymbolicLink()))
         throw new UnsafeConfigPath(name);
     return file;
@@ -20729,7 +23394,7 @@ function exportBackup(configDir, { includeCredentials = false, now: now2 = new D
     safePath(configDir);
     let names = [];
     try {
-        names = fs26.readdirSync(configDir).filter((n2) => PER_UIN.test(n2)).sort();
+        names = fs27.readdirSync(configDir).filter((n2) => PER_UIN.test(n2)).sort();
     }
     catch (e) {
         if (e.code !== "ENOENT")
@@ -20917,7 +23582,7 @@ function restoreBackup(configDir, bundle, opts = {}) {
     }
     if (!plan.restore.length)
         return { transactionId, restored: [], skipped: plan.skipped, migrated: plan.migrated, restartRequiredToApply: false };
-    const tx = path25.join(configDir, `.restore-transaction-${transactionId}`), snap = path25.join(tx, "snapshot"), staged = path25.join(tx, "staged");
+    const tx = path26.join(configDir, `.restore-transaction-${transactionId}`), snap = path26.join(tx, "snapshot"), staged = path26.join(tx, "staged");
     const existed = new Map(), committed = [];
     let phase = "snapshot", active;
     try {
@@ -20926,23 +23591,23 @@ function restoreBackup(configDir, bundle, opts = {}) {
             const cur = readOrNull(configDir, f.name);
             existed.set(f.name, cur !== null);
             if (cur !== null) {
-                fs26.mkdirSync(path25.dirname(path25.join(snap, f.name)), { recursive: true });
-                fs26.writeFileSync(path25.join(snap, f.name), cur);
+                fs27.mkdirSync(path26.dirname(path26.join(snap, f.name)), { recursive: true });
+                fs27.writeFileSync(path26.join(snap, f.name), cur);
             }
         }
         phase = "stage";
         for (const f of plan.restore) {
             active = f.name;
-            const p2 = path25.join(staged, f.name);
-            fs26.mkdirSync(path25.dirname(p2), { recursive: true });
-            fs26.writeFileSync(p2, f.data, { mode: f.mode });
+            const p2 = path26.join(staged, f.name);
+            fs27.mkdirSync(path26.dirname(p2), { recursive: true });
+            fs27.writeFileSync(p2, f.data, { mode: f.mode });
         }
         phase = "commit";
         for (const f of plan.restore) {
             active = f.name;
             const target = safePath(configDir, f.name);
-            fs26.mkdirSync(path25.dirname(target), { recursive: true });
-            (opts.renameImpl ?? fs26.renameSync)(path25.join(staged, f.name), target);
+            fs27.mkdirSync(path26.dirname(target), { recursive: true });
+            (opts.renameImpl ?? fs27.renameSync)(path26.join(staged, f.name), target);
             committed.push(f.name);
         }
     }
@@ -20951,11 +23616,11 @@ function restoreBackup(configDir, bundle, opts = {}) {
         const failedFiles = [active].filter(Boolean);
         for (const name of committed.reverse()) {
             try {
-                const target = path25.join(configDir, name);
+                const target = path26.join(configDir, name);
                 if (existed.get(name))
-                    fs26.copyFileSync(path25.join(snap, name), target);
+                    fs27.copyFileSync(path26.join(snap, name), target);
                 else
-                    fs26.rmSync(target, { force: true });
+                    fs27.rmSync(target, { force: true });
             }
             catch {
                 rollbackSucceeded = false;
@@ -20964,7 +23629,7 @@ function restoreBackup(configDir, bundle, opts = {}) {
         }
         if (rollbackSucceeded) {
             try {
-                fs26.rmSync(tx, { recursive: true, force: true });
+                fs27.rmSync(tx, { recursive: true, force: true });
             }
             catch {
             }
@@ -20972,7 +23637,7 @@ function restoreBackup(configDir, bundle, opts = {}) {
         throw new RestoreError({ phase, transactionId, message: `restore ${phase} failed: ${e.message}`, cause: e, rollbackSucceeded: committed.length || phase === "commit" ? rollbackSucceeded : void 0, snapshotDir: rollbackSucceeded ? void 0 : snap, failedFiles });
     }
     try {
-        fs26.rmSync(tx, { recursive: true, force: true });
+        fs27.rmSync(tx, { recursive: true, force: true });
     }
     catch (e) {
         throw new RestoreError({ phase: "cleanup", transactionId, message: "restore cleanup failed", committed: true, snapshotDir: tx, cause: e, failedFiles: [] });
@@ -21033,7 +23698,7 @@ var init_backup = __esm({
         readOrNull = (configDir, name) => {
             const f = safePath(configDir, name);
             try {
-                return fs26.readFileSync(f);
+                return fs27.readFileSync(f);
             }
             catch (e) {
                 if (e.code === "ENOENT")
@@ -21042,8 +23707,8 @@ var init_backup = __esm({
             }
         };
         RestoreError = class extends Error {
-            constructor({ phase, transactionId, message: message2, committed = false, rollbackSucceeded, snapshotDir, failedFiles = [], cause }) {
-                super(message2, { cause });
+            constructor({ phase, transactionId, message: message2, committed = false, rollbackSucceeded, snapshotDir, failedFiles = [], cause: cause2 }) {
+                super(message2, { cause: cause2 });
                 Object.assign(this, { phase, transactionId, committed, rollbackSucceeded, snapshotDir, failedFiles });
             }
         };
@@ -21064,8 +23729,8 @@ var init_backup = __esm({
         serialize = (v) => Buffer.from(JSON.stringify(v, null, 2), "utf8");
     }
 });
-import fs27 from "node:fs";
-import path26 from "node:path";
+import fs28 from "node:fs";
+import path27 from "node:path";
 function parseCleanup(body) {
     const exact = (keys) => {
         const k = Object.keys(body);
@@ -21104,12 +23769,12 @@ var init_storage = __esm({
     "upper/management/storage.mjs"() {
         sizeOf = (p2) => {
             try {
-                const st = fs27.statSync(p2);
+                const st = fs28.statSync(p2);
                 if (st.isFile())
                     return st.size;
                 if (!st.isDirectory())
                     return 0;
-                return fs27.readdirSync(p2).reduce((s, n2) => s + sizeOf(path26.join(p2, n2)), 0);
+                return fs28.readdirSync(p2).reduce((s, n2) => s + sizeOf(path27.join(p2, n2)), 0);
             }
             catch {
                 return 0;
@@ -21117,10 +23782,10 @@ var init_storage = __esm({
         };
         countFiles = (p2) => {
             try {
-                const st = fs27.statSync(p2);
+                const st = fs28.statSync(p2);
                 if (st.isFile())
                     return 1;
-                return st.isDirectory() ? fs27.readdirSync(p2).reduce((s, n2) => s + countFiles(path26.join(p2, n2)), 0) : 0;
+                return st.isDirectory() ? fs28.readdirSync(p2).reduce((s, n2) => s + countFiles(path27.join(p2, n2)), 0) : 0;
             }
             catch {
                 return 0;
@@ -21151,18 +23816,18 @@ var init_storage = __esm({
                 return [...on];
             }
             paths(uin, category) {
-                const d = path26.join(this.home, "data"), legacy = path26.join(d, uin);
-                const upper = uin === this.boundUin ? ["", "-wal", "-shm"].map((s) => path26.join(d, "upper", `messages.sqlite${s}`)) : [];
+                const d = path27.join(this.home, "data"), legacy = path27.join(d, uin);
+                const upper = uin === this.boundUin ? ["", "-wal", "-shm"].map((s) => path27.join(d, "upper", `messages.sqlite${s}`)) : [];
                 if (category === "messages")
-                    return [...upper, path26.join(legacy, "messages.json")];
+                    return [...upper, path27.join(legacy, "messages.json")];
                 if (category === "media")
-                    return [...uin === this.boundUin ? [path26.join(d, "neronet-images")] : [], path26.join(legacy, "messages.db"), path26.join(legacy, "messages.db-wal"), path26.join(legacy, "messages.db-shm")];
-                return [path26.join(legacy, "reactions.db"), path26.join(legacy, "reactions.db-wal"), path26.join(legacy, "reactions.db-shm")];
+                    return [...uin === this.boundUin ? [path27.join(d, "neronet-images")] : [], path27.join(legacy, "messages.db"), path27.join(legacy, "messages.db-wal"), path27.join(legacy, "messages.db-shm")];
+                return [path27.join(legacy, "reactions.db"), path27.join(legacy, "reactions.db-wal"), path27.join(legacy, "reactions.db-shm")];
             }
             uins() {
                 const set = new Set([this.boundUin, ...this.online().map((a) => String(a.uin))]);
                 try {
-                    for (const n2 of fs27.readdirSync(path26.join(this.home, "data")))
+                    for (const n2 of fs28.readdirSync(path27.join(this.home, "data")))
                         if (UIN2.test(n2))
                             set.add(n2);
                 }
@@ -21176,7 +23841,7 @@ var init_storage = __esm({
                     const [m, me, r] = ["messages", "media", "reactions"].map((c) => this.paths(uin, c).reduce((s, p2) => s + sizeOf(p2), 0));
                     return { uin, ...online.has(uin) ? { nickname: online.get(uin) } : {}, online: online.has(uin), messagesBytes: m, mediaBytes: me, reactionsBytes: r, totalBytes: m + me + r };
                 });
-                const tmp = path26.join(this.home, "data", "upper", "tmp");
+                const tmp = path27.join(this.home, "data", "upper", "tmp");
                 const temporary = { totalBytes: sizeOf(tmp), fileCount: countFiles(tmp), activeItemCount: 0 };
                 const logs = this.logs.status();
                 const accountDataBytes = accounts.reduce((s, a) => s + a.totalBytes, 0);
@@ -21186,16 +23851,16 @@ var init_storage = __esm({
                 let deletedFiles = 0, freedBytes = 0;
                 const failures = [];
                 for (const p2 of paths) {
-                    if (!fs27.existsSync(p2))
+                    if (!fs28.existsSync(p2))
                         continue;
                     const size = sizeOf(p2), files = countFiles(p2);
                     try {
-                        fs27.rmSync(p2, { recursive: true, force: true });
+                        fs28.rmSync(p2, { recursive: true, force: true });
                         deletedFiles += files;
                         freedBytes += size;
                     }
                     catch (e) {
-                        failures.push({ ...uin ? { uin } : {}, file: path26.relative(this.home, p2), message: String(e.code ?? e.message) });
+                        failures.push({ ...uin ? { uin } : {}, file: path27.relative(this.home, p2), message: String(e.code ?? e.message) });
                     }
                 }
                 return { deletedFiles, freedBytes, failures };
@@ -21204,7 +23869,7 @@ var init_storage = __esm({
                 return this.logs.clear();
             }
             clearTemporary() {
-                const r = this.remove([path26.join(this.home, "data", "upper", "tmp")]);
+                const r = this.remove([path27.join(this.home, "data", "upper", "tmp")]);
                 return { ...r, skippedActiveItems: 0 };
             }
             clearAccount(category, uin) {
@@ -21413,11 +24078,12 @@ function actionCatalog(enabled) {
     const counts = new Map();
     for (const d of actions)
         counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
-    return { actions, categories: [...counts].map(([category, count]) => ({ category, count })) };
+    return { actions, categories: [...counts].map(([category, count3]) => ({ category, count: count3 })) };
 }
 var p, gid, uid, mid, message, forwardNodes, D, ACTION_DOCS;
 var init_action_docs = __esm({
     "upper/onebot/action-docs.mjs"() {
+        init_record_convert();
         p = (name, type, required, extra = {}) => ({ name, type, required, ...extra });
         gid = (required = true) => p("group_id", "number", required, { role: "group_id", desc: "群号" });
         uid = (required = true) => p("user_id", "number", required, { role: "user_id", desc: "QQ 号" });
@@ -21433,13 +24099,16 @@ var init_action_docs = __esm({
             D("send_group_msg", "消息", "发送群消息", [gid(), message(), p("auto_escape", "boolean", false, { default: false })], { returns: "{ message_id }" }),
             D("send_msg", "消息", "按会话类型发送消息", [p("message_type", "string", false, { values: ["private", "group"] }), uid(false), gid(false), message()], { returns: "{ message_id }", invariants: ["group_id 与 user_id 至少一个"] }),
             D("get_msg", "消息", "读取消息", [mid()], { readOnly: true }),
+            D("mark_msg_as_read", "消息", "标记消息所在会话已读（需启用 message-read）", [mid(), p("target_id", "number", false)]),
+            D("mark_group_msg_as_read", "消息", "标记群会话已读（需启用 message-read）", [mid(), gid(false)]),
+            D("mark_private_msg_as_read", "消息", "标记私聊会话已读（需启用 message-read）", [mid(), uid(false)]),
             D("delete_msg", "消息", "撤回消息", [mid()]),
             D("send_forward_msg", "合并转发", "发送合并转发（按 group_id / user_id 决定会话）", [gid(false), uid(false), forwardNodes()], { returns: "{ message_id, res_id, forward_id }" }),
             D("send_group_forward_msg", "合并转发", "发送群合并转发", [gid(), forwardNodes()], { returns: "{ message_id, res_id, forward_id }" }),
             D("send_private_forward_msg", "合并转发", "发送私聊合并转发", [uid(), forwardNodes()], { returns: "{ message_id, res_id, forward_id }" }),
             D("get_forward_msg", "合并转发", "展开合并转发", [p("id", "string", false, { desc: "res_id / forward_id" }), p("message_id", "number", false, { role: "message_id" })], { readOnly: true, returns: "{ messages }", invariants: ["id 与 message_id 至少一个"] }),
             D("get_image", "媒体", "图片信息与地址", [p("file", "string", false, { role: "file_id" }), p("file_id", "string", false, { role: "file_id" })], { readOnly: true, returns: "{ file, url, file_size, file_name }", invariants: ["file 与 file_id 至少一个"] }),
-            D("get_record", "媒体", "语音地址（不转码；out_format 返回不支持）", [p("file", "string", false, { role: "file_id" }), p("file_id", "string", false, { role: "file_id" })], { readOnly: true }),
+            D("get_record", "媒体", "读取语音地址或转码（部分格式需 ffmpeg）", [p("file", "string", false, { role: "file_id" }), p("file_id", "string", false, { role: "file_id" }), p("out_format", "string", false, { values: RECORD_FORMATS })], { readOnly: true }),
             D("get_group_file_url", "文件", "群文件下载地址", [gid(), p("file_id", "string", true, { role: "file_id" }), p("busid", "number", false, { default: 102 })], { readOnly: true, returns: "{ url }" }),
             D("get_private_file_url", "文件", "私聊文件下载地址", [p("file_id", "string", true, { role: "file_id" }), p("file_hash", "string", false)], { readOnly: true, returns: "{ url }" }),
             D("upload_group_file", "文件", "上传群文件", [gid(), p("file", "string", true, { role: "file", desc: "本地路径、file://、base64:// 或 http(s)" }), p("name", "string", false), p("folder", "string", false, { default: "/" }), p("upload_file", "boolean", false, { default: true })], { returns: "{ file_id }" }),
@@ -21461,13 +24130,18 @@ var init_action_docs = __esm({
             D("modify_custom_face", "表情", "修改收藏表情描述", [p("emoji_id", "string", true), p("desc", "string", false)]),
             D("add_custom_face", "表情", "添加收藏表情", [p("file", "string", true, { role: "image" })], { returns: "{ emoji_id }" }),
             D("fetch_face_entity", "表情", "系统表情资料", [p("face_id", "number", true, { role: "face_id" }), p("refresh", "boolean", false, { default: false })], { readOnly: true }),
+            D("send_qzone_msg", "QQ 空间", "发表说说（需启用 qzone；ugc_right 默认 1 所有人可见）", [p("content", "string", true, { desc: "正文" }), p("images", "array", false, { desc: "图片来源数组，最多 9 张：base64://、http(s)://、file:// 或本地路径" }), p("ugc_right", "number", false, { values: [1, 4, 16, 64, 128], default: 1, desc: "1 所有人 / 4 好友 / 16 指定好友可见 / 64 仅自己 / 128 指定好友不可见" }), p("target_uins", "array", false, { desc: "ugc_right 为 16 或 128 时必填的 QQ 号数组" })], { returns: "{ tid, time }" }),
+            D("delete_qzone_msg", "QQ 空间", "删除自己的说说（需启用 qzone）", [p("tid", "string", true, { desc: "说说编号" })]),
+            D("get_qzone_msg_list", "QQ 空间", "说说列表（需启用 qzone）", [p("target_uin", "number", false, { role: "user_id", desc: "省略为机器人自己" }), p("pos", "number", false, { default: 0 }), p("num", "number", false, { default: 20, desc: "1 到 40" })], { readOnly: true, returns: "{ total, pos, num, msglist }" }),
+            D("get_qzone_msg_detail", "QQ 空间", "说说详情和一页评论（需启用 qzone）", [p("tid", "string", true), p("target_uin", "number", false, { role: "user_id" }), p("pos", "number", false, { default: 0 }), p("num", "number", false, { default: 20 })], { readOnly: true, returns: "{ tid, uin, content, time, images, comment_num, comments, ugc_right? }" }),
+            D("set_qzone_msg_right", "QQ 空间", "修改自己说说的查看权限（需启用 qzone）", [p("tid", "string", true), p("ugc_right", "number", true, { values: [1, 4, 16, 64, 128] }), p("target_uins", "array", false, { desc: "ugc_right 为 16 或 128 时必填" })], { returns: "{ tid, ugc_right, target_uins, confirmed }" }),
             D("can_send_image", "能力", "能否发送图片", [], { readOnly: true, returns: "{ yes }" }),
             D("can_send_record", "能力", "能否发送语音", [], { readOnly: true, returns: "{ yes }" })
         ]);
     }
 });
-import fs28 from "node:fs";
-import path27 from "node:path";
+import fs29 from "node:fs";
+import path28 from "node:path";
 import crypto21 from "node:crypto";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -21515,31 +24189,31 @@ function registerDebugRoutes(router, app, { shutdown }) {
     router.post("/api/debug/upload", async (ctx) => {
         const dir = d.uploadDir;
         try {
-            fs28.mkdirSync(dir, { recursive: true });
+            fs29.mkdirSync(dir, { recursive: true });
             const now2 = Date.now();
-            for (const n2 of fs28.readdirSync(dir)) {
-                const f = path27.join(dir, n2);
+            for (const n2 of fs29.readdirSync(dir)) {
+                const f = path28.join(dir, n2);
                 try {
-                    if (now2 - fs28.statSync(f).mtimeMs > 864e5)
-                        fs28.rmSync(f, { force: true, recursive: true });
+                    if (now2 - fs29.statSync(f).mtimeMs > 864e5)
+                        fs29.rmSync(f, { force: true, recursive: true });
                 }
                 catch {
                 }
             }
-            const name = path27.basename(String(ctx.query("filename") ?? "").replace(/\\/g, "/")).replace(/[^\w.-]+/g, "_").replace(/^\.+/, "").slice(0, 120) || "file";
-            const dest = path27.join(dir, `${crypto21.randomBytes(12).toString("hex")}__${name}`);
+            const name = path28.basename(String(ctx.query("filename") ?? "").replace(/\\/g, "/")).replace(/[^\w.-]+/g, "_").replace(/^\.+/, "").slice(0, 120) || "file";
+            const dest = path28.join(dir, `${crypto21.randomBytes(12).toString("hex")}__${name}`);
             let size = 0;
             const limit = new Transform({ transform(chunk2, _enc, done) {
                     size += chunk2.length;
                     done(size > 4 * 1024 ** 3 ? new Error("上传超出大小上限") : null, chunk2);
                 } });
             try {
-                await pipeline(ctx.req, limit, fs28.createWriteStream(dest, { mode: 384 }));
+                await pipeline(ctx.req, limit, fs29.createWriteStream(dest, { mode: 384 }));
                 if (!size)
                     throw new Error("empty body");
             }
             catch (e) {
-                fs28.rmSync(dest, { force: true });
+                fs29.rmSync(dest, { force: true });
                 throw e;
             }
             ctx.reply(200, { status: "ok", path: dest, size });
@@ -21574,11 +24248,11 @@ var init_routes_debug = __esm({
         UIN3 = /^\d{5,10}$/;
     }
 });
-import http3 from "node:http";
+import http4 from "node:http";
 import https from "node:https";
-import fs29 from "node:fs";
+import fs30 from "node:fs";
 import os2 from "node:os";
-import path28 from "node:path";
+import path29 from "node:path";
 import crypto22 from "node:crypto";
 function trustProxy(raw) {
     const v = String(raw ?? "").trim().toLowerCase();
@@ -21673,7 +24347,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
         if (!body || typeof body !== "object" || Array.isArray(body))
             return ctx.reply(400, { success: false, message: "请求格式错误" });
         const password = typeof body.password === "string" ? body.password : "";
-        const fail2 = (message2) => {
+        const fail3 = (message2) => {
             const prev = attempts.get(ip);
             const cur = prev && now2 < prev.resetAt ? prev : { count: 0, resetAt: now2 + LOCKOUT_MS };
             cur.count++;
@@ -21681,7 +24355,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
             return ctx.reply(401, { success: false, message: message2 });
         };
         if (!creds.verify(password))
-            return fail2("密码错误");
+            return fail3("密码错误");
         let nextTotp;
         if (creds.totpEnabled()) {
             const totp = typeof body.totp === "string" && body.totp.trim() ? body.totp.trim() : void 0;
@@ -21690,7 +24364,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
                 return ctx.reply(200, { success: false, needsTotp: true });
             nextTotp = verifySecondFactor({ password, state: creds.totpState(), totp, recoveryCode, atMs: now2 });
             if (!nextTotp)
-                return fail2("验证码不正确");
+                return fail3("验证码不正确");
         }
         attempts.delete(ip);
         if (nextTotp) {
@@ -22046,11 +24720,11 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
     router.post("/api/update/*", (ctx) => ctx.reply(409, { success: false, code: "NERONET_MANAGED_RELEASE", message: "不提供在线更新；请下载完整的新版本包后重新安装。" }));
     router.get("/api/update/*", (ctx) => ctx.reply(409, { success: false, code: "NERONET_MANAGED_RELEASE", message: "不提供在线更新；请下载完整的新版本包后重新安装。" }));
     app.extraRoutes?.(router, { log, bus, sessions, shutdown: shutdown.signal });
-    const index = path28.join(app.clientRoot, "index.html");
+    const index = path29.join(app.clientRoot, "index.html");
     const documentPage = (ctx) => {
-        if (!fs29.existsSync(index))
+        if (!fs30.existsSync(index))
             return ctx.text(404, "WebUI client bundle not found.");
-        ctx.send(200, fs29.readFileSync(index), { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+        ctx.send(200, fs30.readFileSync(index), { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
     };
     router.get("/", documentPage);
     router.get("/index.html", documentPage);
@@ -22064,7 +24738,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
     const handler = (req, res) => {
         void router.handle(req, res);
     };
-    const server = tls4 ? https.createServer(tls4, handler) : http3.createServer(handler);
+    const server = tls4 ? https.createServer(tls4, handler) : http4.createServer(handler);
     await new Promise((resolve, reject) => {
         const onAbort = () => reject(Object.assign(new Error("NERONET_APPLICATION_STOPPING"), { code: "NERONET_APPLICATION_STOPPING" }));
         signal?.addEventListener("abort", onAbort, { once: true });
@@ -22340,7 +25014,7 @@ var init_smtp = __esm({
         caps = (r) => ({ starttls: r.lines.some((l) => /^STARTTLS\b/i.test(l)), auth: new Set(r.lines.filter((l) => /^AUTH /i.test(l)).flatMap((l) => l.slice(5).toUpperCase().split(/\s+/)).filter(Boolean)) });
     }
 });
-import http4 from "node:http";
+import http5 from "node:http";
 import https2 from "node:https";
 function postNotification(url, body, headers2, signal) {
     return send(url, body, { "Content-Type": "application/json", ...headers2 }, signal, "POST", 0);
@@ -22353,7 +25027,7 @@ function send(url, body, headers2, signal, method, redirects) {
             throw new Error("Unsupported notification protocol");
         if (target.username || target.password)
             throw new Error("Notification URL credentials are not supported");
-        const transport = target.protocol === "https:" ? https2 : http4;
+        const transport = target.protocol === "https:" ? https2 : http5;
         const agent = new transport.Agent({ keepAlive: false, proxyEnv: transport.globalAgent.options.proxyEnv });
         const sockets = new Set();
         const own = (socket) => {
@@ -22667,17 +25341,17 @@ var init_manager = __esm({
         };
     }
 });
-import fs30 from "node:fs";
-import path29 from "node:path";
+import fs31 from "node:fs";
+import path30 from "node:path";
 function readJson(file, max = 16384) {
     let fd;
     try {
-        fd = fs30.openSync(file, "r");
-        const size = fs30.fstatSync(fd).size;
+        fd = fs31.openSync(file, "r");
+        const size = fs31.fstatSync(fd).size;
         if (size > max)
             return { state: "oversize" };
         const b = Buffer.alloc(size);
-        fs30.readSync(fd, b, 0, size, 0);
+        fs31.readSync(fd, b, 0, size, 0);
         return { state: "available", value: JSON.parse(b.toString("utf8").replace(/^\uFEFF/, "")) };
     }
     catch (e) {
@@ -22685,19 +25359,19 @@ function readJson(file, max = 16384) {
     }
     finally {
         if (fd !== void 0)
-            fs30.closeSync(fd);
+            fs31.closeSync(fd);
     }
 }
 function readSupervisorTail(home3, max = 262144) {
     let fd;
     try {
-        fd = fs30.openSync(path29.join(home3, "supervisor-metadata.jsonl"), "r");
-        const size = fs30.fstatSync(fd).size, start = Math.max(0, size - max), b = Buffer.alloc(size - start);
-        fs30.readSync(fd, b, 0, b.length, start);
+        fd = fs31.openSync(path30.join(home3, "supervisor-metadata.jsonl"), "r");
+        const size = fs31.fstatSync(fd).size, start = Math.max(0, size - max), b = Buffer.alloc(size - start);
+        fs31.readSync(fd, b, 0, b.length, start);
         let rows = b.toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/);
         if (start)
             rows.shift();
-        let invalid8 = 0;
+        let invalid9 = 0;
         const events = [];
         for (const line of rows) {
             if (!line.trim())
@@ -22707,24 +25381,24 @@ function readSupervisorTail(home3, max = 262144) {
                 if (object(v))
                     events.push(v);
                 else
-                    invalid8++;
+                    invalid9++;
             }
             catch {
-                invalid8++;
+                invalid9++;
             }
         }
-        return { state: "available", bounded: start > 0, partial: invalid8 > 0, events };
+        return { state: "available", bounded: start > 0, partial: invalid9 > 0, events };
     }
     catch (e) {
         return { state: e.code === "ENOENT" ? "absent" : "unreadable", bounded: false, partial: false, events: [] };
     }
     finally {
         if (fd !== void 0)
-            fs30.closeSync(fd);
+            fs31.closeSync(fd);
     }
 }
 function summarize(home3, runtime = {}) {
-    const tail = readSupervisorTail(home3), guard2 = readJson(path29.join(home3, "native-startup-unresolved.json"));
+    const tail = readSupervisorTail(home3), guard2 = readJson(path30.join(home3, "native-startup-unresolved.json"));
     const latest = tail.events.findLast((x) => x.nativeStart === true), closed = tail.events.findLast((x) => x.nativeCloseResult === true);
     let worker;
     for (const e of tail.events) {
@@ -22788,31 +25462,31 @@ __export(bootstrap_password_exports, {
     initialPasswordFile: () => initialPasswordFile,
     main: () => main3
 });
-import fs31 from "node:fs";
-import path30 from "node:path";
+import fs32 from "node:fs";
+import path31 from "node:path";
 function bootstrapState(home3) {
     const file = initialPasswordFile(home3);
     let password;
     try {
-        password = fs31.readFileSync(file, "utf8").trim();
+        password = fs32.readFileSync(file, "utf8").trim();
     }
     catch {
         return { file, exists: false, active: false, pending: false };
     }
-    const match = password ? storedPasswordMatches(path30.join(home3, "config"), password) : false;
+    const match = password ? storedPasswordMatches(path31.join(home3, "config"), password) : false;
     return { file, exists: true, active: match === true, pending: match === null };
 }
 function clearInitialPassword(home3) {
     const file = initialPasswordFile(home3);
-    if (!fs31.existsSync(file))
+    if (!fs32.existsSync(file))
         return { removed: false, existed: false };
     try {
-        fs31.rmSync(file, { force: true });
+        fs32.rmSync(file, { force: true });
     }
     catch (error) {
         return { removed: false, existed: true, errorCode: /^[A-Z0-9_]{1,32}$/.test(error?.code ?? "") ? error.code : "REMOVE_FAILED" };
     }
-    return fs31.existsSync(file) ? { removed: false, existed: true, errorCode: "STILL_PRESENT" } : { removed: true, existed: true };
+    return fs32.existsSync(file) ? { removed: false, existed: true, errorCode: "STILL_PRESENT" } : { removed: true, existed: true };
 }
 function main3(argv2 = process.argv.slice(2)) {
     const i = argv2.indexOf("--home"), home3 = i >= 0 ? argv2[i + 1] : null;
@@ -22821,7 +25495,7 @@ function main3(argv2 = process.argv.slice(2)) {
         process.exitCode = 2;
         return;
     }
-    const state = bootstrapState(path30.resolve(home3));
+    const state = bootstrapState(path31.resolve(home3));
     console.log(JSON.stringify({ initialPasswordActive: state.active, initialPasswordPending: state.pending, file: state.file }));
 }
 var INITIAL_PASSWORD_FILE, initialPasswordFile;
@@ -22829,13 +25503,13 @@ var init_bootstrap_password = __esm({
     "upper/management/bootstrap-password.mjs"() {
         init_credentials();
         INITIAL_PASSWORD_FILE = "webui-initial-password.txt";
-        initialPasswordFile = (home3) => path30.join(home3, INITIAL_PASSWORD_FILE);
+        initialPasswordFile = (home3) => path31.join(home3, INITIAL_PASSWORD_FILE);
     }
 });
 var gateway_exports = {};
-import fs32 from "node:fs";
-import path31 from "node:path";
-import http5 from "node:http";
+import fs33 from "node:fs";
+import path32 from "node:path";
+import http6 from "node:http";
 import crypto24 from "node:crypto";
 async function stop(reason) {
     closing2 = true;
@@ -22876,12 +25550,12 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         throw Error("NeroNet management address is not allowed by the deployment profile");
     const env = { ...process.env };
     const operatorPassword = typeof env.NERONET_WEBUI_BOOTSTRAP_PASSWORD === "string" && env.NERONET_WEBUI_BOOTSTRAP_PASSWORD.length >= 8;
-    if (!fs32.existsSync(path31.join(configDir, "webui.json")) && operatorPassword) {
+    if (!fs33.existsSync(path32.join(configDir, "webui.json")) && operatorPassword) {
         clearInitialPassword(home2);
     }
-    else if (!fs32.existsSync(path31.join(configDir, "webui.json"))) {
+    else if (!fs33.existsSync(path32.join(configDir, "webui.json"))) {
         const initial = crypto24.randomBytes(24).toString("base64url");
-        fs32.writeFileSync(initialPasswordFile(home2), initial + "\n", { mode: 384 });
+        fs33.writeFileSync(initialPasswordFile(home2), initial + "\n", { mode: 384 });
         env.NERONET_WEBUI_BOOTSTRAP_PASSWORD = initial;
     }
     else {
@@ -22891,7 +25565,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
             record2(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-already-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
         }
     }
-    const controlPath = path31.join(home2, "runtime-control.json");
+    const controlPath = path32.join(home2, "runtime-control.json");
     const info = () => ({
         pid,
         name: "QQ",
@@ -22913,7 +25587,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         const previous = client.businessPaused;
         client.setBusinessPaused(paused);
         try {
-            fs32.writeFileSync(controlPath, JSON.stringify({ paused }) + "\n");
+            fs33.writeFileSync(controlPath, JSON.stringify({ paused }) + "\n");
         }
         catch (e) {
             client.setBusinessPaused(previous);
@@ -22923,7 +25597,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         record2({ businessPaused: paused, pendingNative: client.pending.size, callbackCodePinned: true });
         return info();
     };
-    if (fs32.existsSync(controlPath) && JSON.parse(fs32.readFileSync(controlPath, "utf8")).paused)
+    if (fs33.existsSync(controlPath) && JSON.parse(fs33.readFileSync(controlPath, "utf8")).paused)
         client.setBusinessPaused(true);
     const diagnostics = createDiagnostics({ readRuntime });
     const notificationStore = new NotificationStore(configDir);
@@ -22966,7 +25640,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
                 debugObservers.add(fn);
                 return () => debugObservers.delete(fn);
             },
-            uploadDir: path31.join(home2, "data", "upper", "tmp", "webui-upload")
+            uploadDir: path32.join(home2, "data", "upper", "tmp", "webui-upload")
         },
         noticesDir: noticesDirectory,
         clientRoot: webuiDirectory,
@@ -23025,6 +25699,7 @@ var init_gateway = __esm({
         init_layout_release();
         init_process_selection();
         init_bootstrap_password();
+        init_sensitive_projection();
         [pidArg, homeArg2, generationStop, epochArg, qqStartedArg] = process.argv.slice(2);
         pid = Number(pidArg);
         if (generationStop && !/^gateway-stop-[a-f0-9-]+$/.test(generationStop))
@@ -23032,28 +25707,29 @@ var init_gateway = __esm({
         generationInfo = { epoch: /^\d{1,9}$/.test(epochArg ?? "") ? Number(epochArg) : null, qqStarted: /^[\dT:.\-Z+]{10,40}$/.test(qqStartedArg ?? "") ? qqStartedArg : null };
         if (!Number.isSafeInteger(pid) || pid < 1 || !homeArg2)
             throw Error("Usage: upper/gateway QQ_PID INDEPENDENT_HOME");
-        home2 = path31.resolve(homeArg2);
+        home2 = path32.resolve(homeArg2);
         deployment2 = validateDeploymentPaths(loadDeploymentProfile(), { home: home2 });
-        fs32.mkdirSync(home2, { recursive: true });
+        fs33.mkdirSync(home2, { recursive: true });
         process.chdir(home2);
         MILESTONE = /^(applicationStarted|stopped|oneBotConfigReloaded|businessPaused|oneBotReverseConnected|networkState)$/;
-        metadataLog2 = new BoundedJsonl(path31.join(home2, "gateway-metadata.jsonl"), { onFailure: (error) => {
+        metadataLog2 = new BoundedJsonl(path32.join(home2, "gateway-metadata.jsonl"), { onFailure: (error) => {
                 try {
                     logger?.emit("warn", "Upper", void 0, [`gateway-metadata.jsonl write failed: ${String(error?.code ?? error?.message ?? error).slice(0, 120)}`]);
                 }
                 catch {
                 }
             } });
-        record2 = (e) => {
+        record2 = (raw) => {
+            const e = secrets.size ? JSON.parse(secrets.scrub(JSON.stringify(raw))) : raw;
             metadataLog2.append({ utc: (new Date()).toISOString(), upper: "independent", ...e });
             if (!logger)
                 return;
-            const key = Object.keys(e)[0] ?? "event", text = JSON.stringify(e);
-            const level = /fail|error|unsupported|ignored|skipped/i.test(text.slice(0, 120)) ? "warn" : MILESTONE.test(key) ? "info" : "debug";
-            logger.emit(level, "Upper", client?.uin ? Number(client.uin) : void 0, [text.length > 400 ? text.slice(0, 400) + "…" : text]);
+            const key = Object.keys(e)[0] ?? "event", text2 = JSON.stringify(e);
+            const level = /fail|error|unsupported|ignored|skipped/i.test(text2.slice(0, 120)) ? "warn" : MILESTONE.test(key) ? "info" : "debug";
+            logger.emit(level, "Upper", client?.uin ? Number(client.uin) : void 0, [text2.length > 400 ? text2.slice(0, 400) + "…" : text2]);
         };
-        accountFile = path31.join(home2, "account-binding.json");
-        bound = fs32.existsSync(accountFile) ? JSON.parse(fs32.readFileSync(accountFile, "utf8")) : null;
+        accountFile = path32.join(home2, "account-binding.json");
+        bound = fs33.existsSync(accountFile) ? JSON.parse(fs33.readFileSync(accountFile, "utf8")) : null;
         client = new NativeClient(pid, { expectedUin: bound?.uin, timeoutMs: 3e4 });
         closing2 = false;
         networkReady = false;
@@ -23094,7 +25770,7 @@ var init_gateway = __esm({
             void stop("SIGTERM");
         };
         checkStop = () => {
-            if (fs32.existsSync(path31.join(home2, "STOP")) || generationStop && fs32.existsSync(path31.join(home2, generationStop)))
+            if (fs33.existsSync(path32.join(home2, "STOP")) || generationStop && fs33.existsSync(path32.join(home2, generationStop)))
                 void stop("STOP");
         };
         process.on("SIGINT", onSigint);
@@ -23149,13 +25825,13 @@ var init_gateway = __esm({
             await client.connect();
             lifecycle.checkpoint();
             if (!bound)
-                fs32.writeFileSync(accountFile, JSON.stringify({ uin: client.uin, enrolledPid: pid }) + "\n", { flag: "wx" });
-            const configDir = path31.join(home2, "config");
-            fs32.mkdirSync(configDir, { recursive: true });
+                fs33.writeFileSync(accountFile, JSON.stringify({ uin: client.uin, enrolledPid: pid }) + "\n", { flag: "wx" });
+            const configDir = path32.join(home2, "config");
+            fs33.mkdirSync(configDir, { recursive: true });
             const runtimeConfig = new RuntimeConfig(configDir);
             const runtime = runtimeConfig.effective();
-            logger = createLogger({ file: logFiles = new FileTransport({
-                    directory: process.env.NERONET_LOG_DIR || process.env.NERONET_LOG_DIR || path31.join(home2, "logs"),
+            logger = createLogger({ scrub: (text2) => secrets.scrub(text2), file: logFiles = new FileTransport({
+                    directory: process.env.NERONET_LOG_DIR || process.env.NERONET_LOG_DIR || path32.join(home2, "logs"),
                     maxTotalMb: runtime.logMaxTotalMb,
                     retainDays: runtime.logRetainDays,
                     perUinEnabled: runtime.logPerUin,
@@ -23170,14 +25846,14 @@ var init_gateway = __esm({
                 record2({ actionPolicy: policy.file, profiles: policy.profiles, extraActionsEnabled: policy.extraActions });
             const captureDir = process.env.NERONET_UPPER_CAPTURE_DIR;
             let captured = 0;
-            const capture = captureDir && path31.isAbsolute(captureDir) && fs32.existsSync(captureDir) ? (body, reason) => {
+            const capture = captureDir && path32.isAbsolute(captureDir) && fs33.existsSync(captureDir) ? (body, reason) => {
                 if (captured < 50)
-                    fs32.writeFileSync(path31.join(captureDir, `${Date.now()}-${++captured}-${reason}.bin`), body);
+                    fs33.writeFileSync(path32.join(captureDir, `${Date.now()}-${++captured}-${reason}.bin`), body);
             } : null;
             if (capture)
                 record2({ upperCaptureEnabled: true });
-            const index = new SqliteMessageStore(path31.join(home2, "data", "upper", "messages.sqlite"));
-            const images = new ImageCache({ dir: path31.join(home2, "data", "neronet-images"), log: (e) => record2(e) });
+            const index = new SqliteMessageStore(path32.join(home2, "data", "upper", "messages.sqlite"));
+            const images = new ImageCache({ dir: path32.join(home2, "data", "neronet-images"), log: (e) => record2(e) });
             try {
                 const removed = await images.cleanTemps();
                 if (removed)
@@ -23207,7 +25883,7 @@ var init_gateway = __esm({
                 const t0 = Date.now();
                 const response = await policyDispatch(action, params, echo);
                 if (debugObservers.size)
-                    observe2({ kind: "action", action: String(action), params: params ?? {}, response, ms: Date.now() - t0, origin });
+                    observe2({ kind: "action", action: String(action), params: projectSensitive(params ?? {}), response: projectSensitive(response), ms: Date.now() - t0, origin });
                 return response;
             };
             const dispatch = observed2("onebot");
@@ -23285,7 +25961,7 @@ var init_gateway = __esm({
             };
             lifecycle.checkpoint();
             networkReady = true;
-            health = http5.createServer((_req, res) => {
+            health = http6.createServer((_req, res) => {
                 const state = observeRuntime(client, { pid, networkReady, closing: closing2, applicationStarted: lifecycle.ready, connectionStatuses: servers?.getConnectionStatuses() ?? [] });
                 res.writeHead(state.applicationReady ? 200 : 503, { "content-type": "application/json" });
                 res.end(JSON.stringify({ ready: state.applicationReady, nativeConnected: state.connected, accountBound: !!client.uin, networkState: state.networkState, version: product_default.version, upper: "independent" }));
@@ -23335,12 +26011,12 @@ __export(package_check_exports, {
     parseSums: () => parseSums,
     verifyPackage: () => verifyPackage
 });
-import fs33 from "node:fs";
-import path32 from "node:path";
+import fs34 from "node:fs";
+import path33 from "node:path";
 import crypto25 from "node:crypto";
-function parseSums(text) {
+function parseSums(text2) {
     const rows = [], seen = new Set();
-    for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    for (const line of text2.replace(/^\uFEFF/, "").split(/\r?\n/)) {
         if (!line)
             continue;
         const m = /^([a-f0-9]{64}) \*(.+)$/.exec(line);
@@ -23357,34 +26033,34 @@ function parseSums(text) {
     return rows;
 }
 function verifyPackage(root, { nativeDirectory: nativeDirectory2 } = {}) {
-    root = fs33.realpathSync(root);
-    const sums = path32.join(root, SUMS_FILE);
-    if (!fs33.existsSync(sums))
+    root = fs34.realpathSync(root);
+    const sums = path33.join(root, SUMS_FILE);
+    if (!fs34.existsSync(sums))
         throw Error("NERONET_PACKAGE_MANIFEST_MISSING");
-    const rows = parseSums(fs33.readFileSync(sums, "utf8"));
+    const rows = parseSums(fs34.readFileSync(sums, "utf8"));
     const seen = new Set(rows.map((r) => r.path.toLowerCase()));
     for (const required of REQUIRED_FILES)
         if (!seen.has(required))
             throw Error("NERONET_PACKAGE_REQUIRED_FILE_MISSING: " + required);
     let bytes = 0;
     for (const row of rows) {
-        const file = path32.resolve(root, row.path);
+        const file = path33.resolve(root, row.path);
         let real;
         try {
-            real = fs33.realpathSync(file);
+            real = fs34.realpathSync(file);
         }
         catch {
             throw Error("NERONET_PACKAGE_FILE_MISMATCH: " + row.path);
         }
-        if (!real.startsWith(root + path32.sep) || fs33.lstatSync(file).isSymbolicLink() || !fs33.statSync(file).isFile())
+        if (!real.startsWith(root + path33.sep) || fs34.lstatSync(file).isSymbolicLink() || !fs34.statSync(file).isFile())
             throw Error("NERONET_PACKAGE_UNSAFE_ENTRY");
-        const b = fs33.readFileSync(file);
+        const b = fs34.readFileSync(file);
         if (sha(b) !== row.sha256)
             throw Error("NERONET_PACKAGE_FILE_MISMATCH: " + row.path);
         bytes += b.length;
     }
-    const nativeManifest2 = loadNativeManifest(path32.join(root, "native/native-manifest.json"));
-    verifyNativeArtifacts(nativeManifest2, nativeDirectory2 ? fs33.realpathSync(nativeDirectory2) : path32.join(root, "native"));
+    const nativeManifest2 = loadNativeManifest(path33.join(root, "native/native-manifest.json"));
+    verifyNativeArtifacts(nativeManifest2, nativeDirectory2 ? fs34.realpathSync(nativeDirectory2) : path33.join(root, "native"));
     return {
         passed: true,
         product: product_default.name,
@@ -23440,16 +26116,16 @@ __export(default_profile_exports, {
     ensureDefaultProfile: () => ensureDefaultProfile,
     main: () => main5
 });
-import fs34 from "node:fs";
-import path33 from "node:path";
+import fs35 from "node:fs";
+import path34 from "node:path";
 function buildDefaultProfile({ packageRoot: packageRoot2, qqExecutable }) {
-    const root = path33.resolve(packageRoot2), parent = path33.dirname(root);
+    const root = path34.resolve(packageRoot2), parent = path34.dirname(root);
     if (parent === root)
         throw Error("NERONET_PACKAGE_AT_DRIVE_ROOT");
     return { schema: 1, generated: true, mode: "portable", allowedComputerName: null, qqExecutable, installRoot: parent, homeRoot: root, portableData: true, managementHosts: ["127.0.0.1", "::1", "localhost"] };
 }
 async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, findQQ = runningQQExecutable } = {}) {
-    const home3 = path33.join(path33.resolve(packageRoot2), PORTABLE_DATA_DIRECTORY), file = path33.join(home3, PROFILE_FILE_NAME);
+    const home3 = path34.join(path34.resolve(packageRoot2), PORTABLE_DATA_DIRECTORY), file = path34.join(home3, PROFILE_FILE_NAME);
     const existing = readJson2(file);
     if (existing && existing.generated !== true) {
         const profile2 = validateProfile(existing);
@@ -23460,7 +26136,7 @@ async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, f
         qqExecutable = await findQQ();
     }
     catch (error) {
-        const same = existing && existing.homeRoot === path33.resolve(packageRoot2) && existing.installRoot === path33.dirname(path33.resolve(packageRoot2));
+        const same = existing && existing.homeRoot === path34.resolve(packageRoot2) && existing.installRoot === path34.dirname(path34.resolve(packageRoot2));
         if (!(same && /^NERONET_NO_QQ_PROCESS/.test(error.message)))
             throw error;
         validateDeploymentPaths(validateProfile(existing), { packageRoot: packageRoot2, home: home3 });
@@ -23468,13 +26144,13 @@ async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, f
     }
     const profile = buildDefaultProfile({ packageRoot: packageRoot2, qqExecutable });
     validateDeploymentPaths(validateProfile(profile), { packageRoot: packageRoot2, home: home3 });
-    const text = JSON.stringify(profile, null, 2) + "\n";
+    const text2 = JSON.stringify(profile, null, 2) + "\n";
     let written = false;
-    if (!existing || JSON.stringify(existing, null, 2) + "\n" !== text) {
-        fs34.mkdirSync(home3, { recursive: true });
+    if (!existing || JSON.stringify(existing, null, 2) + "\n" !== text2) {
+        fs35.mkdirSync(home3, { recursive: true });
         const temporary = file + "." + process.pid + ".tmp";
-        fs34.writeFileSync(temporary, text);
-        fs34.renameSync(temporary, file);
+        fs35.writeFileSync(temporary, text2);
+        fs35.renameSync(temporary, file);
         written = true;
     }
     return { file, home: home3, qqExecutable, written, generated: true };
@@ -23501,7 +26177,7 @@ var init_default_profile = __esm({
         PROFILE_FILE_NAME = "deployment.json";
         readJson2 = (file) => {
             try {
-                return JSON.parse(fs34.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+                return JSON.parse(fs35.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
             }
             catch (e) {
                 if (e.code === "ENOENT")
