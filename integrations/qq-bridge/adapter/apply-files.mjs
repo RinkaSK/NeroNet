@@ -109,5 +109,5 @@ export function main(argv){
  if(check){console.log(`state: ${stateOf(plan)}`);return;}
  applyPlan(root,plan);
  if(plan.some(p=>p.write!==undefined)||read(root,MARKER)===null)fs.writeFileSync(resolveFile(root,MARKER),JSON.stringify({adaptation:'NeroNet qq-bridge adapter',adapterVersion:manifest.adapterVersion,upstream:{repository:manifest.repository,tag:manifest.tag,commit:manifest.commit,license:manifest.license}},null,2)+'\n');
- console.log(plan.some(p=>p.write!==undefined)?'done: run `npm ci`, Connect-QQBridge, and restart DSH and qq-bridge':'nothing to change');
+ console.log(plan.some(p=>p.write!==undefined)?'done: run `npm ci`, '+(process.platform==='win32'?'Connect-QQBridge':'connect-qqbridge.sh')+', and restart DSH and qq-bridge':'nothing to change');
 }

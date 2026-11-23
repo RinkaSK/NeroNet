@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "controlAbi": 8,
-  "buildEvidenceSha256": "66eeef24ebd997a831a088034c494d3ec6a25e826cd80dc665538e4daefabfd3",
+  "buildEvidenceSha256": "387db67ee200890f7efb775761d9fd5c8e558fd12335dd13735c0f4c6329c905",
   "bindingRuleId": "48cea7a033e73cc88fc182d90198bf06453f61926e60826e573f21f17dd6b6b3",
   "artifacts": [
     {
@@ -26,8 +26,8 @@
     },
     {
       "name": "neronet_live_binding.dll",
-      "bytes": 453632,
-      "sha256": "f63d7fb980d8358117bb4e8f0c31bf81d1e9a3c8ba68e11ec3e4ebfef32c524c"
+      "bytes": 456192,
+      "sha256": "73fb7058fdcac3013a0dfb54a5fbf1ca81c8f86e90238e1c49c20ff0efac6400"
     },
     {
       "name": "neronet_native_host.exe",

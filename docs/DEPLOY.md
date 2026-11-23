@@ -1,6 +1,6 @@
 # NeroNet 部署与更新
 
-适用版本：1.6.0。示例中的路径和进程号请换成实际值。
+适用版本：2.0.0（Windows 版）。示例中的路径和进程号请换成实际值。Linux（x64 / ARM64）和 Docker 的部署说明在各自的包和构建文件里。
 
 ## 1. 准备
 
@@ -164,6 +164,16 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
 
   动作配置只在启动时读取，修改后需要正常重启 NeroNet。调用未开放的动作返回 `retcode 1404`。
 
+也可以不改文件，在管理界面「管理 → 动作权限」中直接勾选要开放的档案和动作，保存后重启 NeroNet 生效；开启群管理、好友与加群申请、网页登录凭据时会要求再确认一次。
+
+可开启的动作档案：`astrbot`、`qqbridge`、`qqbridge-stickers`、`message-read`（标记已读）、`qzone`（QQ 空间）、`group-admin`（群管理：踢人、禁言、全员禁言、管理员、群名片、群名、头衔、退群）、`requests`（好友和加群请求的处理）、`group-notice`（群公告）、`web-credentials`（读取 Cookie 等网页凭据；拿到的凭据等同于账号的网页登录态，只在确实需要时开启）。例如让 AstrBot 同时能管理群、处理请求：
+
+```json
+{"profiles":["astrbot","group-admin","requests"]}
+```
+
+自定义动作：把动作脚本（`.mjs` 文件）放在数据目录的 `config\custom-actions\` 里，重启 NeroNet 后生效。脚本可以声明需要的 QQ 内部命令（只限 `OidbSvcTrpcTcp`，最多 64 个）。
+
 ## 9. 固定目录部署（可选）
 
 需要把程序和数据分开放、限定只能在指定目录和指定电脑上运行，或者在一台电脑上运行多个机器人时，使用部署配置。
@@ -188,7 +198,7 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
    $node    = 'C:\Tools\node-v24.22.1-win-x64\node.exe'
    $profile = 'C:\NeroNet-config\deployment.json'
    .\scripts\Test-NeroNet.ps1 -NodePath $node
-   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\1.6.0'
+   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\2.0.0'
    ```
 
    安装脚本把文件复制到一个新目录并再次核对。目标目录已存在时拒绝执行，不会覆盖旧版本。
@@ -196,7 +206,7 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
 3. 启动和停止：
 
    ```powershell
-   Set-Location 'C:\NeroNet\1.6.0'
+   Set-Location 'C:\NeroNet\2.0.0'
    .\scripts\Start-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -HomeDirectory 'C:\NeroNet-data\bot'
    .\scripts\Stop-NeroNet.ps1 -HomeDirectory 'C:\NeroNet-data\bot'
    ```

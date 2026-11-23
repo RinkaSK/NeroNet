@@ -1,9 +1,11 @@
 {
   "schema": 1,
   "product": "NeroNet",
-  "patch": "native-integrated-20261119",
+  "release": "2.0.0",
+  "patch": "actions-2.0",
+  "basedOn": "native-integrated-20261119",
   "controlAbi": 8,
-  "sourceIdentity": "e6e2a015dfa7e12cb02ec438da11fd0b75b5894e62ef3cbf53428b06a49f5b96",
+  "sourceIdentity": "f98f0b09c10f230893f5428d6e6bbd2b28684a6cbad4bafffa1cf9a64e0ec878",
   "ruleId": "48cea7a033e73cc88fc182d90198bf06453f61926e60826e573f21f17dd6b6b3",
   "compiler": "MSVC 14.44.35207 x64",
   "windowsSdk": "10.0.26100.0",
@@ -23,43 +25,26 @@
     "externalInterpreter": false,
     "childLocator": false
   },
-  "nativeRebuild": {
-    "differentRoot": true,
-    "allCoreDependenciesRebuilt": true,
-    "artifacts": [
-      {
-        "name": "neronet_native_host.exe",
-        "sha256": "2a0c7d1b47e1876c8f86d22f5e46d170fff8614e44de972852ad72ea82973b6b",
-        "byteEqual": true
-      },
-      {
-        "name": "neronet_live_binding.dll",
-        "sha256": "f63d7fb980d8358117bb4e8f0c31bf81d1e9a3c8ba68e11ec3e4ebfef32c524c",
-        "byteEqual": true
-      },
-      {
-        "name": "neronet_receive_consumer.dll",
-        "sha256": "1061329d265babf35defac955a9c113bb1915d3a34ddc968ae848e8abd71a9d9",
-        "byteEqual": true
-      }
-    ]
-  },
-  "nativeRegression": {
-    "passed": 10,
-    "total": 10,
-    "realQQ": false
-  },
-  "discoveryTests": {
-    "passed": 9,
-    "total": 9,
-    "realQQ": false
-  },
-  "preparationTests": {
-    "passed": 7,
-    "total": 7,
-    "realQQ": false
-  },
-  "runtimeOnlineVerified": false,
-  "requiresUpperIntegration": true,
-  "knownCatalogUnchanged": true
+  "changes": [
+    "neronet_live_binding.dll: reviewed command list for group administration, requests and group notices; policy extension (op 19) for custom actions"
+  ],
+  "artifacts": [
+    {
+      "name": "neronet_native_host.exe",
+      "sha256": "2a0c7d1b47e1876c8f86d22f5e46d170fff8614e44de972852ad72ea82973b6b",
+      "sameAs160": true
+    },
+    {
+      "name": "neronet_live_binding.dll",
+      "sha256": "73fb7058fdcac3013a0dfb54a5fbf1ca81c8f86e90238e1c49c20ff0efac6400",
+      "sameAs160": false
+    },
+    {
+      "name": "neronet_receive_consumer.dll",
+      "sha256": "1061329d265babf35defac955a9c113bb1915d3a34ddc968ae848e8abd71a9d9",
+      "sameAs160": true
+    }
+  ],
+  "nativeTestsOf160CarriedOver": false,
+  "runtimeOnlineVerified": false
 }

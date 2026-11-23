@@ -22,6 +22,7 @@ const readJson=file=>JSON.parse(fs.readFileSync(file,'utf8').replace(/^﻿/,''))
 const stamp=()=>new Date().toISOString().replace(/[-:]/g,'').replace(/\..*/,'');
 
 // The switch that prints the tokens, as the caller knows it (the PowerShell script or this tool).
+const restartNeroNet=process.platform==='win32'?'先运行 stop.bat，再运行 start.bat':'先运行 ./stop.sh，再运行 ./start.sh';
 const showTokenSwitch=()=>process.env.NERONET_TOOL_ENTRY==='powershell'?'-ShowToken':'--show-token';
 
 export function parseArgs(argv){
@@ -202,7 +203,7 @@ export function run(opts){
   endpoint:{...result.endpoint,wsAccessToken:shown(result.endpoint.wsAccessToken),httpAccessToken:shown(result.endpoint.httpAccessToken)},
   media:ffmpegCheck(result.bridgeConfig),
   rollback:backups.length?'回退方法：停止 qq-bridge 和 NeroNet，把每个 *.bak-qqbridge-<时间> 文件复制回它原来的文件，再重新启动':'没有写入任何文件',
-  next:written.length?['重启 NeroNet（先运行 stop.bat，再运行 start.bat），让它读取动作档案和服务配置','启动或重启 qq-bridge（在它的目录里运行 npm start）']:[]
+  next:written.length?['重启 NeroNet（'+restartNeroNet+'），让它读取动作档案和服务配置','启动或重启 qq-bridge（在它的目录里运行 npm start）']:[]
  };
 }
 

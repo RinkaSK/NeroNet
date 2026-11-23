@@ -52,7 +52,7 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
   - 正向 WebSocket（默认 `ws://127.0.0.1:3001/`）：收事件、发消息。
   - HTTP（默认 `http://127.0.0.1:3000`）：部分动作和 MCP 工具。
 - qq-bridge 通过本机 HTTP 调用 DSH 来运行模型回合。
-- NeroNet 只开放 `qqbridge` 动作档案中的动作。管理类动作、修改账号资料和读取凭据的动作都不在档案中，NeroNet 目前也没有实现这些动作。QQ 空间的动作在单独的 `qzone` 档案里，`qqbridge` 档案不包含；qq-bridge 本身不调用它们，没有用 qq-bridge 测试过。
+- NeroNet 只开放 `qqbridge` 动作档案中的动作。管理类动作、修改账号资料和读取凭据的动作都不在档案中；其中群管理、请求处理和读取凭据在 2.0 已经实现，但 qq-bridge 不调用它们，也不需要为它开启。QQ 空间的动作在单独的 `qzone` 档案里，`qqbridge` 档案不包含；qq-bridge 本身不调用它们，没有用 qq-bridge 测试过。
 
 ## 3. 准备
 

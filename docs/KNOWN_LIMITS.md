@@ -1,10 +1,10 @@
 # NeroNet 已知限制
 
-适用版本：1.6.0。
+适用版本：2.0.0。本文以 Windows 版为主，Linux（x64 / ARM64）和 Docker 的差别集中在第 8 节；Linux 包里另有自己的已知限制。
 
 ## 1. QQ 版本
 
-- 只支持 Windows x64 版 QQ。
+- Windows 版支持 Windows x64 版 QQ；Linux 版支持 Linux x64 和 ARM64 版 QQ（见第 8 节）。
 - NeroNet 不再限定 QQ 版本。遇到没见过的 QQ 版本，第一次启动时会先识别（通常几秒，最长几分钟），识别结果保存下来，之后直接使用。
 - 识别成功说明这个版本可以接入，不代表这个版本上的每项功能都单独测试过。
 - QQ 以后的版本如果改动了内部结构，可能识别不了。这时 NeroNet 会显示原因和错误编号，不会接入；可以先更新 NeroNet 再试，或者提交 issue，附上启动窗口显示的内容。
@@ -12,8 +12,11 @@
 
 ## 2. 测试范围
 
-- 1.6.0 在 QQ 9.9.35、9.9.36、9.9.37 上做了在线测试，内容包括：启动和停止；私聊和群聊的收发；引用、@、图片、合并转发、文件、戳一戳、撤回、历史消息；机器人 QQ 重启后自动接回；断网约一分钟后的恢复；从旧版本更新；标记已读；AstrBot 的指令和对话；qq-bridge（DSH Web）的私聊和群聊对话。全部自动化测试通过。
-- QQ 空间功能在 QQ 9.9.36 上用真实账号做了测试：发表文字和 1、3、9 张图片的说说，读取列表和详情，修改查看权限，删除；并用 AstrBot v4.29.4 和未修改的 `astrbot_plugin_qzone_bridge` v2.1.0 插件测试了发表和删除。查看权限测试了 4、16、64、128，并用另一个账号的空间页面核对了可见范围；没有用公开权限（1）发表过测试内容。
+- **Windows 2.0.0**：发行包通过 OneBot 逐项测试了全部动作，包括 2.0 新增的群管理（群名片设置和清空、头衔、禁言、全员禁言、管理员、群名）、群公告、网页凭据、好友申请的推送和同意、加群申请的推送和审批，以及原有的消息、媒体、文件、转发、互动、QQ 空间、入站消息和回复；还测试了多个 QQ 时用 `-BotPid` 指定机器人、停止后重新接入。自定义动作在 Linux 上做了在线测试，Windows 上只做了自动化测试。AstrBot 和 qq-bridge 的接入在 2.0 上没有重测，沿用 1.6.0 的结果。
+- **Linux 2.0.0（x64 和 ARM64）**：两种架构的发行包分别在 Ubuntu 24.04 和 Linux QQ 3.2.35 上通过 OneBot 逐项测试了全部动作，包括 2.0 新增的群管理（群名片设置和清空、头衔、禁言、全员禁言、管理员、群名）、群公告、网页凭据、好友申请的推送和同意、加群申请的审批；以及入站消息和回复、断网恢复、QQ 退出或被挤下线后自动重新接入、更新换版本、管理界面全部页面、AstrBot 和 qq-bridge 的接入。消息走向在 QQ 的两种内部通道上都测过。x64 还在 Linux QQ 3.2.33、3.2.34 上测试了识别、接入和消息收发。
+- **Docker**：x86-64 和 ARM64 镜像都测试了构建、扫码登录、自动登录、重启、停止和容器内的动作。
+- 1.6.0 做了在线测试，内容包括：启动和停止；私聊和群聊的收发；引用、@、图片、合并转发、文件、戳一戳、撤回、历史消息；机器人 QQ 重启后自动接回；断网约一分钟后的恢复；从旧版本更新；标记已读；AstrBot 的指令和对话；qq-bridge（DSH Web）的私聊和群聊对话。全部自动化测试通过。
+- QQ 空间功能用真实账号做了测试：发表文字和 1、3、9 张图片的说说，读取列表和详情，修改查看权限，删除；并用 AstrBot v4.29.4 和未修改的 `astrbot_plugin_qzone_bridge` v2.1.0 插件测试了发表和删除。查看权限测试了 4、16、64、128，并用另一个账号的空间页面核对了可见范围；没有用公开权限（1）发表过测试内容。
 - 表情、语音的收发，以及 qq-bridge 的大图识别和 DSH 桌面客户端，在 1.5.x 上测试过，1.6.0 没有重测。
 - 视频收发和 AstrBot 插件市场的测试是在 1.5.0 之前的版本上做的，之后没有重做。
 - 没有做过长时间连续运行的专门测试。开发和测试期间没有出现过被强制下线的情况，但这不代表使用时没有风险。
@@ -23,11 +26,11 @@
 
 下面这些动作即使写进动作配置的 `extraActions`，也会返回 `retcode 1404`：
 
-- 群管理：踢人、禁言、设置管理员、改群名片、改群名等。
-- 好友和群的加入请求：NeroNet 不推送请求事件，也不能审批。
 - 语音转文字（`fetch_ptt_text`）。
-- 读取 Cookie、凭据等账号信息的动作（`get_cookies`、`get_credentials`、`get_csrf_token`）。QQ 空间功能自己取得并使用登录态，不向客户端提供。
 - QQ 空间的评论、点赞、好友动态、相册管理和黑名单。
+- 群公告里的图片（发布时不能带图片）。
+
+2.0 起，群管理、好友和加群请求、群公告，以及读取 Cookie、凭据的动作（`get_cookies`、`get_credentials`、`get_csrf_token`）已经实现，但都需要在动作档案里明确开启，见第 4 节。
 
 另外：
 
@@ -39,7 +42,12 @@
 
 ## 4. 功能说明
 
-- 默认只开放 7 个基础动作，接入的客户端用对应的动作档案开放更多：`astrbot`、`qqbridge`、`message-read`（标记已读）、`qzone`（QQ 空间）。
+- 默认只开放 7 个基础动作，接入的客户端用对应的动作档案开放更多：`astrbot`、`qqbridge`、`qqbridge-stickers`（qq-bridge 的收藏表情）、`message-read`（标记已读）、`qzone`（QQ 空间）、`group-admin`（群管理）、`requests`（好友和加群请求）、`group-notice`（群公告）、`web-credentials`（读取 Cookie 等网页登录态）。`astrbot`、`qqbridge` 档案都不包含群管理和网页登录态，这些需要单独开启。
+- `web-credentials` 开启后，客户端拿到的 Cookie 等同于机器人账号的网页登录态，只对确实需要、且你信任的客户端开启。
+- 好友申请：同意或拒绝用事件里的 `flag`。申请人附带的验证语，QQ 会作为一条临时会话消息另外送达，接入的机器人框架会把它当作普通私聊消息处理（例如 AstrBot 会回复它）。
+- 加群申请：机器人离线期间收到的申请不会补推事件，可以用 `get_group_system_msg` 查到并用其中的 `flag` 审批。
+- 群名片：`set_group_card` 传空字符串会清空名片。
+- 自定义动作：`data\config\custom-actions\*.mjs` 中的动作可以声明需要的 QQ 内部命令（只限 `OidbSvcTrpcTcp`，最多 64 个），在每次连接的第一个业务请求之前告知组件。
 - 标记已读（`mark_msg_as_read`、`mark_group_msg_as_read`、`mark_private_msg_as_read`）要在动作配置的 `profiles` 中加入 `message-read` 才能用。只对消息库里已有的消息所在的会话生效，服务器确认后才返回成功；没有“全部标记已读”。
 - QQ 空间的 5 个动作（`send_qzone_msg`、`delete_qzone_msg`、`get_qzone_msg_list`、`get_qzone_msg_detail`、`set_qzone_msg_right`）要在动作配置的 `profiles` 中加入 `qzone` 才能用，`astrbot` 和 `qqbridge` 档案都不包含它们。用法见 [DEPLOY.md](DEPLOY.md) 第 10 节。
 - 消息中的文件只有在开放了上传动作（`upload_group_file` 或 `upload_private_file`）时才接受，否则返回 `retcode 1400`。`astrbot` 档案开放了这两个动作，`qqbridge` 档案没有。
@@ -73,3 +81,16 @@
 
 - **AstrBot**：动作档案按 AstrBot 核心和热门插件的实际调用确定，不保证插件市场里的每个插件都兼容。需要自己读取 Cookie 的空间类插件（例如自动点赞）不能使用。见 [integrations/astrbot/README.md](../integrations/astrbot/README.md) 第 10 节。
 - **qq-bridge**：第三方项目，作者已停止维护，只能用于非商业用途。NeroNet 只适配 `v0.2.2-rc1`。见 [integrations/qq-bridge/README.md](../integrations/qq-bridge/README.md) 第 1 节。
+
+## 8. Linux 和 Docker
+
+Linux 包里的 `docs/KNOWN_LIMITS.md` 有完整说明，这里列出和 Windows 版不同或需要注意的地方：
+
+- **系统和架构**：Linux x64 和 ARM64（AArch64），glibc 2.35 或更新。包、QQ 和 Node.js 的架构必须一致：x64 的包配 `amd64` 的 QQ，ARM64 的包配 `arm64` 的 QQ。ARM64 只在 Linux QQ 3.2.35 上测试过。
+- **加载组件**：组件在 QQ 启动时加载，NeroNet 需要自己启动 QQ，或把已在运行的 QQ 正常重启一次（可以在部署配置里关闭）；不能在不重启的情况下接入一个已经运行的 QQ。
+- **显示和路径**：QQ 需要图形显示（桌面或 Xvfb）。NeroNet 的目录路径里不能有空格和冒号。
+- **多个 QQ**：一个 Linux 用户只管理一个机器人 QQ，不提供 `-BotPid`、`-AdminPid` 这样的挑选；多个机器人请用不同的 Linux 用户。
+- **QQ 退出后**：NeroNet 会重新启动 QQ，不限次数（间隔 2 秒到 60 秒）；登录后自动接回。QQ 没有勾选自动登录时，需要在 QQ 窗口里点一下登录。
+- **识别结果**：保存在 `~/.cache/NeroNet/binding-cache`（设置了 `XDG_CACHE_HOME` 时在它下面）。
+- **Docker**：镜像不直接提供，需要用构建文件自己构建，构建时自备官方 QQ 安装包。第一次通过 VNC 扫码登录，**登录前要先勾选“自动登录”**，否则每次重启容器都要重新扫码。刚扫码登录的新会话，群公告、QQ 空间等需要网页登录态的功能可能要过一会儿才能用。容器里的 OneBot 服务默认只监听容器自己的 `127.0.0.1`。
+- 同一个机器人账号同一时间只能在一处登录；在 Linux、Docker 和 Windows 之间切换时，另一处会被挤下线。

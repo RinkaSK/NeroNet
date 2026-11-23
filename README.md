@@ -5,13 +5,14 @@
 <h1 align="center">NeroNet</h1>
 
 <p align="center">
-  让已登录的 Windows QQ 作为 OneBot v11 实现端运行<br>
+  让已登录的 QQ（Windows、Linux）作为 OneBot v11 实现端运行<br>
   只管收发，机器人交给你喜欢的框架
 </p>
 
 <p align="center">
   <a href="../../releases/latest">下载</a> ·
   <a href="#快速开始">快速开始</a> ·
+  <a href="#linux-和-docker">Linux / Docker</a> ·
   <a href="docs/DEPLOY.md">部署说明</a> ·
   <a href="docs/KNOWN_LIMITS.md">已知限制</a> ·
   <a href="#接入机器人框架">接入 AstrBot / qq-bridge</a> ·
@@ -19,8 +20,8 @@
 </p>
 
 <p align="center">
-  <img alt="版本" src="https://img.shields.io/badge/version-1.6.0-a83650">
-  <img alt="平台" src="https://img.shields.io/badge/platform-Windows%20x64-555">
+  <img alt="版本" src="https://img.shields.io/badge/version-2.0.0-a83650">
+  <img alt="平台" src="https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20Linux%20ARM64-555">
   <img alt="协议" src="https://img.shields.io/badge/OneBot-v11-555">
   <img alt="许可" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-555">
 </p>
@@ -29,7 +30,7 @@
 
 ## 简介
 
-NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现端：收到的 QQ 消息作为 OneBot 事件推送出去，收到的 OneBot 动作通过这个 QQ 执行。
+NeroNet 把一个已登录的 QQ 客户端变成 **OneBot v11** 实现端：收到的 QQ 消息作为 OneBot 事件推送出去，收到的 OneBot 动作通过这个 QQ 执行。支持 Windows x64、Linux x64 和 Linux ARM64，Linux 上也可以用 Docker 运行；三者是同一个应用，同一个管理界面，用法和功能相同。下面以 Windows 版为主介绍，Linux 和 Docker 见 [Linux 和 Docker](#linux-和-docker)。
 
 它只负责收发，不包含机器人逻辑。聊天、大模型对话和插件由接入的 OneBot 客户端提供，例如 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 和 [qq-bridge](https://github.com/Derpyu520/qq-bridge)。
 
@@ -37,8 +38,10 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 - **标准协议**：HTTP、正向 WebSocket、反向 WebSocket、HTTP POST 上报，可以同时开多个，每个有自己的访问令牌。
 - **不挑 QQ 版本**：遇到没见过的 QQ 版本，第一次启动时自动识别，之后直接使用，不用等 NeroNet 更新。
 - **常用消息都能收发**：群聊和私聊的文字、@、引用、表情、图片、语音、视频、文件、合并转发，以及撤回、戳一戳、查询历史消息、标记已读（需要开启）。
+- **群管理和请求**（2.0 新增，需要开启）：踢人、禁言、全员禁言、设置管理员、群名片、群名、专属头衔、退群；好友和加群请求的推送与审批；群公告的发布、读取和删除。
 - **QQ 空间**：发表文字和图片说说、读取列表和详情、修改查看权限、删除（需要开启）。
-- **默认收紧**：默认只开放少量动作，按接入的客户端启用对应的动作档案。群管理（踢人、禁言等）目前没有实现。
+- **自定义动作**（2.0 新增）：在数据目录里放一个脚本，就能加入自己的 OneBot 动作。
+- **默认收紧**：默认只开放少量动作，按接入的客户端启用对应的动作档案；群管理、请求、网页登录态这类动作需要自己明确开启。
 - **管理界面**：在浏览器里查看运行状态、配置 OneBot 服务、看日志、调试动作、备份配置。默认只允许本机访问，必须登录。
 - **认准账号**：每个数据目录绑定一个机器人账号；QQ 登录的不是这个账号时，NeroNet 不会使用它。
 - **自动恢复**：机器人 QQ 重新登录、或者与 QQ 的连接意外中断后，NeroNet 会自动重新接入，不需要手动重启。
@@ -46,14 +49,19 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 
 ## 下载
 
-在 [Releases](../../releases/latest) 页面下载，有两种：
+在 [Releases](../../releases/latest) 页面下载：
 
 | 文件 | 大小 | 适合 |
 |---|---|---|
-| `NeroNet-1.6.0-win-x64-with-node.zip` | 约 37 MB | **推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
-| `NeroNet-1.6.0-win-x64.zip` | 约 4 MB | 已经安装了 Node.js 24（x64）的电脑 |
+| `NeroNet-2.0.0-win-x64-with-node.zip` | 约 37 MB | Windows，**推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
+| `NeroNet-2.0.0-win-x64.zip` | 约 3 MB | Windows，已经安装了 Node.js 24（x64）的电脑 |
+| `NeroNet-2.0.0-linux-x64-with-node.tar.gz` | 约 47 MB | Linux x64，**推荐**。附带 Node.js 24.22.1 |
+| `NeroNet-2.0.0-linux-x64.tar.gz` | 约 4 MB | Linux x64，已经安装了 Node.js 24 的机器 |
+| `NeroNet-2.0.0-linux-arm64-with-node.tar.gz` | 约 47 MB | Linux ARM64，**推荐**。附带 Node.js 24.22.1 |
+| `NeroNet-2.0.0-linux-arm64.tar.gz` | 约 4 MB | Linux ARM64，已经安装了 Node.js 24 的机器 |
+| `NeroNet-2.0.0-docker.zip` | 很小 | Docker 构建文件（x86-64 和 ARM64 通用），不含镜像 |
 
-两个包只差一个 `node.exe`。Releases 页面列出了两个压缩包的 SHA-256；解压后包内每个文件的 SHA-256 在 `SHA256SUMS.txt` 里，启动时会自动核对。
+同一平台的两个包只差一个 Node.js。Releases 页面列出了每个压缩包的 SHA-256；解压后包内每个文件的 SHA-256 在 `SHA256SUMS.txt` 里，启动时会自动核对。
 
 ## 运行要求
 
@@ -66,7 +74,7 @@ NeroNet 把一个已登录的 Windows QQ 客户端变成 **OneBot v11** 实现�
 
 ## 快速开始
 
-1. 下载 `NeroNet-1.6.0-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
+1. 下载 `NeroNet-2.0.0-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
 2. 登录机器人 QQ。
 3. 双击 `start.bat`。窗口里会显示接入的 QQ 进程、当前状态和管理界面地址：
 
@@ -101,6 +109,28 @@ NeroNet 不会在多个 QQ 之间自己挑选，启动时会报错并列出进�
 
 NeroNet 与 QQ 之间的连接意外中断时，也会在几秒到十几秒内自动恢复，期间管理界面和 OneBot 服务暂时不可用。中断那一刻正在发送的消息不会自动重发。
 
+## Linux 和 Docker
+
+Linux 版与 Windows 版是同一个应用：OneBot 服务、动作、管理界面、AstrBot 和 qq-bridge 的接入工具都相同，只是 QQ 侧的组件和启动方式不同。每个 Linux 包里都有自己的 README 和部署说明，下面只列要点。
+
+| | Linux（x64 / ARM64） | Docker |
+|---|---|---|
+| 系统 | glibc 2.35 或更新（Ubuntu 22.04、Debian 12 及以后）；用 `uname -m` 区分：`x86_64` 用 x64 的包，`aarch64` 用 arm64 的包 | x86-64 或 ARM64 的 Docker，在哪种机器上构建就得到哪种镜像 |
+| QQ | 官方 Linux QQ，架构与系统相同（x64 用 `amd64` 的 deb，ARM64 用 `arm64` 的 deb） | 构建时自备官方 Linux QQ deb 包 |
+| 显示 | 桌面会话，或服务器上的 Xvfb | 镜像内置 Xvfb，第一次通过 VNC 扫码登录 |
+| 启动 | 解压后运行 `./start.sh`：NeroNet 带着自己的组件启动 QQ（QQ 已在运行时会正常重启一次），在 QQ 窗口里登录机器人账号即可 | `docker build` 后 `docker run`；**登录前先勾选“自动登录”**，以后重启容器不用再扫码 |
+| 停止 | `./stop.sh`，QQ 继续运行，下次启动直接接入 | `docker stop`，先正常停止 NeroNet，再退出 QQ |
+| 接入 | `integrations/astrbot/connect-astrbot.sh`、`integrations/qq-bridge/connect-qqbridge.sh` | 容器里的 OneBot 服务默认只监听容器自己的 `127.0.0.1`；从容器外接入时，先在管理界面把监听地址改成 `0.0.0.0` 并保留访问令牌 |
+
+和 Windows 版相比，Linux 版的不同之处：
+
+- QQ 退出（包括“退出账号”）后，NeroNet 会自己重新启动 QQ，不限次数；登录后自动接回。
+- 一个 Linux 用户只管理一个机器人 QQ；多个机器人请用不同的 Linux 用户。
+- 组件在 QQ 启动时加载，所以接入一个已在运行的 QQ 需要把它重启一次（NeroNet 会自动进行，也可以关闭）。
+- 识别 QQ 的结果保存在 `~/.cache/NeroNet/binding-cache`。
+
+Docker 镜像不直接提供，需要用 `NeroNet-2.0.0-docker.zip` 里的构建文件自己构建，用法见其中的 README。
+
 ## 接入机器人框架
 
 | 框架 | 项目主页 | 接入指南 |
@@ -113,7 +143,10 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 
 ## 测试情况
 
-- **QQ 版本**：NeroNet 不限定 QQ 版本，遇到新版本会先识别再接入。QQ 以后的版本如果改动了内部结构，可能识别不了，这时会显示原因，不会带着问题运行；可以先把 NeroNet 更新到最新版本再试，或者[提交 issue](../../issues)。1.6.0 在 QQ 9.9.35、9.9.36、9.9.37 上做了测试。
+- **QQ 版本**：NeroNet 不限定 QQ 版本，遇到新版本会先识别再接入。QQ 以后的版本如果改动了内部结构，可能识别不了，这时会显示原因，不会带着问题运行；可以先把 NeroNet 更新到最新版本再试，或者[提交 issue](../../issues)。
+- **Windows**：2.0.0 的发行包测试了全部动作（消息、媒体、文件、转发、互动、QQ 空间、群管理、群公告、网页凭据）、好友申请和加群申请的推送与审批、入站消息和回复、多个 QQ 时用 `-BotPid` 指定机器人、停止后重新接入。AstrBot 和 qq-bridge 的接入沿用 1.6.0 的测试。
+- **Linux x64 和 ARM64**：两种架构的发行包分别在 Ubuntu 24.04 和 Linux QQ 3.2.35 上完整测试：全部动作（消息、媒体、文件、转发、互动、QQ 空间、群管理、群公告、好友和加群请求）、入站消息和回复、断网恢复、QQ 退出或被挤下线后的自动重新接入、更新换版本、管理界面、AstrBot 和 qq-bridge 的接入，消息走向在 QQ 的两种内部通道上都测过。x64 还在 Linux QQ 3.2.33、3.2.34 上测试了识别、接入和消息收发。
+- **Docker**：x86-64 和 ARM64 镜像都测试了构建、扫码登录、自动登录、重启和停止，以及容器内的动作。
 - **稳定性**：没有做过长时间连续运行的专门测试。在开发和测试过程中，没有出现过因 QQ 风控或其他原因被强制下线的情况。
 - 不支持的消息类型、未测试的场景等细节见 [已知限制](docs/KNOWN_LIMITS.md)。
 
@@ -131,7 +164,7 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 | 提示“这个 QQ 里还留着另一个版本的 NeroNet 组件” | 换了 NeroNet 版本后没有退出过 QQ。正常退出机器人 QQ 再重新登录，NeroNet 会自动接入，不需要重新启动 NeroNet |
 | 管理界面和 OneBot 服务断开了几秒到十几秒，然后自己恢复 | NeroNet 与 QQ 之间的连接中断后会自动恢复。中断时正在发送的消息不会自动重发，见 [部署说明第 2 节](docs/DEPLOY.md) |
 | 忘记管理界面密码 | 停止 NeroNet，删除 `data\config\webui.json` 后重新启动，会生成新的初始密码（写在 `data\webui-initial-password.txt`） |
-| 客户端调用动作返回 `retcode 1404` | 这个动作没有开放，在 `data\config\neronet-actions.json` 中加入后重启 NeroNet。加入后仍是 1404，说明 NeroNet 还没有实现这个动作，见 [已知限制第 3 节](docs/KNOWN_LIMITS.md) |
+| 客户端调用动作返回 `retcode 1404` | 这个动作没有开放：在管理界面「动作权限」中勾选对应的档案或动作（或者编辑 `data\config\neronet-actions.json`），然后重启 NeroNet。加入后仍是 1404，说明 NeroNet 还没有实现这个动作，见 [已知限制第 3 节](docs/KNOWN_LIMITS.md) |
 
 ## 更新
 
@@ -150,6 +183,7 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 | [AstrBot 接入](integrations/astrbot/README.md) | 同机、跨机器、Docker，动作档案，测试过的插件 |
 | [qq-bridge 接入](integrations/qq-bridge/README.md) | 适配器、DSH Web 和桌面客户端、与 AstrBot 共存 |
 | [使用须知](EULA.md)、[数据说明](PRIVACY.md) | 首次登录管理界面时需要确认 |
+| Linux 包内的 `README.md`、`docs/`；`NeroNet-2.0.0-docker.zip` 内的 `README.md` | Linux（x64 / ARM64）和 Docker 的安装、运行、部署和已知限制 |
 
 ## 目录
 

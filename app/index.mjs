@@ -49,7 +49,7 @@ var init_product = __esm({
     "product.json"() {
         product_default = {
             name: "NeroNet",
-            version: "1.6.0",
+            version: "2.0.0",
             slug: "neronet",
             copyrightHolder: "NeroNet 项目组",
             ownershipStatement: "Copyright 2026 NeroNet 项目组 · PolyForm Noncommercial 1.0.0"
@@ -80,6 +80,7 @@ __export(deployment_profile_exports, {
     PORTABLE_DATA_DIRECTORY: () => PORTABLE_DATA_DIRECTORY,
     assertWithin: () => assertWithin,
     loadDeploymentProfile: () => loadDeploymentProfile,
+    machineName: () => machineName,
     main: () => main,
     nativeEnvironment: () => nativeEnvironment,
     validateDeploymentPaths: () => validateDeploymentPaths,
@@ -88,10 +89,12 @@ __export(deployment_profile_exports, {
 import fs from "node:fs";
 import path2 from "node:path";
 import { isIP } from "node:net";
-function validateProfile(value, { machine = process.env.COMPUTERNAME } = {}) {
+import os from "node:os";
+function validateProfile(value, { machine = machineName(), platform = process.platform } = {}) {
     if (!value || value.schema !== 1 || !["lab", "portable"].includes(value.mode))
         throw Error("NERONET_DEPLOYMENT_PROFILE_INVALID");
-    const absolute = (x) => typeof x === "string" && /^[A-Za-z]:[\\/]/.test(x) && !/[\x00-\x1f]/.test(x) && !x.slice(2).includes(":");
+    const linux = platform === "linux";
+    const absolute = (x) => typeof x === "string" && !/[\x00-\x1f]/.test(x) && (linux ? path2.posix.isAbsolute(x) && path2.posix.normalize(x) === x : /^[A-Za-z]:[\\/]/.test(x) && !x.slice(2).includes(":"));
     if (!absolute(value.qqExecutable) || !absolute(value.homeRoot) || !absolute(value.installRoot))
         throw Error("NERONET_DEPLOYMENT_ABSOLUTE_PATH_REQUIRED");
     if (value.nativeRoot !== void 0 && !absolute(value.nativeRoot))
@@ -104,8 +107,12 @@ function validateProfile(value, { machine = process.env.COMPUTERNAME } = {}) {
         throw Error("NERONET_DEPLOYMENT_MACHINE_REQUIRED");
     if (value.allowedComputerName && value.allowedComputerName.toLowerCase() !== String(machine ?? "").toLowerCase())
         throw Error("NERONET_DEPLOYMENT_MACHINE_MISMATCH");
-    if (path2.win32.basename(value.qqExecutable).toLowerCase() !== "qq.exe")
+    if (linux ? path2.posix.basename(value.qqExecutable) !== "qq" : path2.win32.basename(value.qqExecutable).toLowerCase() !== "qq.exe")
         throw Error("NERONET_DEPLOYMENT_QQ_IMAGE_INVALID");
+    if (value.qqArguments !== void 0 && (!linux || !Array.isArray(value.qqArguments) || value.qqArguments.length > 32 || value.qqArguments.some((a) => typeof a !== "string" || a.length > 512 || /[\x00]/.test(a))))
+        throw Error("NERONET_DEPLOYMENT_PROFILE_INVALID");
+    if (value.restartRunningQQ !== void 0 && (!linux || typeof value.restartRunningQQ !== "boolean"))
+        throw Error("NERONET_DEPLOYMENT_PROFILE_INVALID");
     const hosts = value.managementHosts ?? ["127.0.0.1", "::1", "localhost"];
     const controlled = (x) => {
         if (["127.0.0.1", "::1", "localhost"].includes(x))
@@ -119,7 +126,7 @@ function validateProfile(value, { machine = process.env.COMPUTERNAME } = {}) {
         throw Error("NERONET_DEPLOYMENT_MANAGEMENT_HOST_INVALID");
     return Object.freeze({ ...value, managementHosts: hosts });
 }
-function loadDeploymentProfile({ file = process.env.NERONET_DEPLOYMENT_PROFILE, machine = process.env.COMPUTERNAME } = {}) {
+function loadDeploymentProfile({ file = process.env.NERONET_DEPLOYMENT_PROFILE, machine = machineName() } = {}) {
     if (!file || !path2.isAbsolute(file))
         throw Error("NERONET_DEPLOYMENT_PROFILE_REQUIRED");
     const value = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
@@ -142,35 +149,35 @@ function assertWithin(value, parent, { equal = false } = {}) {
         throw Error("NERONET_DEPLOYMENT_PATH_OUTSIDE_ROOT");
     return p2;
 }
-function validateDeploymentPaths(profile, { home: home3, artifacts: artifacts2, packageRoot: packageRoot2 = packageRoot } = {}) {
+function validateDeploymentPaths(profile, { home: home4, artifacts: artifacts3, packageRoot: packageRoot2 = packageRoot } = {}) {
     assertWithin(packageRoot2, profile.installRoot);
-    if (home3) {
-        assertWithin(home3, profile.homeRoot);
-        const p2 = resolved(home3), r = resolved(packageRoot2), rel = path2.relative(r, p2), back = path2.relative(p2, r);
+    if (home4) {
+        assertWithin(home4, profile.homeRoot);
+        const p2 = resolved(home4), r = resolved(packageRoot2), rel = path2.relative(r, p2), back = path2.relative(p2, r);
         const homeInsidePackage = !rel.startsWith(".." + path2.sep) && rel !== ".." && !path2.isAbsolute(rel);
         const packageInsideHome = !back.startsWith(".." + path2.sep) && back !== ".." && !path2.isAbsolute(back);
         const portable = profile.portableData === true && rel === PORTABLE_DATA_DIRECTORY;
         if (!rel || packageInsideHome || homeInsidePackage && !portable)
             throw Error("NERONET_DEPLOYMENT_HOME_OVERLAPS_PACKAGE");
     }
-    if (artifacts2)
-        assertWithin(artifacts2, profile.nativeRoot ?? profile.installRoot);
+    if (artifacts3)
+        assertWithin(artifacts3, profile.nativeRoot ?? profile.installRoot);
     return profile;
 }
-function nativeEnvironment(profile, artifacts2) {
-    validateDeploymentPaths(profile, { artifacts: artifacts2 });
-    return { ...process.env, NERONET_QQ_EXECUTABLE: fs.realpathSync(profile.qqExecutable), NERONET_NATIVE_ROOT: fs.realpathSync(artifacts2) };
+function nativeEnvironment(profile, artifacts3) {
+    validateDeploymentPaths(profile, { artifacts: artifacts3 });
+    return { ...process.env, NERONET_QQ_EXECUTABLE: fs.realpathSync(profile.qqExecutable), NERONET_NATIVE_ROOT: fs.realpathSync(artifacts3) };
 }
 function main(args = process.argv.slice(2)) {
     try {
-        const values = {};
+        const values2 = {};
         for (let i = 0; i < args.length; i += 2) {
-            if (!["--profile", "--home", "--artifacts", "--package"].includes(args[i]) || !args[i + 1] || values[args[i]])
+            if (!["--profile", "--home", "--artifacts", "--package"].includes(args[i]) || !args[i + 1] || values2[args[i]])
                 throw Error("NERONET_DEPLOYMENT_ARGUMENTS");
-            values[args[i]] = args[i + 1];
+            values2[args[i]] = args[i + 1];
         }
-        const p2 = loadDeploymentProfile({ file: values["--profile"] });
-        validateDeploymentPaths(p2, { home: values["--home"], artifacts: values["--artifacts"], packageRoot: values["--package"] ?? packageRoot });
+        const p2 = loadDeploymentProfile({ file: values2["--profile"] });
+        validateDeploymentPaths(p2, { home: values2["--home"], artifacts: values2["--artifacts"], packageRoot: values2["--package"] ?? packageRoot });
         console.log(JSON.stringify(p2));
     }
     catch (e) {
@@ -178,11 +185,12 @@ function main(args = process.argv.slice(2)) {
         process.exitCode = 1;
     }
 }
-var PORTABLE_DATA_DIRECTORY;
+var PORTABLE_DATA_DIRECTORY, machineName;
 var init_deployment_profile = __esm({
     "deployment-profile.mjs"() {
         init_layout_release();
         PORTABLE_DATA_DIRECTORY = "data";
+        machineName = () => process.env.COMPUTERNAME ?? os.hostname();
         if (isMainModule(import.meta.url))
             main();
     }
@@ -227,11 +235,316 @@ var init_process_selection = __esm({
         GATEWAY_EXIT_TRANSPORT_FAULT = 4;
     }
 });
-function mayWaitForLogin(exit, runtime, lifecycle2) {
-    return exit === 2 && runtime?.code === 210 && runtime.phase === 5 && runtime.registered === 0 && runtime.serviceReleased === 1 && lifecycle2?.closeDrained === 1 && lifecycle2.pendingCallbacks === 0 && lifecycle2.executorJobs === 0;
+function classifyGatewayExit({ exitCode, signal = null, stopRequested: stopRequested3 = false }) {
+    if (stopRequested3)
+        return "operator-stop";
+    if (exitCode === GATEWAY_EXIT_ACCOUNT_MISMATCH)
+        return "account-mismatch";
+    if (exitCode === GATEWAY_EXIT_TRANSPORT_FAULT && !signal)
+        return "transport-fault";
+    return exitCode === 0 && !signal ? "ended" : "failed";
 }
-var init_native_start_policy = __esm({
-    "native-start-policy.mjs"() {
+function recoveryPolicy({ maxAttempts = 3, windowMs = 10 * 6e4, delaysMs = [2e3, 5e3, 15e3], now: now2 = Date.now } = {}) {
+    const attempts = [];
+    return {
+        next() {
+            const t = now2();
+            while (attempts.length && t - attempts[0] > windowMs)
+                attempts.shift();
+            if (attempts.length >= maxAttempts)
+                return { allowed: false, attemptsInWindow: attempts.length, windowMs };
+            attempts.push(t);
+            return { allowed: true, attempt: attempts.length, maxAttempts, delayMs: delaysMs[Math.min(attempts.length - 1, delaysMs.length - 1)] };
+        }
+    };
+}
+async function retrying(fn, { tries = 3, pauseMs = 1e3, onRetry = () => {
+}, sleep: sleep5 = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+    let last;
+    for (let attempt = 1; attempt <= tries; attempt++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            last = error;
+            if (attempt < tries) {
+                try {
+                    onRetry(attempt);
+                }
+                catch {
+                }
+                await sleep5(pauseMs);
+            }
+        }
+    }
+    throw last;
+}
+function errorSummary(error) {
+    const code = /^[A-Z0-9_]{1,64}$/.test(String(error?.code ?? "")) ? String(error.code) : null;
+    const name = /^[A-Za-z]{1,40}$/.test(String(error?.name ?? "")) ? error.name : "Error";
+    const line = String(error?.message ?? "").split(/\r?\n/)[0].replace(/[A-Za-z0-9_\-+/=]{32,}/g, "…").slice(0, 160);
+    return { code, name, message: line, exitCode: Number.isInteger(error?.code) ? error.code : null, signal: typeof error?.signal === "string" ? error.signal : null, killed: error?.killed === true };
+}
+var init_recovery_policy = __esm({
+    "recovery-policy.mjs"() {
+        init_process_selection();
+    }
+});
+import fs2 from "node:fs";
+import path3 from "node:path";
+var MiB, BoundedJsonl;
+var init_metadata_log = __esm({
+    "metadata-log.mjs"() {
+        MiB = 1024 * 1024;
+        BoundedJsonl = class {
+            constructor(file, { maxBytes = 8 * MiB, generations: generations2 = 2, maxLineBytes = 64 * 1024, retryMs = 3e4, now: now2 = Date.now, onFailure = () => {
+            } } = {}) {
+                if (!(maxBytes > 0) || !Number.isInteger(generations2) || generations2 < 0)
+                    throw new RangeError("invalid retention");
+                this.file = path3.resolve(file);
+                this.maxBytes = maxBytes;
+                this.generations = generations2;
+                this.maxLineBytes = maxLineBytes;
+                this.retryMs = retryMs;
+                this.now = now2;
+                this.onFailure = onFailure;
+                this.size = null;
+                this.dropped = 0;
+                this.rotations = 0;
+                this.lastError = null;
+                this.retryAt = 0;
+            }
+            generation(n2) {
+                const ext = path3.extname(this.file);
+                return `${this.file.slice(0, this.file.length - ext.length)}.${n2}${ext}`;
+            }
+            append(record4) {
+                if (this.retryAt && this.now() < this.retryAt) {
+                    this.dropped++;
+                    return false;
+                }
+                try {
+                    let line = JSON.stringify(record4);
+                    if (Buffer.byteLength(line) > this.maxLineBytes)
+                        line = JSON.stringify({ utc: record4?.utc, truncated: true, head: line.slice(0, Math.floor(this.maxLineBytes / 4)) });
+                    const data = line + "\n", bytes = Buffer.byteLength(data);
+                    if (this.size === null) {
+                        try {
+                            this.size = fs2.statSync(this.file).size;
+                        }
+                        catch {
+                            this.size = 0;
+                        }
+                    }
+                    if (this.size > 0 && this.size + bytes > this.maxBytes)
+                        this.#rotate();
+                    fs2.appendFileSync(this.file, data, "utf8");
+                    this.size += bytes;
+                    this.retryAt = 0;
+                    return true;
+                }
+                catch (error) {
+                    this.dropped++;
+                    this.size = null;
+                    const first = !this.retryAt;
+                    this.lastError = String(error?.code ?? error?.message ?? error);
+                    this.retryAt = this.now() + this.retryMs;
+                    if (first) {
+                        try {
+                            this.onFailure(error);
+                        }
+                        catch {
+                        }
+                    }
+                    return false;
+                }
+            }
+            #rotate() {
+                if (this.generations === 0)
+                    fs2.rmSync(this.file, { force: true });
+                else {
+                    fs2.rmSync(this.generation(this.generations), { force: true });
+                    for (let n2 = this.generations - 1; n2 >= 1; n2--)
+                        if (fs2.existsSync(this.generation(n2)))
+                            fs2.renameSync(this.generation(n2), this.generation(n2 + 1));
+                    fs2.renameSync(this.file, this.generation(1));
+                }
+                this.size = 0;
+                this.rotations++;
+            }
+            status() {
+                return { file: this.file, maxBytes: this.maxBytes, generations: this.generations, dropped: this.dropped, rotations: this.rotations, lastError: this.lastError };
+            }
+        };
+    }
+});
+import fs3 from "node:fs";
+import path4 from "node:path";
+import { createHash } from "node:crypto";
+function safeRelativeName(name) {
+    if (typeof name !== "string" || !name || name.length > 240 || /[\\:*?"<>|\0-\x1f]/.test(name) || name.startsWith("/"))
+        return false;
+    return name.split("/").every((part) => part && part !== "." && part !== ".." && !/[. ]$/.test(part));
+}
+function validRow(row) {
+    return row && typeof row.name === "string" && /^[a-f0-9]{64}$/i.test(row.sha256) && Number.isSafeInteger(row.bytes) && row.bytes >= 1;
+}
+function validateNativeManifest(manifest, { platform = process.platform } = {}) {
+    if (!manifest || !Array.isArray(manifest.artifacts))
+        throw invalid();
+    if (manifest.schema === 1 || manifest.schema === 2) {
+        if (platform === "linux")
+            throw invalid();
+        const required = manifest.schema === 2 ? GENERIC_NATIVE_FILES : REQUIRED_NATIVE_FILES;
+        if (manifest.artifacts.length !== required.length)
+            throw invalid();
+        const seen2 = new Set();
+        for (const row of manifest.artifacts) {
+            if (!validRow(row) || !required.includes(row.name) || seen2.has(row.name))
+                throw invalid();
+            seen2.add(row.name);
+        }
+        return manifest;
+    }
+    if (manifest.schema !== 3)
+        throw invalid();
+    if (!Number.isSafeInteger(manifest.controlAbi) || manifest.controlAbi < 8 || !/^[a-f0-9]{64}$/i.test(manifest.buildEvidenceSha256 ?? "") || manifest.artifacts.length < coreFiles(platform).length || manifest.artifacts.length > 4096)
+        throw invalid();
+    const seen = new Set();
+    for (const row of manifest.artifacts) {
+        if (!validRow(row) || !safeRelativeName(row.name))
+            throw invalid();
+        const key = row.name.toLowerCase();
+        if (seen.has(key) || key === BUILD_SUMMARY_FILE.toLowerCase() || key === "native-manifest.json")
+            throw invalid();
+        seen.add(key);
+    }
+    for (const name of coreFiles(platform))
+        if (!manifest.artifacts.some((row) => row.name === name))
+            throw invalid();
+    return manifest;
+}
+function plainFile(directory, name) {
+    let current3 = directory;
+    const parts = name.split("/");
+    for (let i = 0; i < parts.length; i++) {
+        current3 = path4.join(current3, parts[i]);
+        const st = fs3.lstatSync(current3, { throwIfNoEntry: false });
+        if (!st || st.isSymbolicLink() || (i < parts.length - 1 ? !st.isDirectory() : !st.isFile()))
+            return null;
+    }
+    return current3;
+}
+function listFiles(directory, prefix = "", out = []) {
+    for (const entry of fs3.readdirSync(directory, { withFileTypes: true })) {
+        const name = (prefix ? prefix + "/" : "") + entry.name, full = path4.join(directory, entry.name);
+        if (fs3.lstatSync(full).isSymbolicLink())
+            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + name);
+        if (entry.isDirectory())
+            listFiles(full, name, out);
+        else
+            out.push(name);
+    }
+    return out;
+}
+function verifyNativeArtifacts(manifest, directory, { platform = process.platform } = {}) {
+    validateNativeManifest(manifest, { platform });
+    for (const row of manifest.artifacts) {
+        const file = manifest.schema === 3 ? plainFile(directory, row.name) : path4.join(directory, row.name);
+        let bytes = null;
+        try {
+            if (file)
+                bytes = fs3.readFileSync(file);
+        }
+        catch {
+        }
+        if (!bytes || bytes.length !== row.bytes || digest(bytes) !== row.sha256.toLowerCase())
+            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + row.name);
+    }
+    if (manifest.schema === 3) {
+        let summary = null;
+        try {
+            const file = plainFile(directory, BUILD_SUMMARY_FILE);
+            if (file)
+                summary = fs3.readFileSync(file);
+        }
+        catch {
+        }
+        if (!summary || digest(summary) !== manifest.buildEvidenceSha256.toLowerCase())
+            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + BUILD_SUMMARY_FILE);
+        const listed = new Set([...manifest.artifacts.map((row) => row.name.toLowerCase()), BUILD_SUMMARY_FILE.toLowerCase(), "native-manifest.json"]);
+        for (const name of listFiles(directory))
+            if (!listed.has(name.toLowerCase()))
+                throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + name);
+    }
+    return true;
+}
+function loadNativeManifest(file, { platform = process.platform } = {}) {
+    let value;
+    try {
+        value = JSON.parse(fs3.readFileSync(file, "utf8").replace(/^﻿/, ""));
+    }
+    catch {
+        throw Error("NERONET_NATIVE_MANIFEST_MISSING_OR_UNREADABLE");
+    }
+    return validateNativeManifest(value, { platform });
+}
+var REQUIRED_NATIVE_FILES, GENERIC_NATIVE_FILES, LINUX_NATIVE_FILES, coreFiles, BUILD_SUMMARY_FILE, invalid, digest;
+var init_native_manifest = __esm({
+    "native-manifest.mjs"() {
+        REQUIRED_NATIVE_FILES = Object.freeze(["neronet_native_host.exe", "neronet_live_binding.dll", "neronet_receive_consumer.dll"]);
+        GENERIC_NATIVE_FILES = Object.freeze([...REQUIRED_NATIVE_FILES, "neronet.binding"]);
+        LINUX_NATIVE_FILES = Object.freeze(["neronet_live_binding.so", "neronet_native_locator"]);
+        coreFiles = (platform) => platform === "linux" ? LINUX_NATIVE_FILES : GENERIC_NATIVE_FILES;
+        BUILD_SUMMARY_FILE = "BUILD_SUMMARY.json";
+        invalid = () => Error("NERONET_NATIVE_MANIFEST_INVALID");
+        digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+    }
+});
+var DRIVER_TEXTS;
+var init_native_driver_texts = __esm({
+    "native-driver-texts.mjs"() {
+        DRIVER_TEXTS = new Map([
+            ["system export unavailable", "无法取得系统远程调用入口"],
+            ["remote system module unavailable", "目标进程缺少对应的系统模块"],
+            ["CreateRemoteThread failed", "无法在所选 QQ 进程创建执行线程"],
+            ["thread did not finish; leave remote allocation/module intact", "等待 QQ 内执行线程超时或失败，执行结果未确认"],
+            ["thread result unavailable", "无法取得 QQ 内执行线程的返回值"],
+            ["usage: neronet_native_host PID DLL [--retire-rejected-no-leases | --send-frame FILE]", "Native 启动器参数数量不正确"],
+            ["unknown send action", "Native 启动器的发送操作参数不受支持"],
+            ["deployment setting missing", "Native 部署路径配置缺失或长度超限"],
+            ["absolute deployment path required", "Native 部署路径必须是绝对路径"],
+            ["configured QQ image rejected", "配置的 QQ 程序文件名不正确"],
+            ["runner path unavailable", "无法取得 Native 启动器自身路径"],
+            ["Native installation mismatch", "Native 启动器与 DLL 的安装目录或文件名不匹配"],
+            ["invalid PID", "指定的 QQ 进程编号无效"],
+            ["test process access failed", "无法取得 QQ 进程访问权限"],
+            ["target process image rejected", "无法核实目标程序路径，或目标不是所选 QQ 程序"],
+            ["target lacks existing wrapper", "未找到 QQ 已加载的通信模块，或模块枚举失败"],
+            ["unknown action", "Native 启动器操作参数不受支持"],
+            ["rejected-run retirement preconditions not proven", "诊断组件退役所需的安全条件未得到证明"],
+            ["no test DLL to retire", "没有找到可退役的诊断组件"],
+            ["existing test DLL preserved; investigate previous run", "诊断组件已驻留，当前操作拒绝覆盖"],
+            ["loaded DLL differs from requested build; no cross-build RVA calls", "QQ 中驻留的是另一目录的 Native 组件"],
+            ["runtime not loaded", "QQ 进程尚未加载 NeroNet Native 组件"],
+            ["probe export inspection failed", "无法检查 Native DLL 的导出入口"],
+            ["NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ", "QQ 中驻留的 Native 构建与当前文件不一致"],
+            ["probe export missing", "Native DLL 缺少所请求的导出入口"],
+            ["request must be a local reviewed qhp file", "单次发送请求不是同目录的规定帧文件"],
+            ["request length", "单次发送请求文件为空或超过容量限制"],
+            ["request read", "读取单次发送请求文件失败"],
+            ["request already attempted; no automatic retry", "请求尝试标记创建失败，可能已尝试过此请求"],
+            ["test DLL path allocation failed", "无法在目标进程分配或写入 Native DLL 路径"],
+            ["test DLL did not load", "请求加载后未找到 Native DLL"],
+            ["Native build inspection failed", "无法检查 Native 构建信息"],
+            ["runtime record allocation", "无法在 QQ 进程分配或写入运行控制记录"],
+            ["runtime result read", "无法完整读取 QQ 进程中的运行控制结果"],
+            ["send record allocation failed", "无法在 QQ 进程分配或写入单次发送记录"],
+            ["send result read failed", "无法完整读取单次发送结果"],
+            ["invalid own output length", "单次发送返回的输出长度超过记录容量"],
+            ["private result allocation failed", "无法在 QQ 进程分配或写入诊断结果记录"],
+            ["private result read failed", "无法完整读取诊断结果记录"]
+        ]);
     }
 });
 var ROWS, NATIVE_ERRORS, NATIVE_ERRORS_BY_CODE;
@@ -514,6 +827,13 @@ var init_native_error_catalog = __esm({
         NATIVE_ERRORS_BY_CODE = new Map([...NATIVE_ERRORS.values()].map((entry) => [entry.detailCode, entry]));
     }
 });
+function mayWaitForLogin(exit, runtime, lifecycle2) {
+    return exit === 2 && runtime?.code === 210 && runtime.phase === 5 && runtime.registered === 0 && runtime.serviceReleased === 1 && lifecycle2?.closeDrained === 1 && lifecycle2.pendingCallbacks === 0 && lifecycle2.executorJobs === 0;
+}
+var init_native_start_policy = __esm({
+    "native-start-policy.mjs"() {
+    }
+});
 function identity(row) {
     if (row.schema !== 1 || !whole(row.detailCode) || typeof row.errorId !== "string" || typeof row.stage !== "string" || !STAGE.test(row.stage))
         return null;
@@ -564,33 +884,33 @@ function hostReport(row) {
         systemError: row.systemError
     };
 }
-function readNativeReport(rows) {
-    const list = Array.isArray(rows) ? rows.filter((row2) => row2 && typeof row2 === "object") : [];
+function readNativeReport(rows2) {
+    const list = Array.isArray(rows2) ? rows2.filter((row2) => row2 && typeof row2 === "object") : [];
     const found = list.filter((row2) => row2.nativeFailure === true), system = list.filter((row2) => row2.nativeSystemError === true);
     if (!found.length)
         return system.length ? { valid: false } : null;
     if (found.length !== 1 || system.length > 1)
         return { valid: false };
-    const row = found[0], report2 = has(row, "error") ? hostReport(row) : controlReport(row);
-    if (!report2)
+    const row = found[0], report3 = has(row, "error") ? hostReport(row) : controlReport(row);
+    if (!report3)
         return { valid: false };
     if (system.length) {
         const extra = system[0];
-        if (extra.domain !== "win32" || !whole(extra.systemError) || extra.detailCode !== report2.detailCode || report2.systemError !== null && report2.systemError !== extra.systemError)
+        if (extra.domain !== "win32" || !whole(extra.systemError) || extra.detailCode !== report3.detailCode || report3.systemError !== null && report3.systemError !== extra.systemError)
             return { valid: false };
-        report2.systemError = extra.systemError;
+        report3.systemError = extra.systemError;
     }
-    return { valid: true, report: report2 };
+    return { valid: true, report: report3 };
 }
-function controlProvesNoRuntime(result, report2, pid2, operation2) {
-    if (!complete(result) || report2.kind !== "control" || report2.operation !== operation2 || !report2.controlCompleted || report2.runtimePresent || report2.qqCall !== "not-invoked" || report2.cleanup !== "not-required" || !report2.dllLoaded)
+function controlProvesNoRuntime(result2, report3, pid2, operation3) {
+    if (!complete(result2) || report3.kind !== "control" || report3.operation !== operation3 || !report3.controlCompleted || report3.runtimePresent || report3.qqCall !== "not-invoked" || report3.cleanup !== "not-required" || !report3.dllLoaded)
         return false;
-    if (report2.controlReturn !== report2.legacyCode || !sameBuild(result.rows) || result.rows.some((row) => row && has(row, "error")))
+    if (report3.controlReturn !== report3.legacyCode || !sameBuild(result2.rows) || result2.rows.some((row) => row && has(row, "error")))
         return false;
-    const run = one(result.rows, "liveRuntime"), health2 = one(result.rows, "lifecycleHealth");
+    const run = one(result2.rows, "liveRuntime"), health2 = one(result2.rows, "lifecycleHealth");
     if (!run || !health2)
         return false;
-    if (run.pid !== pid2 || run.action !== OPERATIONS.indexOf(operation2) || run.code !== report2.legacyCode || run.phase !== report2.legacyPhase || run.phase !== 0)
+    if (run.pid !== pid2 || run.action !== OPERATIONS.indexOf(operation3) || run.code !== report3.legacyCode || run.phase !== report3.legacyPhase || run.phase !== 0)
         return false;
     if (![run.registered, run.connected, run.targetCalls, run.callbackCreated, run.contextsLive].every((v) => v === 0 || v === void 0))
         return false;
@@ -598,23 +918,23 @@ function controlProvesNoRuntime(result, report2, pid2, operation2) {
         return false;
     return true;
 }
-function hostProvesNothingDone(result, report2) {
-    return complete(result) && report2.kind === "host" && !report2.dllLoaded && !report2.controlInvoked && !report2.controlReturned && report2.cleanup === "not-required" && count(result.rows, "liveRuntime") === 0 && count(result.rows, "lifecycleHealth") === 0;
+function hostProvesNothingDone(result2, report3) {
+    return complete(result2) && report3.kind === "host" && !report3.dllLoaded && !report3.controlInvoked && !report3.controlReturned && report3.cleanup === "not-required" && count(result2.rows, "liveRuntime") === 0 && count(result2.rows, "lifecycleHealth") === 0;
 }
-function provesNothingStarted(result, report2, pid2) {
-    return controlProvesNoRuntime(result, report2, pid2, "start") || hostProvesNothingDone(result, report2);
+function provesNothingStarted(result2, report3, pid2) {
+    return controlProvesNoRuntime(result2, report3, pid2, "start") || hostProvesNothingDone(result2, report3);
 }
-function provesNoRuntime(result, report2, pid2, operation2) {
-    if (controlProvesNoRuntime(result, report2, pid2, operation2) && report2.errorId === "NERONET_RUNTIME_NOT_STARTED")
+function provesNoRuntime(result2, report3, pid2, operation3) {
+    if (controlProvesNoRuntime(result2, report3, pid2, operation3) && report3.errorId === "NERONET_RUNTIME_NOT_STARTED")
         return true;
-    return hostProvesNothingDone(result, report2) && report2.errorId === "NERONET_NERONET_NATIVE_HOST_RUNTIME_NOT_LOADED";
+    return hostProvesNothingDone(result2, report3) && report3.errorId === "NERONET_NERONET_NATIVE_HOST_RUNTIME_NOT_LOADED";
 }
-function retryClass(report2) {
-    return report2?.errorId && WAITING_FOR_QQ.has(report2.errorId) ? "wait-for-qq" : "after-correction";
+function retryClass(report3) {
+    return report3?.errorId && WAITING_FOR_QQ.has(report3.errorId) ? "wait-for-qq" : "after-correction";
 }
-function readPreparation(rows) {
+function readPreparation(rows2) {
     const out = [];
-    for (const row of Array.isArray(rows) ? rows : []) {
+    for (const row of Array.isArray(rows2) ? rows2 : []) {
         if (!row || row.bindingPreparation !== true)
             continue;
         if (row.schema !== 1 || !PREPARATION_STATES.includes(row.state) || typeof row.imageSha256 !== "string" || !/^[a-f0-9]{64}$/.test(row.imageSha256) || typeof row.runtimeVerified !== "boolean")
@@ -623,9 +943,9 @@ function readPreparation(rows) {
     }
     return out;
 }
-function readRuleFailures(rows) {
+function readRuleFailures(rows2) {
     const out = [];
-    for (const row of Array.isArray(rows) ? rows : []) {
+    for (const row of Array.isArray(rows2) ? rows2 : []) {
         if (!row || row.bindingRuleFailure !== true || row.schema !== 1 || typeof row.rule !== "string" || !/^[A-Z][A-Z0-9_]{0,47}$/.test(row.rule) || !whole(row.detailCode))
             continue;
         if (out.length < 8 && !out.some((known) => known.rule === row.rule))
@@ -633,25 +953,25 @@ function readRuleFailures(rows) {
     }
     return out;
 }
-function reportSummary(report2) {
-    if (!report2)
+function reportSummary(report3) {
+    if (!report3)
         return null;
     return {
-        kind: report2.kind,
-        errorId: report2.errorId,
-        detailCode: report2.detailCode,
-        stage: report2.stage,
-        operation: report2.operation,
-        controlCompleted: report2.controlCompleted,
-        controlReturn: report2.controlReturn,
-        qqCall: report2.qqCall,
-        runtimePresent: report2.runtimePresent,
-        cleanup: report2.cleanup,
-        legacyCode: report2.legacyCode,
-        legacyPhase: report2.legacyPhase,
-        dllLoaded: report2.dllLoaded,
-        systemError: report2.systemError,
-        registered: report2.registered
+        kind: report3.kind,
+        errorId: report3.errorId,
+        detailCode: report3.detailCode,
+        stage: report3.stage,
+        operation: report3.operation,
+        controlCompleted: report3.controlCompleted,
+        controlReturn: report3.controlReturn,
+        qqCall: report3.qqCall,
+        runtimePresent: report3.runtimePresent,
+        cleanup: report3.cleanup,
+        legacyCode: report3.legacyCode,
+        legacyPhase: report3.legacyPhase,
+        dllLoaded: report3.dllLoaded,
+        systemError: report3.systemError,
+        registered: report3.registered
     };
 }
 var CONTROL_ABI, ERROR_ID, STAGE, OPERATIONS, CLEANUP, whole, bit, has, complete, one, count, sameBuild, WAITING_FOR_QQ, PREPARATION_STATES;
@@ -666,14 +986,14 @@ var init_native_diagnostics = __esm({
         whole = (v) => Number.isSafeInteger(v) && v >= 0;
         bit = (v) => v === 0 || v === 1;
         has = (row, key) => Object.hasOwn(row, key);
-        complete = (result) => result && result.transport === "exited" && !result.malformed && Array.isArray(result.rows);
-        one = (rows, key) => {
-            const found = rows.filter((row) => row && row[key] === true);
+        complete = (result2) => result2 && result2.transport === "exited" && !result2.malformed && Array.isArray(result2.rows);
+        one = (rows2, key) => {
+            const found = rows2.filter((row) => row && row[key] === true);
             return found.length === 1 ? found[0] : null;
         };
-        count = (rows, key) => rows.filter((row) => row && row[key] === true).length;
-        sameBuild = (rows) => {
-            const checks = rows.filter((row) => row && row.nativeBuildCheck === true);
+        count = (rows2, key) => rows2.filter((row) => row && row[key] === true).length;
+        sameBuild = (rows2) => {
+            const checks = rows2.filter((row) => row && row.nativeBuildCheck === true);
             return checks.length === 0 || checks.length === 1 && checks[0].match === "same" && checks[0].controlAbi === CONTROL_ABI;
         };
         WAITING_FOR_QQ = new Set(["NERONET_QQ_ROUTE_NOT_INITIALIZED"]);
@@ -681,7 +1001,7 @@ var init_native_diagnostics = __esm({
     }
 });
 function parseDriverResult(stdout, error = null) {
-    const rows = [];
+    const rows2 = [];
     let malformed = false;
     for (const line of String(stdout ?? "").split(/\r?\n/)) {
         if (!line.trim())
@@ -691,16 +1011,16 @@ function parseDriverResult(stdout, error = null) {
             if (!row || typeof row !== "object" || Array.isArray(row))
                 malformed = true;
             else
-                rows.push(row);
+                rows2.push(row);
         }
         catch {
             malformed = true;
         }
     }
     const exit = error?.code ?? 0;
-    const launchFailed = error && ["ENOENT", "EACCES", "EPERM"].includes(error.code) && !error.killed && !rows.length;
+    const launchFailed = error && ["ENOENT", "EACCES", "EPERM"].includes(error.code) && !error.killed && !rows2.length;
     const transport = launchFailed ? "not-started" : error && (error.killed || error.signal || !Number.isInteger(exit)) ? "interrupted" : "exited";
-    return { rows, malformed, exit, transport };
+    return { rows: rows2, malformed, exit, transport };
 }
 function plain(row, nested = false) {
     const out = {};
@@ -716,61 +1036,61 @@ function plain(row, nested = false) {
     }
     return out;
 }
-function diagnosticRows(rows) {
-    return (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object" && DIAGNOSTIC_ROWS.some((key) => row[key] === true)).slice(0, 16).map((row) => plain(row));
+function diagnosticRows(rows2) {
+    return (Array.isArray(rows2) ? rows2 : []).filter((row) => row && typeof row === "object" && DIAGNOSTIC_ROWS.some((key) => row[key] === true)).slice(0, 16).map((row) => plain(row));
 }
-function reportsBuildMismatch(result) {
+function reportsBuildMismatch(result2) {
     try {
-        const text2 = JSON.stringify(result?.rows ?? []);
+        const text2 = JSON.stringify(result2?.rows ?? []);
         return text2.includes(BUILD_MISMATCH) || OTHER_BUILD_LOADED.test(text2);
     }
     catch {
         return false;
     }
 }
-function driverErrors(rows) {
-    return (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object" && Object.hasOwn(row, "error")).slice(0, 4).map((row) => ({ error: typeof row.error === "string" && /^[A-Za-z0-9_ ;,.\-]{1,128}$/.test(row.error) ? row.error : "(text)", win32: Number.isSafeInteger(row.win32) ? row.win32 : null }));
+function driverErrors(rows2) {
+    return (Array.isArray(rows2) ? rows2 : []).filter((row) => row && typeof row === "object" && Object.hasOwn(row, "error")).slice(0, 4).map((row) => ({ error: typeof row.error === "string" && /^[A-Za-z0-9_ ;,.\-]{1,128}$/.test(row.error) ? row.error : "(text)", win32: Number.isSafeInteger(row.win32) ? row.win32 : null }));
 }
-function startCause(result, decision) {
-    const rows = Array.isArray(result?.rows) ? result.rows : [], runs = rows.filter((x) => x?.liveRuntime === true), reported = readNativeReport(rows);
-    const exit = Number.isInteger(result?.exit) ? result.exit : typeof result?.exit === "string" && /^[A-Z0-9_]{1,24}$/.test(result.exit) ? result.exit : null;
+function startCause(result2, decision) {
+    const rows2 = Array.isArray(result2?.rows) ? result2.rows : [], runs = rows2.filter((x) => x?.liveRuntime === true), reported = readNativeReport(rows2);
+    const exit = Number.isInteger(result2?.exit) ? result2.exit : typeof result2?.exit === "string" && /^[A-Z0-9_]{1,24}$/.test(result2.exit) ? result2.exit : null;
     return {
         classification: decision.kind,
         reason: decision.reason ?? null,
         exit,
-        transport: result?.transport ?? null,
+        transport: result2?.transport ?? null,
         legacy: runs.length === 1 && Number.isInteger(runs[0].code) && Number.isInteger(runs[0].phase) ? { code: runs[0].code, phase: runs[0].phase } : null,
-        errors: driverErrors(rows),
+        errors: driverErrors(rows2),
         failure: reported?.valid ? reportSummary(reported.report) : null,
         reportInvalid: reported ? reported.valid === false : false,
         cleanup: null
     };
 }
-function classifyStart(result, pid2) {
-    if (result.transport === "not-started")
+function classifyStart(result2, pid2) {
+    if (result2.transport === "not-started")
         return { kind: "not-started", reason: "driver-launch-failed" };
-    if (reportsBuildMismatch(result))
+    if (reportsBuildMismatch(result2))
         return { kind: "build-mismatch", reason: BUILD_MISMATCH };
-    const reported = readNativeReport(result.rows);
-    if (reported?.valid && provesNothingStarted(result, reported.report, pid2))
+    const reported = readNativeReport(result2.rows);
+    if (reported?.valid && provesNothingStarted(result2, reported.report, pid2))
         return { kind: "rejected", reason: reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", report: reported.report };
-    if (result.transport !== "exited" || result.malformed)
+    if (result2.transport !== "exited" || result2.malformed)
         return { kind: "unresolved", reason: "driver-result-incomplete" };
-    const runtimeRows = result.rows.filter((x) => x.liveRuntime === true), healthRows = result.rows.filter((x) => x.lifecycleHealth === true);
-    if (runtimeRows.length !== 1 || healthRows.length !== 1 || result.rows.some((x) => x.error))
+    const runtimeRows = result2.rows.filter((x) => x.liveRuntime === true), healthRows = result2.rows.filter((x) => x.lifecycleHealth === true);
+    if (runtimeRows.length !== 1 || healthRows.length !== 1 || result2.rows.some((x) => x.error))
         return { kind: "unresolved", reason: "missing-or-ambiguous-native-result" };
     const runtime = runtimeRows[0], health2 = healthRows[0];
     if (runtime.pid !== pid2 || runtime.action !== 0 || !Number.isInteger(runtime.phase) || runtime.phase < 0 || runtime.phase > 6 || !Number.isInteger(runtime.code))
         return { kind: "unresolved", reason: "native-result-identity-or-schema" };
-    if (result.exit === 0 && runtime.code === 0 && runtime.phase === 2)
+    if (result2.exit === 0 && runtime.code === 0 && runtime.phase === 2)
         return { kind: "ready", runtime, health: health2 };
-    if (mayWaitForLogin(result.exit, runtime, health2))
+    if (mayWaitForLogin(result2.exit, runtime, health2))
         return { kind: "login-wait", runtime, health: health2 };
     return { kind: "failed", runtime, health: health2, reason: "native-start-rejected" };
 }
-async function startNativeGeneration({ target, run, observe: observe2, stopRequested: stopRequested2, close: close2, markUnresolved, record: record3 }) {
-    const sink = record3;
-    record3 = (event) => {
+async function startNativeGeneration({ target, run, observe: observe2, stopRequested: stopRequested3, close: close2, markUnresolved, record: record4 }) {
+    const sink = record4;
+    record4 = (event) => {
         try {
             sink(event);
         }
@@ -781,7 +1101,7 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
     let cause2 = { classification: "unresolved", reason: "driver-call-threw-without-result", exit: null, transport: null, legacy: null, errors: [], failure: null, cleanup: null };
     const retain = (reason) => {
         markUnresolved({ target, reason, cause: cause2 });
-        record3({ nativeStartupUnresolved: true, pid: target.pid, processKey: key, reason, businessRequestsRetried: 0 });
+        record4({ nativeStartupUnresolved: true, pid: target.pid, processKey: key, reason, businessRequestsRetried: 0 });
         return { kind: "blocked", reason, cause: cause2, guarded: true, guardReason: reason };
     };
     let before;
@@ -791,18 +1111,18 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
     catch {
         return { kind: "deferred", reason: "process-observation-unavailable" };
     }
-    if (before !== "same" || stopRequested2())
+    if (before !== "same" || stopRequested3())
         return { kind: "deferred", reason: before !== "same" ? "target-changed" : "operator-stop" };
-    let result;
+    let result2;
     try {
-        result = await run();
+        result2 = await run();
     }
     catch {
         return retain("driver-call-threw-without-result");
     }
-    const decision = classifyStart(result, target.pid);
-    cause2 = startCause(result, decision);
-    record3({ nativeStart: true, pid: target.pid, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, rows: diagnosticRows(result.rows), errors: driverErrors(result.rows), ...cause2.failure && decision.kind !== "ready" && decision.kind !== "login-wait" ? { failure: cause2.failure } : {} });
+    const decision = classifyStart(result2, target.pid);
+    cause2 = startCause(result2, decision);
+    record4({ nativeStart: true, pid: target.pid, exit: result2.exit, transport: result2.transport, classification: decision.kind, reason: decision.reason ?? null, rows: diagnosticRows(result2.rows), errors: driverErrors(result2.rows), ...cause2.failure && decision.kind !== "ready" && decision.kind !== "login-wait" ? { failure: cause2.failure } : {} });
     if (decision.kind === "not-started")
         return { kind: "rejected", reason: decision.reason, cause: cause2, retry: "after-correction" };
     if (decision.kind === "build-mismatch")
@@ -819,7 +1139,7 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         return retain("post-start-process-observation-unavailable");
     }
     if (observed2 === "gone") {
-        record3({ nativeStartupTargetExited: true, pid: target.pid });
+        record4({ nativeStartupTargetExited: true, pid: target.pid });
         return { kind: "deferred", reason: "target-exited" };
     }
     if (observed2 !== "same")
@@ -836,7 +1156,7 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         }
         if (state === "gone") {
             released = true;
-            record3({ nativeStartupReleased: true, pid: target.pid, targetExists: false });
+            record4({ nativeStartupReleased: true, pid: target.pid, targetExists: false });
             return true;
         }
         if (state !== "same") {
@@ -855,15 +1175,15 @@ async function startNativeGeneration({ target, run, observe: observe2, stopReque
         }
         else {
             cause2 = { ...cause2, cleanup: "confirmed" };
-            record3({ nativeStartupReleased: true, pid: target.pid, targetExists: true });
+            record4({ nativeStartupReleased: true, pid: target.pid, targetExists: true });
         }
         return released;
     })();
     if (decision.kind === "login-wait")
-        return { kind: stopRequested2() ? "stopped" : "login-wait", alreadyDrained: true };
-    if (decision.kind === "failed" || stopRequested2()) {
+        return { kind: stopRequested3() ? "stopped" : "login-wait", alreadyDrained: true };
+    if (decision.kind === "failed" || stopRequested3()) {
         const closed = await release();
-        return { kind: closed ? stopRequested2() ? "stopped" : "failed" : "blocked", reason: decision.reason, closed, cause: cause2, guarded: !closed, ...closed ? {} : { guardReason: "native-startup-drain-unconfirmed" } };
+        return { kind: closed ? stopRequested3() ? "stopped" : "failed" : "blocked", reason: decision.reason, closed, cause: cause2, guarded: !closed, ...closed ? {} : { guardReason: "native-startup-drain-unconfirmed" } };
     }
     return { kind: "ready", release };
 }
@@ -879,645 +1199,20 @@ var init_native_start_transaction = __esm({
         OTHER_BUILD_LOADED = /loaded DLL differs from requested build|LOADED_DLL_DIFFERS_FROM_REQUESTED_BUILD/i;
     }
 });
-function classifyDrain(result, pid2, action) {
-    if (reportsBuildMismatch(result))
-        return { kind: "unresolved", reason: BUILD_MISMATCH };
-    if (!result || result.transport !== "exited" || result.malformed || !Array.isArray(result.rows))
-        return { kind: "unresolved", reason: "driver-result-incomplete" };
-    const reported = readNativeReport(result.rows);
-    if (reported?.valid && (action === "stop" || action === "status") && provesNoRuntime(result, reported.report, pid2, action))
-        return { kind: "closed", reason: "runtime-not-started", noRuntime: true, report: reportSummary(reported.report) };
-    const runs = result.rows.filter((x) => x.liveRuntime === true), health2 = result.rows.filter((x) => x.lifecycleHealth === true);
-    if (runs.length !== 1 || health2.length !== 1 || result.rows.some((x) => Object.hasOwn(x, "error")))
-        return { kind: "unresolved", reason: "missing-or-ambiguous-native-result" };
-    const r = runs[0], h = health2[0], expected = action === "stop" ? 2 : action === "status" ? 1 : null;
-    if (expected === null || r.pid !== pid2 || r.action !== expected || !uint(r.code) || !uint(r.phase) || r.phase > 6 || ![0, 1].includes(r.serviceReleased) || ![0, 1].includes(h.closeDrained) || !uint(h.pendingCallbacks) || !uint(h.executorJobs))
-        return { kind: "unresolved", reason: "native-close-identity-or-schema" };
-    const snapshot = { pid: r.pid, action: r.action, code: r.code, phase: r.phase, serviceReleased: r.serviceReleased, closeDrained: h.closeDrained, pendingCallbacks: h.pendingCallbacks, executorJobs: h.executorJobs };
-    if (result.exit === 0 && r.code === 0 && r.phase === 5 && r.serviceReleased === 1 && h.closeDrained === 1 && h.pendingCallbacks === 0 && h.executorJobs === 0)
-        return { kind: "closed", snapshot };
-    if (r.phase === 6 && (result.exit === 0 && r.code === 0 || action === "stop" && result.exit === 2 && r.code === 206))
-        return { kind: "pending", snapshot };
-    return { kind: "unresolved", reason: "native-close-not-confirmed", snapshot };
-}
-async function drainNative({ pid: pid2, observe: observe2, invoke, record: record3 = () => {
-}, budgetMs = 3e4, callTimeoutMs = 25e3, pollMs = 150, now: now2 = Date.now, sleep: sleep3 = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
-    let diagnosticErrors = 0, pendingObserved = false, calls = 0;
-    const deadline = now2() + budgetMs;
-    const emit = (e) => {
-        try {
-            record3(e);
-        }
-        catch {
-            diagnosticErrors++;
-        }
-    };
-    const finish2 = (closed, reason, targetExists) => {
-        emit({ nativeCloseResult: true, pid: pid2, closed, reason, targetExists, pendingObserved, retainedWhenUnresolved: !closed, businessRequestsRetried: 0 });
-        return { closed, reason, targetExists, pendingObserved, calls, diagnosticErrors };
-    };
-    let action = "stop";
-    for (;;) {
-        let state;
-        try {
-            state = await observe2();
-        }
-        catch {
-            return finish2(false, "process-observation-unavailable", null);
-        }
-        if (state === "gone")
-            return finish2(true, "target-generation-exited", false);
-        if (state !== "same")
-            return finish2(false, "target-generation-ambiguous", null);
-        const left = deadline - now2();
-        if (left <= 0)
-            return finish2(false, "drain-deadline", true);
-        let result;
-        try {
-            calls++;
-            result = await invoke(action, { timeoutMs: Math.max(1, Math.min(left, callTimeoutMs)) });
-        }
-        catch {
-            return finish2(false, "driver-call-threw-without-result", true);
-        }
-        const decision = classifyDrain(result, pid2, action);
-        emit({ control: true, pid: pid2, action, classification: decision.kind, reason: decision.reason ?? null, exit: result?.exit ?? null, transport: result?.transport ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result?.rows), errors: driverErrors(result?.rows) });
-        if (decision.kind === "closed")
-            return finish2(true, decision.noRuntime ? "native-runtime-not-started" : "native-drain-confirmed", true);
-        if (decision.kind !== "pending")
-            return finish2(false, decision.reason, true);
-        pendingObserved ||= decision.snapshot.pendingCallbacks > 0;
-        action = decision.snapshot.pendingCallbacks === 0 && decision.snapshot.executorJobs === 0 ? "stop" : "status";
-        if (now2() >= deadline)
-            return finish2(false, "drain-deadline", true);
-        await sleep3(Math.min(pollMs, deadline - now2()));
-    }
-}
-var uint;
-var init_native_drain_transaction = __esm({
-    "native-drain-transaction.mjs"() {
-        init_native_start_transaction();
-        init_native_diagnostics();
-        uint = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 4294967295;
-    }
-});
-import fs2 from "node:fs";
-import path3 from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-function driver(pid2, artifactPath) {
-    if (!Number.isInteger(pid2) || pid2 < 1)
-        throw Error("Explicit target PID required");
-    const artifacts2 = fs2.realpathSync(artifactPath);
-    const nativeEnv2 = nativeEnvironment(loadDeploymentProfile(), artifacts2);
-    const exe = path3.join(artifacts2, "neronet_native_host.exe"), dll = path3.join(artifacts2, "neronet_live_binding.dll");
-    return async function call(action, { timeoutMs }) {
-        try {
-            const { stdout } = await exec(exe, [String(pid2), dll, "--runtime-" + action], { windowsHide: true, timeout: timeoutMs, maxBuffer: 65536, env: nativeEnv2 });
-            return parseDriverResult(stdout);
-        }
-        catch (e) {
-            return parseDriverResult(e.stdout, e);
-        }
-    };
-}
-async function closeNativeWithDrain(pid2, artifactPath, record3, waitMs = 5e3, { observe: observe2 } = {}) {
-    if (typeof observe2 !== "function")
-        throw Error("Process generation observation required");
-    const result = await drainNative({ pid: pid2, observe: observe2, invoke: driver(pid2, artifactPath), record: record3, budgetMs: 25e3 + waitMs });
-    return result.closed;
-}
-async function probeNativeStatus(pid2, artifactPath, record3, { timeoutMs = 1e4, invoke } = {}) {
-    let outcome;
-    try {
-        const result = await (invoke ?? driver(pid2, artifactPath))("status", { timeoutMs });
-        const decision = classifyDrain(result, pid2, "status");
-        outcome = { faultStatusProbe: true, pid: pid2, obtained: result.transport === "exited" && !result.malformed, exit: result.exit, transport: result.transport, classification: decision.kind, reason: decision.reason ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result.rows), errors: driverErrors(result.rows) };
-    }
-    catch {
-        outcome = { faultStatusProbe: true, pid: pid2, obtained: false, reason: "status-probe-threw" };
-    }
-    try {
-        record3(outcome);
-    }
-    catch {
-    }
-    return outcome;
-}
-var exec;
-var init_native_close = __esm({
-    "native-close.mjs"() {
-        init_deployment_profile();
-        init_native_start_transaction();
-        init_native_drain_transaction();
-        init_native_start_transaction();
-        exec = promisify(execFile);
-    }
-});
-function classifyGatewayExit({ exitCode, signal = null, stopRequested: stopRequested2 = false }) {
-    if (stopRequested2)
-        return "operator-stop";
-    if (exitCode === GATEWAY_EXIT_ACCOUNT_MISMATCH)
-        return "account-mismatch";
-    if (exitCode === GATEWAY_EXIT_TRANSPORT_FAULT && !signal)
-        return "transport-fault";
-    return exitCode === 0 && !signal ? "ended" : "failed";
-}
-function recoveryPolicy({ maxAttempts = 3, windowMs = 10 * 6e4, delaysMs = [2e3, 5e3, 15e3], now: now2 = Date.now } = {}) {
-    const attempts = [];
-    return {
-        next() {
-            const t = now2();
-            while (attempts.length && t - attempts[0] > windowMs)
-                attempts.shift();
-            if (attempts.length >= maxAttempts)
-                return { allowed: false, attemptsInWindow: attempts.length, windowMs };
-            attempts.push(t);
-            return { allowed: true, attempt: attempts.length, maxAttempts, delayMs: delaysMs[Math.min(attempts.length - 1, delaysMs.length - 1)] };
-        }
-    };
-}
-async function retrying(fn, { tries = 3, pauseMs = 1e3, onRetry = () => {
-}, sleep: sleep3 = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
-    let last;
-    for (let attempt = 1; attempt <= tries; attempt++) {
-        try {
-            return await fn();
-        }
-        catch (error) {
-            last = error;
-            if (attempt < tries) {
-                try {
-                    onRetry(attempt);
-                }
-                catch {
-                }
-                await sleep3(pauseMs);
-            }
-        }
-    }
-    throw last;
-}
-function errorSummary(error) {
-    const code = /^[A-Z0-9_]{1,64}$/.test(String(error?.code ?? "")) ? String(error.code) : null;
-    const name = /^[A-Za-z]{1,40}$/.test(String(error?.name ?? "")) ? error.name : "Error";
-    const line = String(error?.message ?? "").split(/\r?\n/)[0].replace(/[A-Za-z0-9_\-+/=]{32,}/g, "…").slice(0, 160);
-    return { code, name, message: line, exitCode: Number.isInteger(error?.code) ? error.code : null, signal: typeof error?.signal === "string" ? error.signal : null, killed: error?.killed === true };
-}
-var init_recovery_policy = __esm({
-    "recovery-policy.mjs"() {
-        init_process_selection();
-    }
-});
-import fs3 from "node:fs";
-import path4 from "node:path";
-var MiB, BoundedJsonl;
-var init_metadata_log = __esm({
-    "metadata-log.mjs"() {
-        MiB = 1024 * 1024;
-        BoundedJsonl = class {
-            constructor(file, { maxBytes = 8 * MiB, generations: generations2 = 2, maxLineBytes = 64 * 1024, retryMs = 3e4, now: now2 = Date.now, onFailure = () => {
-            } } = {}) {
-                if (!(maxBytes > 0) || !Number.isInteger(generations2) || generations2 < 0)
-                    throw new RangeError("invalid retention");
-                this.file = path4.resolve(file);
-                this.maxBytes = maxBytes;
-                this.generations = generations2;
-                this.maxLineBytes = maxLineBytes;
-                this.retryMs = retryMs;
-                this.now = now2;
-                this.onFailure = onFailure;
-                this.size = null;
-                this.dropped = 0;
-                this.rotations = 0;
-                this.lastError = null;
-                this.retryAt = 0;
-            }
-            generation(n2) {
-                const ext = path4.extname(this.file);
-                return `${this.file.slice(0, this.file.length - ext.length)}.${n2}${ext}`;
-            }
-            append(record3) {
-                if (this.retryAt && this.now() < this.retryAt) {
-                    this.dropped++;
-                    return false;
-                }
-                try {
-                    let line = JSON.stringify(record3);
-                    if (Buffer.byteLength(line) > this.maxLineBytes)
-                        line = JSON.stringify({ utc: record3?.utc, truncated: true, head: line.slice(0, Math.floor(this.maxLineBytes / 4)) });
-                    const data = line + "\n", bytes = Buffer.byteLength(data);
-                    if (this.size === null) {
-                        try {
-                            this.size = fs3.statSync(this.file).size;
-                        }
-                        catch {
-                            this.size = 0;
-                        }
-                    }
-                    if (this.size > 0 && this.size + bytes > this.maxBytes)
-                        this.#rotate();
-                    fs3.appendFileSync(this.file, data, "utf8");
-                    this.size += bytes;
-                    this.retryAt = 0;
-                    return true;
-                }
-                catch (error) {
-                    this.dropped++;
-                    this.size = null;
-                    const first = !this.retryAt;
-                    this.lastError = String(error?.code ?? error?.message ?? error);
-                    this.retryAt = this.now() + this.retryMs;
-                    if (first) {
-                        try {
-                            this.onFailure(error);
-                        }
-                        catch {
-                        }
-                    }
-                    return false;
-                }
-            }
-            #rotate() {
-                if (this.generations === 0)
-                    fs3.rmSync(this.file, { force: true });
-                else {
-                    fs3.rmSync(this.generation(this.generations), { force: true });
-                    for (let n2 = this.generations - 1; n2 >= 1; n2--)
-                        if (fs3.existsSync(this.generation(n2)))
-                            fs3.renameSync(this.generation(n2), this.generation(n2 + 1));
-                    fs3.renameSync(this.file, this.generation(1));
-                }
-                this.size = 0;
-                this.rotations++;
-            }
-            status() {
-                return { file: this.file, maxBytes: this.maxBytes, generations: this.generations, dropped: this.dropped, rotations: this.rotations, lastError: this.lastError };
-            }
-        };
-    }
-});
-function closeGeneration(generation, { markStop, observe: observe2, drain, record: record3 = () => {
-}, graceMs = 2e4, sleep: sleep3 = (ms) => new Promise((r) => setTimeout(r, ms)), now: now2 = Date.now }) {
-    if (closes.has(generation))
-        return closes.get(generation);
-    const emit = (e) => {
-        try {
-            record3(e);
-        }
-        catch {
-        }
-    };
-    const promise = Promise.resolve().then(async () => {
-        try {
-            await markStop(generation);
-        }
-        catch {
-            emit({ gatewayShutdownBlocked: true, reason: "stop-marker-write-failed", pid: generation.child.pid });
-            return false;
-        }
-        const until = now2() + graceMs;
-        while (!generation.exited && now2() < until)
-            await sleep3(Math.min(100, until - now2()));
-        if (!generation.exited) {
-            emit({ gatewayShutdownBlocked: true, reason: "gateway-exit-timeout", pid: generation.child.pid });
-            return false;
-        }
-        let state;
-        try {
-            state = await observe2();
-        }
-        catch {
-            emit({ generationCloseUnresolved: true, reason: "process-observation-unavailable" });
-            return false;
-        }
-        if (state !== "same" && state !== "gone") {
-            emit({ generationCloseUnresolved: true, reason: "target-generation-ambiguous" });
-            return false;
-        }
-        if (state === "same")
-            try {
-                if (!await drain())
-                    return false;
-            }
-            catch {
-                emit({ generationCloseUnresolved: true, reason: "native-drain-threw" });
-                return false;
-            }
-        emit({ generationClosed: true, epoch: generation.epoch, targetExists: state === "same" });
-        return true;
-    });
-    closes.set(generation, promise);
-    return promise;
-}
-var closes;
-var init_generation_close = __esm({
-    "generation-close.mjs"() {
-        closes = new WeakMap();
-    }
-});
 import fs4 from "node:fs";
 import path5 from "node:path";
-function startupGuard(home3) {
-    const file = path5.join(home3, "native-startup-unresolved.json");
-    return {
-        mark({ target, reason, cause: cause2 = null }) {
-            const entry = { schema: 1, target: { pid: target.pid, started: target.started }, reason, utc: (new Date()).toISOString(), automaticRetry: false, ...cause2 && typeof cause2 === "object" ? { cause: cause2 } : {} };
-            const temp = file + ".tmp";
-            fs4.writeFileSync(temp, JSON.stringify(entry, null, 2) + "\n");
-            fs4.renameSync(temp, file);
-        },
-        inspect(processes) {
-            if (!fs4.existsSync(file))
-                return null;
-            let entry;
-            try {
-                entry = JSON.parse(fs4.readFileSync(file, "utf8"));
-            }
-            catch {
-                return { blocked: true, reason: "unreadable-startup-guard" };
-            }
-            if (entry.schema !== 1 || !Number.isInteger(entry.target?.pid) || typeof entry.target?.started !== "string")
-                return { blocked: true, reason: "invalid-startup-guard" };
-            if (processes.some((p2) => processKey(p2) === processKey(entry.target)))
-                return { blocked: true, reason: entry.reason, target: entry.target, ...typeof entry.utc === "string" ? { since: entry.utc } : {}, ...entry.cause && typeof entry.cause === "object" ? { cause: entry.cause } : {} };
-            fs4.renameSync(file, file + ".target-exited-" + Date.now());
-            return { blocked: false, reason: "guarded-target-exited", target: entry.target };
-        }
-    };
-}
-var init_startup_guard = __esm({
-    "startup-guard.mjs"() {
-        init_process_selection();
-    }
-});
-import fs5 from "node:fs";
-import path6 from "node:path";
-import { createHash } from "node:crypto";
-function safeRelativeName(name) {
-    if (typeof name !== "string" || !name || name.length > 240 || /[\\:*?"<>|\0-\x1f]/.test(name) || name.startsWith("/"))
-        return false;
-    return name.split("/").every((part) => part && part !== "." && part !== ".." && !/[. ]$/.test(part));
-}
-function validRow(row) {
-    return row && typeof row.name === "string" && /^[a-f0-9]{64}$/i.test(row.sha256) && Number.isSafeInteger(row.bytes) && row.bytes >= 1;
-}
-function validateNativeManifest(manifest) {
-    if (!manifest || !Array.isArray(manifest.artifacts))
-        throw invalid();
-    if (manifest.schema === 1 || manifest.schema === 2) {
-        const required = manifest.schema === 2 ? GENERIC_NATIVE_FILES : REQUIRED_NATIVE_FILES;
-        if (manifest.artifacts.length !== required.length)
-            throw invalid();
-        const seen2 = new Set();
-        for (const row of manifest.artifacts) {
-            if (!validRow(row) || !required.includes(row.name) || seen2.has(row.name))
-                throw invalid();
-            seen2.add(row.name);
-        }
-        return manifest;
-    }
-    if (manifest.schema !== 3)
-        throw invalid();
-    if (!Number.isSafeInteger(manifest.controlAbi) || manifest.controlAbi < 8 || !/^[a-f0-9]{64}$/i.test(manifest.buildEvidenceSha256 ?? "") || manifest.artifacts.length < GENERIC_NATIVE_FILES.length || manifest.artifacts.length > 4096)
-        throw invalid();
-    const seen = new Set();
-    for (const row of manifest.artifacts) {
-        if (!validRow(row) || !safeRelativeName(row.name))
-            throw invalid();
-        const key = row.name.toLowerCase();
-        if (seen.has(key) || key === BUILD_SUMMARY_FILE.toLowerCase() || key === "native-manifest.json")
-            throw invalid();
-        seen.add(key);
-    }
-    for (const name of GENERIC_NATIVE_FILES)
-        if (!manifest.artifacts.some((row) => row.name === name))
-            throw invalid();
-    return manifest;
-}
-function plainFile(directory, name) {
-    let current2 = directory;
-    const parts = name.split("/");
-    for (let i = 0; i < parts.length; i++) {
-        current2 = path6.join(current2, parts[i]);
-        const st = fs5.lstatSync(current2, { throwIfNoEntry: false });
-        if (!st || st.isSymbolicLink() || (i < parts.length - 1 ? !st.isDirectory() : !st.isFile()))
-            return null;
-    }
-    return current2;
-}
-function listFiles(directory, prefix = "", out = []) {
-    for (const entry of fs5.readdirSync(directory, { withFileTypes: true })) {
-        const name = (prefix ? prefix + "/" : "") + entry.name, full = path6.join(directory, entry.name);
-        if (fs5.lstatSync(full).isSymbolicLink())
-            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + name);
-        if (entry.isDirectory())
-            listFiles(full, name, out);
-        else
-            out.push(name);
-    }
-    return out;
-}
-function verifyNativeArtifacts(manifest, directory) {
-    validateNativeManifest(manifest);
-    for (const row of manifest.artifacts) {
-        const file = manifest.schema === 3 ? plainFile(directory, row.name) : path6.join(directory, row.name);
-        let bytes = null;
-        try {
-            if (file)
-                bytes = fs5.readFileSync(file);
-        }
-        catch {
-        }
-        if (!bytes || bytes.length !== row.bytes || digest(bytes) !== row.sha256.toLowerCase())
-            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + row.name);
-    }
-    if (manifest.schema === 3) {
-        let summary = null;
-        try {
-            const file = plainFile(directory, BUILD_SUMMARY_FILE);
-            if (file)
-                summary = fs5.readFileSync(file);
-        }
-        catch {
-        }
-        if (!summary || digest(summary) !== manifest.buildEvidenceSha256.toLowerCase())
-            throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + BUILD_SUMMARY_FILE);
-        const listed = new Set([...manifest.artifacts.map((row) => row.name.toLowerCase()), BUILD_SUMMARY_FILE.toLowerCase(), "native-manifest.json"]);
-        for (const name of listFiles(directory))
-            if (!listed.has(name.toLowerCase()))
-                throw Error("NERONET_NATIVE_BUILD_MISMATCH: " + name);
-    }
-    return true;
-}
-function loadNativeManifest(file) {
-    let value;
-    try {
-        value = JSON.parse(fs5.readFileSync(file, "utf8").replace(/^﻿/, ""));
-    }
-    catch {
-        throw Error("NERONET_NATIVE_MANIFEST_MISSING_OR_UNREADABLE");
-    }
-    return validateNativeManifest(value);
-}
-var REQUIRED_NATIVE_FILES, GENERIC_NATIVE_FILES, BUILD_SUMMARY_FILE, invalid, digest;
-var init_native_manifest = __esm({
-    "native-manifest.mjs"() {
-        REQUIRED_NATIVE_FILES = Object.freeze(["neronet_native_host.exe", "neronet_live_binding.dll", "neronet_receive_consumer.dll"]);
-        GENERIC_NATIVE_FILES = Object.freeze([...REQUIRED_NATIVE_FILES, "neronet.binding"]);
-        BUILD_SUMMARY_FILE = "BUILD_SUMMARY.json";
-        invalid = () => Error("NERONET_NATIVE_MANIFEST_INVALID");
-        digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
-    }
-});
-var qq_processes_exports = {};
-__export(qq_processes_exports, {
-    discoverQQ: () => discoverQQ,
-    discoveryCommand: () => discoveryCommand,
-    main: () => main2,
-    onlyCandidate: () => onlyCandidate,
-    qqExecutableOfProcess: () => qqExecutableOfProcess,
-    runningQQExecutable: () => runningQQExecutable
-});
-import { execFile as execFile2 } from "node:child_process";
-import { promisify as promisify2 } from "node:util";
-function discoveryCommand(qqExecutable) {
-    return "$items=@(Get-Process QQ -ErrorAction SilentlyContinue | Where-Object {$_.Path -eq '" + qqExecutable.replaceAll("'", "''") + "'} | ForEach-Object {try {if(@($_.Modules | Where-Object ModuleName -eq 'wrapper.node').Count){[pscustomobject]@{pid=$_.Id;started=$_.StartTime.ToUniversalTime().ToString('o')}}}catch{}}); ConvertTo-Json -InputObject @($items) -Compress";
-}
-async function discoverQQ(qqExecutable, { run = exec2 } = {}) {
-    const { stdout } = await run(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", discoveryCommand(qqExecutable)], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
-    const rows = JSON.parse(String(stdout).trim() || "[]");
-    if (!Array.isArray(rows) || rows.some((p2) => !Number.isSafeInteger(p2?.pid) || p2.pid < 1 || typeof p2.started !== "string"))
-        throw Error("NERONET_QQ_DISCOVERY_INVALID");
-    return rows.map(({ pid: pid2, started }) => ({ pid: pid2, started }));
-}
-async function runningQQExecutable({ run = exec2 } = {}) {
-    const command2 = "$items=@(Get-Process QQ -ErrorAction SilentlyContinue | ForEach-Object {try {if($_.Path -and @($_.Modules | Where-Object ModuleName -eq 'wrapper.node').Count){$_.Path}}catch{}} | Sort-Object -Unique); ConvertTo-Json -InputObject @($items) -Compress";
-    const { stdout } = await run(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
-    const paths = JSON.parse(String(stdout).trim() || "[]");
-    if (!Array.isArray(paths) || paths.some((p2) => typeof p2 !== "string" || !/^[A-Za-z]:\\/.test(p2)))
-        throw Error("NERONET_QQ_DISCOVERY_INVALID");
-    const seen = new Map();
-    for (const p2 of paths)
-        if (!seen.has(p2.toLowerCase()))
-            seen.set(p2.toLowerCase(), p2);
-    const distinct = [...seen.values()];
-    if (!distinct.length)
-        throw Error("NERONET_NO_QQ_PROCESS");
-    if (distinct.length > 1)
-        throw Error("NERONET_SEVERAL_QQ_INSTALLATIONS: " + distinct.join(" | "));
-    return distinct[0];
-}
-async function qqExecutableOfProcess(pid2, { run = exec2 } = {}) {
-    if (!Number.isSafeInteger(pid2) || pid2 < 1)
-        throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
-    const command2 = "$p=Get-Process -Id " + pid2 + " -ErrorAction SilentlyContinue; $path=$null; try {if($p -and $p.ProcessName -eq 'QQ' -and $p.Path -and @($p.Modules | Where-Object ModuleName -eq 'wrapper.node').Count){$path=$p.Path}}catch{}; ConvertTo-Json -InputObject @($path | Where-Object {$_}) -Compress";
-    const { stdout } = await run(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
-    const paths = JSON.parse(String(stdout).trim() || "[]");
-    if (!Array.isArray(paths) || paths.length > 1 || paths.some((p2) => typeof p2 !== "string" || !/^[A-Za-z]:\\/.test(p2)))
-        throw Error("NERONET_QQ_DISCOVERY_INVALID");
-    if (!paths.length)
-        throw Error("NERONET_NOT_A_QQ_PROCESS: " + pid2);
-    return paths[0];
-}
-function onlyCandidate(processes, excludedPid = null) {
-    const candidates = processes.filter((p2) => p2.pid !== excludedPid);
-    if (!candidates.length)
-        throw Error("NERONET_NO_QQ_PROCESS");
-    if (candidates.length > 1)
-        throw Error("NERONET_SEVERAL_QQ_PROCESSES: " + candidates.map((p2) => p2.pid).join(", "));
-    return candidates[0];
-}
-async function main2(args = process.argv.slice(2), { run } = {}) {
-    try {
-        const values = {};
-        for (let i = 0; i < args.length; i += 2) {
-            if (!["--profile", "--exclude"].includes(args[i]) || args[i + 1] === void 0 || values[args[i]] !== void 0)
-                throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
-            values[args[i]] = args[i + 1];
-        }
-        const excluded = values["--exclude"] === void 0 ? null : Number(values["--exclude"]);
-        if (excluded !== null && (!Number.isSafeInteger(excluded) || excluded < 1))
-            throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
-        const profile = loadDeploymentProfile(values["--profile"] ? { file: values["--profile"] } : {});
-        console.log(JSON.stringify(onlyCandidate(await discoverQQ(profile.qqExecutable, run ? { run } : {}), excluded)));
-    }
-    catch (e) {
-        console.error(e.message);
-        process.exitCode = 1;
-    }
-}
-var exec2, POWERSHELL;
-var init_qq_processes = __esm({
-    "qq-processes.mjs"() {
-        init_deployment_profile();
-        init_layout_release();
-        exec2 = promisify2(execFile2);
-        POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-        if (isMainModule(import.meta.url))
-            main2();
-    }
-});
-var DRIVER_TEXTS;
-var init_native_driver_texts = __esm({
-    "native-driver-texts.mjs"() {
-        DRIVER_TEXTS = new Map([
-            ["system export unavailable", "无法取得系统远程调用入口"],
-            ["remote system module unavailable", "目标进程缺少对应的系统模块"],
-            ["CreateRemoteThread failed", "无法在所选 QQ 进程创建执行线程"],
-            ["thread did not finish; leave remote allocation/module intact", "等待 QQ 内执行线程超时或失败，执行结果未确认"],
-            ["thread result unavailable", "无法取得 QQ 内执行线程的返回值"],
-            ["usage: neronet_native_host PID DLL [--retire-rejected-no-leases | --send-frame FILE]", "Native 启动器参数数量不正确"],
-            ["unknown send action", "Native 启动器的发送操作参数不受支持"],
-            ["deployment setting missing", "Native 部署路径配置缺失或长度超限"],
-            ["absolute deployment path required", "Native 部署路径必须是绝对路径"],
-            ["configured QQ image rejected", "配置的 QQ 程序文件名不正确"],
-            ["runner path unavailable", "无法取得 Native 启动器自身路径"],
-            ["Native installation mismatch", "Native 启动器与 DLL 的安装目录或文件名不匹配"],
-            ["invalid PID", "指定的 QQ 进程编号无效"],
-            ["test process access failed", "无法取得 QQ 进程访问权限"],
-            ["target process image rejected", "无法核实目标程序路径，或目标不是所选 QQ 程序"],
-            ["target lacks existing wrapper", "未找到 QQ 已加载的通信模块，或模块枚举失败"],
-            ["unknown action", "Native 启动器操作参数不受支持"],
-            ["rejected-run retirement preconditions not proven", "诊断组件退役所需的安全条件未得到证明"],
-            ["no test DLL to retire", "没有找到可退役的诊断组件"],
-            ["existing test DLL preserved; investigate previous run", "诊断组件已驻留，当前操作拒绝覆盖"],
-            ["loaded DLL differs from requested build; no cross-build RVA calls", "QQ 中驻留的是另一目录的 Native 组件"],
-            ["runtime not loaded", "QQ 进程尚未加载 NeroNet Native 组件"],
-            ["probe export inspection failed", "无法检查 Native DLL 的导出入口"],
-            ["NERONET_NATIVE_BUILD_MISMATCH_RESTART_QQ", "QQ 中驻留的 Native 构建与当前文件不一致"],
-            ["probe export missing", "Native DLL 缺少所请求的导出入口"],
-            ["request must be a local reviewed qhp file", "单次发送请求不是同目录的规定帧文件"],
-            ["request length", "单次发送请求文件为空或超过容量限制"],
-            ["request read", "读取单次发送请求文件失败"],
-            ["request already attempted; no automatic retry", "请求尝试标记创建失败，可能已尝试过此请求"],
-            ["test DLL path allocation failed", "无法在目标进程分配或写入 Native DLL 路径"],
-            ["test DLL did not load", "请求加载后未找到 Native DLL"],
-            ["Native build inspection failed", "无法检查 Native 构建信息"],
-            ["runtime record allocation", "无法在 QQ 进程分配或写入运行控制记录"],
-            ["runtime result read", "无法完整读取 QQ 进程中的运行控制结果"],
-            ["send record allocation failed", "无法在 QQ 进程分配或写入单次发送记录"],
-            ["send result read failed", "无法完整读取单次发送结果"],
-            ["invalid own output length", "单次发送返回的输出长度超过记录容量"],
-            ["private result allocation failed", "无法在 QQ 进程分配或写入诊断结果记录"],
-            ["private result read failed", "无法完整读取诊断结果记录"]
-        ]);
-    }
-});
-import fs6 from "node:fs";
-import path7 from "node:path";
-import { execFile as execFile3 } from "node:child_process";
-import { promisify as promisify3 } from "node:util";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 function qqBuildFromWrapperPath(file) {
     const match = /[\\/]versions[\\/](\d+\.\d+\.\d+-\d+)[\\/]/i.exec(String(file ?? ""));
     return match ? match[1] : null;
 }
-async function wrapperOfProcess(pid2, { run = exec3 } = {}) {
+async function wrapperOfProcess(pid2, { run = exec } = {}) {
     if (!Number.isSafeInteger(pid2) || pid2 < 1)
         return null;
     try {
         const command2 = "$p=Get-Process -Id " + pid2 + " -ErrorAction SilentlyContinue; $f=$null; try{$f=@($p.Modules | Where-Object ModuleName -eq 'wrapper.node' | ForEach-Object FileName)[0]}catch{}; ConvertTo-Json -InputObject @($f | Where-Object {$_}) -Compress";
-        const { stdout } = await run(POWERSHELL2, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+        const { stdout } = await run(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
         const files = JSON.parse(String(stdout).trim() || "[]");
         return Array.isArray(files) && typeof files[0] === "string" ? files[0] : null;
     }
@@ -1541,21 +1236,21 @@ function cleanCause(cause2) {
     const legacy = cause2.legacy && whole2(cause2.legacy.code) !== null && whole2(cause2.legacy.phase) !== null ? { code: cause2.legacy.code, phase: cause2.legacy.phase } : null;
     const errors = (Array.isArray(cause2.errors) ? cause2.errors : []).slice(0, 4).map((e) => ({ error: short(e?.error) ?? "(text)", win32: whole2(e?.win32) }));
     const f = cause2.failure && typeof cause2.failure === "object" ? cause2.failure : null;
-    const failure2 = f && (f.errorId === null || short(f.errorId)) && whole2(f.detailCode) !== null ? { errorId: f.errorId, stage: short(f.stage), detailCode: f.detailCode, systemError: whole2(f.systemError), kind: short(f.kind), qqCall: short(f.qqCall), cleanup: short(f.cleanup) } : null;
+    const failure3 = f && (f.errorId === null || short(f.errorId)) && whole2(f.detailCode) !== null ? { errorId: f.errorId, stage: short(f.stage), detailCode: f.detailCode, systemError: whole2(f.systemError), kind: short(f.kind), qqCall: short(f.qqCall), cleanup: short(f.cleanup) } : null;
     const rules = (Array.isArray(cause2.rules) ? cause2.rules : []).slice(0, 8).filter((r) => typeof r?.rule === "string" && /^[A-Z][A-Z0-9_]{0,47}$/.test(r.rule)).map((r) => ({ rule: r.rule, detailCode: whole2(r.detailCode) }));
-    return { rules, ...cause2.residentIsThisBuild === true ? { residentIsThisBuild: true } : {}, classification: short(cause2.classification) ?? "unknown", reason: short(cause2.reason), exit: whole2(cause2.exit) ?? short(cause2.exit), transport: short(cause2.transport), legacy, errors, failure: failure2, cleanup: short(cause2.cleanup) };
+    return { rules, ...cause2.residentIsThisBuild === true ? { residentIsThisBuild: true } : {}, classification: short(cause2.classification) ?? "unknown", reason: short(cause2.reason), exit: whole2(cause2.exit) ?? short(cause2.exit), transport: short(cause2.transport), legacy, errors, failure: failure3, cleanup: short(cause2.cleanup) };
 }
-function versionHint(qqBuild) {
-    if (!qqBuild)
+function versionHint(qqBuild2) {
+    if (!qqBuild2)
         return null;
-    const version = qqBuild.split("-")[0], list = CONFIRMED_QQ_VERSIONS.join("、");
-    return CONFIRMED_QQ_VERSIONS.includes(version) ? "当前 QQ 是 " + qqBuild + "，版本号在已确认适配的版本（" + list + "）里。" : "当前 QQ 是 " + qqBuild + "，不在已确认适配的版本（" + list + "）里，这很可能就是原因。可以把 QQ 换成其中一个版本再试。";
+    const version = qqBuild2.split("-")[0], list = CONFIRMED_QQ_VERSIONS.join("、");
+    return CONFIRMED_QQ_VERSIONS.includes(version) ? "当前 QQ 是 " + qqBuild2 + "，版本号在已确认适配的版本（" + list + "）里。" : "当前 QQ 是 " + qqBuild2 + "，不在已确认适配的版本（" + list + "）里，这很可能就是原因。可以把 QQ 换成其中一个版本再试。";
 }
-function describeCause(input, { qqBuild = null } = {}) {
+function describeCause(input, { qqBuild: qqBuild2 = null } = {}) {
     const cause2 = cleanCause(input), details = [], advice = [];
     if (!cause2)
         return { headline: "接入 QQ 失败，原因没有记录。", details, advice, cleanStart: false };
-    const hint = versionHint(qqBuild), feedback = "请把诊断记录里这次启动的内容反馈给维护者（不要发送密码、令牌和聊天内容）。";
+    const hint = versionHint(qqBuild2), feedback = "请把诊断记录里这次启动的内容反馈给维护者（不要发送密码、令牌和聊天内容）。";
     if (cause2.classification === "not-started") {
         return {
             headline: "接入组件 native\\neronet_native_host.exe 没能运行" + (cause2.exit !== null ? "（" + cause2.exit + "）" : "") + "。",
@@ -1584,8 +1279,8 @@ function describeCause(input, { qqBuild = null } = {}) {
         details.push("错误：" + (f.errorId ?? "未登记的内部异常") + "（编号 " + f.detailCode + (f.stage ? "，阶段 " + f.stage : "") + (f.systemError !== null ? "，系统码 " + f.systemError : "") + "）");
         const cleanStart = cause2.classification === "rejected" || cause2.classification === "preparation-failed";
         const about = f.stage === "binding-discovery" || f.stage === "binding-selection" || /^NERONET_BINDING_/.test(f.errorId ?? "");
-        if (about && qqBuild)
-            details.push("当前 QQ 是 " + qqBuild + "。");
+        if (about && qqBuild2)
+            details.push("当前 QQ 是 " + qqBuild2 + "。");
         if (cause2.rules.length)
             details.push("没有通过的结构规则：" + cause2.rules.map((r) => r.rule).join("、"));
         advice.push(FAILURE_ADVICE.get(f.errorId) ?? entry?.advice ?? feedback);
@@ -1595,8 +1290,8 @@ function describeCause(input, { qqBuild = null } = {}) {
     }
     if (cause2.classification === "preparation-failed") {
         const told = PREPARATION_TEXTS.get(cause2.reason) ?? "识别当前 QQ 没有成功";
-        if (qqBuild)
-            details.push("当前 QQ 是 " + qqBuild + "。");
+        if (qqBuild2)
+            details.push("当前 QQ 是 " + qqBuild2 + "。");
         details.push("记录的原因：" + (cause2.reason ?? "unknown"));
         return { headline: told + "。", details, advice: ["这一步只读取了 QQ 的程序文件，没有接触 QQ 进程，不需要重启 QQ。可以重新运行 start.bat 再试一次；仍然失败时，" + feedback], cleanStart: true };
     }
@@ -1610,7 +1305,7 @@ function describeCause(input, { qqBuild = null } = {}) {
         details.push("组件返回：code " + cause2.legacy.code + "，phase " + cause2.legacy.phase + (cause2.exit !== null ? "，退出码 " + cause2.exit : "") + "。这一版组件没有给出具体原因。");
         if (hint)
             details.push(hint);
-        if (!hint || CONFIRMED_QQ_VERSIONS.includes(qqBuild.split("-")[0]))
+        if (!hint || CONFIRMED_QQ_VERSIONS.includes(qqBuild2.split("-")[0]))
             advice.push(feedback);
         return { headline: "接入组件报告启动没有完成，具体原因尚未确认。", details, advice, cleanStart: false };
     }
@@ -1620,13 +1315,13 @@ function describeCause(input, { qqBuild = null } = {}) {
     details.push("记录的原因：" + (cause2.reason ?? cause2.classification));
     return { headline: "接入组件返回的结果不完整或互相矛盾，这次接入的结果无法确认。", details, advice: [feedback], cleanStart: false };
 }
-function describeStartFailure({ cause: cause2 = null, guard: guard2 = null, qqBuild = null, home: home3 = "" }) {
+function describeStartFailure({ cause: cause2 = null, guard: guard2 = null, qqBuild: qqBuild2 = null, home: home4 = "" }) {
     const lines = [], pid2 = whole2(guard2?.target?.pid);
     const guardReason = short(guard2?.reason), reasonText = GUARD_REASONS.get(guardReason);
     if (guard2?.state === "earlier") {
         lines.push("这个 QQ 进程" + (pid2 ? "（进程号 " + pid2 + "）" : "") + "在之前的一次启动" + (localTime(guard2.since) ? "（" + localTime(guard2.since) + "）" : "") + "里接入失败，保护还在生效，这次没有再次接入。");
         if (cause2) {
-            const told = describeCause(cause2, { qqBuild });
+            const told = describeCause(cause2, { qqBuild: qqBuild2 });
             lines.push("当时的原因：" + told.headline, ...told.details);
             lines.push(...told.advice);
         }
@@ -1635,32 +1330,34 @@ function describeStartFailure({ cause: cause2 = null, guard: guard2 = null, qqBu
         lines.push(exitAdvice(pid2), guardNote);
     }
     else {
-        const told = describeCause(cause2, { qqBuild });
+        const told = describeCause(cause2, { qqBuild: qqBuild2 });
         lines.push(told.headline, ...told.details, ...told.advice);
         if (guard2?.state === "created") {
             lines.push("由于这次接入的结果不能确认，NeroNet 已对这个 QQ 进程" + (pid2 ? "（进程号 " + pid2 + "）" : "") + "启用保护：在它退出之前不会再次接入" + (reasonText ? "（" + reasonText + "）" : "") + "。");
             lines.push("处理完上面的原因后，" + exitAdvice(pid2), guardNote);
         }
     }
-    if (home3)
-        lines.push("诊断记录：" + path7.join(home3, "supervisor-metadata.jsonl"));
+    if (home4)
+        lines.push("诊断记录：" + path5.join(home4, "supervisor-metadata.jsonl"));
     return lines;
 }
-function startupReport(home3, runId2, { onChange = () => {
+function startupReport(home4, runId3, { onChange = () => {
 } } = {}) {
-    const file = path7.join(home3, REPORT_FILE);
-    let first = null, current2 = null;
-    const write = (entry) => {
-        current2 = { schema: 1, runId: runId2, utc: (new Date()).toISOString(), ...entry };
+    const file = path5.join(home4, REPORT_FILE);
+    let first = null, current3 = null;
+    const launcher = (line) => process.platform === "linux" && typeof line === "string" ? line.replaceAll("start.bat", "./start.sh").replaceAll("stop.bat", "./stop.sh") : line;
+    const write = (raw) => {
+        const entry = Array.isArray(raw.text) ? { ...raw, text: raw.text.map(launcher) } : raw;
+        current3 = { schema: 1, runId: runId3, utc: (new Date()).toISOString(), ...entry };
         try {
             const temp = file + ".tmp";
-            fs6.writeFileSync(temp, JSON.stringify(current2, null, 2) + "\n");
-            fs6.renameSync(temp, file);
+            fs4.writeFileSync(temp, JSON.stringify(current3, null, 2) + "\n");
+            fs4.renameSync(temp, file);
         }
         catch {
         }
         try {
-            onChange(current2);
+            onChange(current3);
         }
         catch {
         }
@@ -1670,46 +1367,46 @@ function startupReport(home3, runId2, { onChange = () => {
             return first;
         },
         get current() {
-            return current2;
+            return current3;
         },
-        state(name, { pid: pid2 = null, qqBuild = null, lines = [] } = {}) {
-            if (current2 && current2.state === name && current2.pid === pid2 && JSON.stringify(current2.text.slice(1)) === JSON.stringify(lines))
+        state(name, { pid: pid2 = null, qqBuild: qqBuild2 = null, lines = [] } = {}) {
+            if (current3 && current3.state === name && current3.pid === pid2 && JSON.stringify(current3.text.slice(1)) === JSON.stringify(lines))
                 return;
-            write({ state: name, outcome: name, pid: pid2, qqBuild, guarded: false, text: [STATE_TEXTS.get(name) ?? name, ...lines] });
+            write({ state: name, outcome: name, pid: pid2, qqBuild: qqBuild2, guarded: false, text: [STATE_TEXTS.get(name) ?? name, ...lines] });
         },
-        failed({ target, reason, cause: cause2 = null, guarded = false, guardReason = null, qqBuild = null, retry = "manual", nextAttemptInMs = null }) {
+        failed({ target, reason, cause: cause2 = null, guarded = false, guardReason = null, qqBuild: qqBuild2 = null, retry = "manual", nextAttemptInMs = null, lines = null }) {
             const isFirst = !first;
             if (isFirst)
-                first = { target: { pid: target.pid, started: target.started }, reason, cause: cause2, guarded, qqBuild };
+                first = { target: { pid: target.pid, started: target.started }, reason, cause: cause2, guarded, qqBuild: qqBuild2 };
             const guard2 = guarded ? { state: "created", reason: guardReason ?? reason, target: { pid: target.pid, started: target.started } } : null;
-            const text2 = describeStartFailure({ cause: cause2, guard: guard2, qqBuild, home: home3 });
+            const text2 = Array.isArray(lines) ? [...lines, ...home4 ? ["诊断记录：" + path5.join(home4, "supervisor-metadata.jsonl")] : []] : describeStartFailure({ cause: cause2, guard: guard2, qqBuild: qqBuild2, home: home4 });
             const next = retry === "automatic" ? "NeroNet 仍在运行，" + (nextAttemptInMs ? "约 " + Math.max(1, Math.round(nextAttemptInMs / 1e3)) + " 秒后" : "稍后") + "会自己再试一次。" : retry === "manual" ? "NeroNet 仍在运行，但不会自己再试。处理后再运行一次 start.bat，它会让 NeroNet 重新接入；要退出请运行 stop.bat。" : "NeroNet 仍在运行：这个 QQ 进程退出、机器人账号重新登录后，会自动接入新的 QQ 进程。要退出请运行 stop.bat。";
-            text2.splice(home3 ? text2.length - 1 : text2.length, 0, next);
-            write({ state: guarded || retry === "restart-qq" ? "guarded" : "attach-failed", outcome: "attach-failed", pid: target.pid, reason, guarded, qqBuild, retry, cause: cause2, text: text2, firstFailureOfRun: isFirst });
+            text2.splice(home4 ? text2.length - 1 : text2.length, 0, next);
+            write({ state: guarded || retry === "restart-qq" ? "guarded" : "attach-failed", outcome: "attach-failed", pid: target.pid, reason, guarded, qqBuild: qqBuild2, retry, cause: cause2, text: text2, firstFailureOfRun: isFirst });
             return isFirst;
         },
-        guardBlocked(state, { qqBuild = null } = {}) {
-            const text2 = describeStartFailure({ cause: state.cause ?? null, guard: { state: "earlier", reason: state.reason, target: state.target, since: state.since }, qqBuild, home: home3 });
-            text2.splice(home3 ? text2.length - 1 : text2.length, 0, "NeroNet 仍在运行：这个 QQ 进程退出、机器人账号重新登录后，会自动接入新的 QQ 进程。要退出请运行 stop.bat。");
-            write({ state: "guarded", outcome: "guard-blocked", pid: state.target?.pid ?? null, reason: state.reason ?? null, guarded: true, qqBuild, retry: "restart-qq", cause: state.cause ?? null, text: text2 });
+        guardBlocked(state, { qqBuild: qqBuild2 = null } = {}) {
+            const text2 = describeStartFailure({ cause: state.cause ?? null, guard: { state: "earlier", reason: state.reason, target: state.target, since: state.since }, qqBuild: qqBuild2, home: home4 });
+            text2.splice(home4 ? text2.length - 1 : text2.length, 0, "NeroNet 仍在运行：这个 QQ 进程退出、机器人账号重新登录后，会自动接入新的 QQ 进程。要退出请运行 stop.bat。");
+            write({ state: "guarded", outcome: "guard-blocked", pid: state.target?.pid ?? null, reason: state.reason ?? null, guarded: true, qqBuild: qqBuild2, retry: "restart-qq", cause: state.cause ?? null, text: text2 });
         },
         clear() {
             try {
-                fs6.rmSync(file, { force: true });
+                fs4.rmSync(file, { force: true });
             }
             catch {
             }
         }
     };
 }
-var exec3, POWERSHELL2, CONFIRMED_QQ_VERSIONS, GUARD_FILE, REPORT_FILE, short, whole2, DRIVER_ADVICE, FAILURE_ADVICE, PREPARATION_TEXTS, GUARD_REASONS, exitAdvice, guardNote, STATE_TEXTS, WAITING_STATES, FAILED_STATES, RETRY_FILE;
+var exec, POWERSHELL, CONFIRMED_QQ_VERSIONS, GUARD_FILE, REPORT_FILE, short, whole2, DRIVER_ADVICE, FAILURE_ADVICE, PREPARATION_TEXTS, GUARD_REASONS, exitAdvice, guardNote, STATE_TEXTS, WAITING_STATES, FAILED_STATES, RETRY_FILE;
 var init_startup_failure = __esm({
     "startup-failure.mjs"() {
         init_native_driver_texts();
         init_native_error_catalog();
         init_native_start_transaction();
-        exec3 = promisify3(execFile3);
-        POWERSHELL2 = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+        exec = promisify(execFile);
+        POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
         CONFIRMED_QQ_VERSIONS = ["9.9.25", "9.9.30", "9.9.32", "9.9.37"];
         GUARD_FILE = "native-startup-unresolved.json";
         REPORT_FILE = "startup-result.json";
@@ -1760,9 +1457,1552 @@ var init_startup_failure = __esm({
         RETRY_FILE = "RETRY";
     }
 });
-import { spawn } from "node:child_process";
+import http from "node:http";
+function localTime2(iso) {
+    const at = new Date(iso);
+    if (Number.isNaN(at.getTime()))
+        return "";
+    const two = (n2) => String(n2).padStart(2, "0");
+    return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + " " + two(at.getHours()) + ":" + two(at.getMinutes()) + ":" + two(at.getSeconds());
+}
+function statusPage(status, productName = "NeroNet") {
+    const lines = Array.isArray(status?.text) ? status.text : ["正在启动。"];
+    return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(productName) + ' 状态</title><style>body{font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#1f2328;background:#fff}@media(prefers-color-scheme:dark){body{color:#e6edf3;background:#0d1117}}h1{font-size:1.2rem}p{margin:.45rem 0}.first{font-weight:600}.note{opacity:.7;font-size:.85rem;margin-top:1.5rem}</style></head><body><h1>' + escape(productName) + " 还没有接入 QQ</h1>" + lines.map((line, i) => "<p" + (i === 0 ? ' class="first"' : "") + ">" + escape(line) + "</p>").join("") + '<p class="note">本页每 5 秒刷新一次。接入成功后，请使用管理界面。' + (status?.utc && localTime2(status.utc) ? "状态更新于 " + escape(localTime2(status.utc)) + "。" : "") + "</p></body></html>";
+}
+function standbyServer({ status, port: port3 = READINESS_PORT, productName = "NeroNet" }) {
+    let server = null, listening = false;
+    const handler = (req, res) => {
+        const current3 = status();
+        if (req.method !== "GET" && req.method !== "HEAD") {
+            res.writeHead(405, { "content-length": "0" });
+            res.end();
+            return;
+        }
+        const url = (req.url ?? "/").split("?")[0];
+        if (url === "/status") {
+            const body2 = statusPage(current3, productName);
+            res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" });
+            res.end(req.method === "HEAD" ? void 0 : body2);
+            return;
+        }
+        if (url !== "/") {
+            res.writeHead(404, { "content-length": "0" });
+            res.end();
+            return;
+        }
+        const body = JSON.stringify({ ready: false, attached: false, state: current3?.state ?? "starting", pid: current3?.pid ?? null, reason: current3?.reason ?? null, guarded: current3?.guarded === true, text: Array.isArray(current3?.text) ? current3.text : [], utc: current3?.utc ?? null });
+        res.writeHead(503, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(req.method === "HEAD" ? void 0 : body);
+    };
+    return {
+        get listening() {
+            return listening;
+        },
+        start() {
+            if (server)
+                return Promise.resolve(listening);
+            return new Promise((resolve) => {
+                const s = http.createServer(handler);
+                server = s;
+                s.once("error", () => {
+                    if (server === s)
+                        server = null;
+                    listening = false;
+                    resolve(false);
+                });
+                s.listen(port3, "127.0.0.1", () => {
+                    listening = true;
+                    s.on("error", () => {
+                    });
+                    resolve(true);
+                });
+            });
+        },
+        stop() {
+            const s = server;
+            server = null;
+            listening = false;
+            if (!s)
+                return Promise.resolve();
+            return new Promise((resolve) => {
+                try {
+                    s.closeAllConnections?.();
+                }
+                catch {
+                }
+                s.close(() => resolve());
+            });
+        }
+    };
+}
+var READINESS_PORT, escape;
+var init_standby_server = __esm({
+    "standby-server.mjs"() {
+        READINESS_PORT = 5100;
+        escape = (text2) => String(text2).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    }
+});
+function header(bytes) {
+    if (bytes.length < 40)
+        throw Error("short header");
+    if (bytes.readUInt32LE(0) !== 827344977 || bytes.readUInt16LE(4) !== 1)
+        throw Error("bad magic/version");
+    const lengths = [bytes.readUInt32LE(20), bytes.readUInt32LE(24), bytes.readUInt32LE(28)];
+    if (lengths.some((n2, i) => n2 > Object.values(LIMITS)[i]))
+        throw Error("length limit");
+    return { op: bytes.readUInt16LE(6), requestId: bytes.readUInt32LE(8), status: bytes.readInt32LE(12), flags: bytes.readUInt32LE(16), value0: bytes.readBigUInt64LE(32), lengths, total: 40 + lengths.reduce((a, b) => a + b, 0) };
+}
+function encode(f) {
+    const cmd = Buffer.from(f.cmd ?? "", "utf8"), msg = Buffer.from(f.msg ?? "", "utf8"), body = Buffer.from(f.body ?? []);
+    if ([cmd.length, msg.length, body.length].some((n2, i) => n2 > Object.values(LIMITS)[i]))
+        throw Error("length limit");
+    const b = Buffer.alloc(40 + cmd.length + msg.length + body.length);
+    b.writeUInt32LE(827344977);
+    b.writeUInt16LE(1, 4);
+    b.writeUInt16LE(f.op, 6);
+    b.writeUInt32LE(f.requestId ?? 0, 8);
+    b.writeInt32LE(f.status ?? 0, 12);
+    b.writeUInt32LE(f.flags ?? 0, 16);
+    b.writeUInt32LE(cmd.length, 20);
+    b.writeUInt32LE(msg.length, 24);
+    b.writeUInt32LE(body.length, 28);
+    b.writeBigUInt64LE(f.value0 ?? 0n, 32);
+    cmd.copy(b, 40);
+    msg.copy(b, 40 + cmd.length);
+    body.copy(b, 40 + cmd.length + msg.length);
+    return b;
+}
+function decode(b) {
+    const h = header(b);
+    if (b.length !== h.total)
+        throw Error("frame length");
+    const [c, m] = h.lengths;
+    return { op: h.op, requestId: h.requestId, status: h.status, flags: h.flags, value0: h.value0, cmd: b.toString("utf8", 40, 40 + c), msg: b.toString("utf8", 40 + c, 40 + c + m), body: Buffer.from(b.subarray(40 + c + m)) };
+}
+var OPS, LIMITS, Reader;
+var init_wire = __esm({
+    "wire.mjs"() {
+        OPS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 17, 21, 22]);
+        LIMITS = Object.freeze({ cmd: 4096, msg: 65536, body: 16777216 });
+        Reader = class {
+            constructor(onFrame) {
+                this.bytes = Buffer.alloc(0);
+                this.onFrame = onFrame;
+                this.failed = false;
+            }
+            push(b) {
+                if (this.failed)
+                    throw Error("reader failed");
+                this.bytes = Buffer.concat([this.bytes, b]);
+                try {
+                    while (this.bytes.length >= 40) {
+                        const h = header(this.bytes);
+                        if (this.bytes.length < h.total)
+                            return;
+                        const f = decode(this.bytes.subarray(0, h.total));
+                        this.bytes = this.bytes.subarray(h.total);
+                        this.onFrame(f);
+                    }
+                }
+                catch (e) {
+                    this.failed = true;
+                    this.bytes = Buffer.alloc(0);
+                    throw e;
+                }
+            }
+            end() {
+                if (this.bytes.length) {
+                    this.failed = true;
+                    this.bytes = Buffer.alloc(0);
+                    throw Error("truncated frame");
+                }
+            }
+        };
+    }
+});
+import path6 from "node:path";
+function nativeEndpoint(pid2, { platform = process.platform, socketPath } = {}) {
+    if (!Number.isSafeInteger(pid2) || pid2 < 1)
+        throw Error("Invalid QQ PID");
+    if (platform === "win32") {
+        if (socketPath !== void 0)
+            throw Error("NERONET_NATIVE_ENDPOINT_UNSUPPORTED");
+        return "\\\\.\\pipe\\neronet-own-live-" + pid2;
+    }
+    if (platform !== "linux")
+        throw Error("NERONET_NATIVE_PLATFORM_UNSUPPORTED");
+    if (socketPath === void 0)
+        throw Error("NERONET_NATIVE_ENDPOINT_REQUIRED");
+    if (typeof socketPath !== "string" || !path6.posix.isAbsolute(socketPath) || socketPath.includes("\0") || path6.posix.normalize(socketPath) !== socketPath || Buffer.byteLength(socketPath, "utf8") > 107) {
+        throw Error("NERONET_NATIVE_ENDPOINT_INVALID");
+    }
+    return socketPath;
+}
+var init_native_endpoint = __esm({
+    "native-endpoint.mjs"() {
+    }
+});
+import net from "node:net";
+import { EventEmitter } from "node:events";
+function socketErrorSummary(error) {
+    const text2 = (value) => typeof value === "string" && /^[\w.\- ]{1,48}$/.test(value) ? value : null;
+    return { code: text2(error?.code), errno: Number.isSafeInteger(error?.errno) ? error.errno : null, syscall: text2(error?.syscall) };
+}
+function nativeReasonCode(reason) {
+    if (typeof reason !== "string" || !reason)
+        return "NERONET_NATIVE_REASON_MISSING";
+    return reason;
+}
+var commandLabel, TRANSPORT_FAULTS, NativeClient;
+var init_native_client = __esm({
+    "native-client.mjs"() {
+        init_wire();
+        init_native_endpoint();
+        commandLabel = (cmd) => typeof cmd === "string" && /^[\w.\-]{1,96}$/.test(cmd) ? cmd : "(other)";
+        TRANSPORT_FAULTS = new Set(["NERONET_NATIVE_CONNECTION_FAILED", "NERONET_NATIVE_CLOSED", "NERONET_INVALID_NATIVE_FRAME", "NERONET_UNEXPECTED_NATIVE_RESPONSE"]);
+        NativeClient = class extends EventEmitter {
+            constructor(pid2, { expectedUin, timeoutMs = 15e3, socketPath } = {}) {
+                super();
+                if (!Number.isSafeInteger(pid2) || pid2 < 1)
+                    throw Error("Invalid QQ PID");
+                this.pid = pid2;
+                this.expectedUin = expectedUin ? String(expectedUin) : null;
+                this.endpoint = nativeEndpoint(pid2, { socketPath });
+                this.timeoutMs = timeoutMs;
+                this.pending = new Map();
+                this.next = 1;
+                this.uin = "";
+                this.msf = null;
+                this.closed = false;
+                this.hello = false;
+                this.businessPaused = false;
+                this.stage = "idle";
+                this.socketError = null;
+                this.failure = null;
+            }
+            get isLoggedIn() {
+                return !this.closed && this.hello && !!this.uin && this.msf === 1;
+            }
+            connect() {
+                if (this.socket)
+                    throw Error("Already connected");
+                this.stage = "connecting";
+                this.socket = net.connect(this.endpoint);
+                const reader = new Reader((f) => this.onFrame(f));
+                this.socket.on("data", (b) => {
+                    try {
+                        reader.push(b);
+                    }
+                    catch {
+                        this.fail("NERONET_INVALID_NATIVE_FRAME");
+                    }
+                });
+                this.socket.once("connect", () => {
+                    if (this.stage === "connecting")
+                        this.stage = "connected";
+                });
+                this.socket.on("error", (error) => {
+                    this.socketError = socketErrorSummary(error);
+                    this.fail("NERONET_NATIVE_CONNECTION_FAILED");
+                });
+                this.socket.on("close", () => this.fail("NERONET_NATIVE_CLOSED"));
+                return new Promise((resolve, reject) => {
+                    const done = () => {
+                        clearTimeout(timer);
+                        this.off("ready", ready);
+                        this.off("closed", closed);
+                    };
+                    const ready = () => {
+                        done();
+                        resolve(this);
+                    };
+                    const closed = (reason) => {
+                        done();
+                        reject(Error(reason));
+                    };
+                    const timer = setTimeout(() => {
+                        done();
+                        this.fail("NERONET_NATIVE_READY_TIMEOUT");
+                        reject(Error("NERONET_NATIVE_READY_TIMEOUT"));
+                    }, this.timeoutMs);
+                    this.once("ready", ready);
+                    this.once("closed", closed);
+                });
+            }
+            onFrame(f) {
+                if (this.closed)
+                    return;
+                if (f.op === 1) {
+                    if (this.hello || f.value0 !== BigInt(this.pid))
+                        return this.fail("NERONET_NATIVE_HELLO_MISMATCH");
+                    this.hello = true;
+                    this.stage = "hello";
+                    return;
+                }
+                if (f.op === 32765) {
+                    this.msf = f.status;
+                    this.emit("network", this.msf);
+                    if (this.isLoggedIn) {
+                        this.stage = "ready";
+                        this.emit("ready");
+                    }
+                    return;
+                }
+                if (f.op === 32764) {
+                    const uin = f.status === 15 && f.value0 > 0n ? String(f.value0) : "";
+                    if (uin && this.expectedUin && uin !== this.expectedUin)
+                        return this.fail("NERONET_ACCOUNT_MISMATCH");
+                    if (this.uin && uin !== this.uin)
+                        return this.fail("NERONET_ACCOUNT_GENERATION_CHANGED");
+                    this.uin = uin;
+                    if (uin && !this.expectedUin)
+                        this.expectedUin = uin;
+                    if (this.isLoggedIn) {
+                        this.stage = "ready";
+                        this.emit("ready");
+                    }
+                    this.emit("identity", { valid: !!uin });
+                    return;
+                }
+                if (f.op === 6) {
+                    if (!this.isLoggedIn)
+                        return;
+                    this.emit("packet", { pid: this.pid, seqId: Number(f.value0), error: f.status, cmd: f.cmd, uin: this.uin, body: Buffer.from(f.body) });
+                    return;
+                }
+                const pending = this.pending.get(f.requestId);
+                if (!pending)
+                    return;
+                if (f.op === 5) {
+                    pending.finish(Error("NERONET_NATIVE_REJECTED: " + nativeReasonCode(f.msg)));
+                    return;
+                }
+                if (f.op === 3) {
+                    pending.acked = true;
+                    if (pending.ackOnly) {
+                        pending.finish(null, { requestId: f.requestId });
+                        return;
+                    }
+                }
+                else if (f.op === 4)
+                    pending.reply = { requestId: f.requestId, error: f.status, message: f.msg, body: Buffer.from(f.body) };
+                else
+                    return this.fail("NERONET_UNEXPECTED_NATIVE_RESPONSE");
+                if (pending.acked && pending.reply)
+                    pending.finish(null, pending.reply);
+            }
+            send(cmd, body, { replyTimeoutMs = this.timeoutMs, wantReply = true } = {}) {
+                if (this.businessPaused)
+                    return Promise.reject(Error("NERONET_APPLICATION_PAUSED"));
+                if (!this.isLoggedIn)
+                    return Promise.reject(Error("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE"));
+                if (!wantReply)
+                    return Promise.reject(Error("NERONET_REPLY_REQUIRED"));
+                if (this.pending.size >= 16 || this.next > 4294967295)
+                    return Promise.reject(Error("NERONET_REQUEST_CAPACITY"));
+                const id = this.next++;
+                const frame2 = encode({ op: 2, requestId: id, flags: 1, cmd, body });
+                return new Promise((resolve, reject) => {
+                    const finish2 = (error, result2) => {
+                        if (!this.pending.delete(id))
+                            return;
+                        clearTimeout(timer);
+                        error ? reject(error) : resolve(result2);
+                    };
+                    const timer = setTimeout(() => finish2(Error("NERONET_REPLY_TIMEOUT_NOT_RETRIED")), replyTimeoutMs);
+                    this.pending.set(id, { acked: false, reply: null, finish: finish2, cmd, startedAt: Date.now() });
+                    this.socket.write(frame2, (error) => {
+                        if (error)
+                            finish2(Error("NERONET_NATIVE_WRITE_FAILED"));
+                    });
+                });
+            }
+            async extendPolicy(commands) {
+                const accepted = [], rejected = [];
+                for (const cmd of commands) {
+                    if (!this.isLoggedIn) {
+                        rejected.push({ cmd: commandLabel(cmd), reason: "NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE" });
+                        continue;
+                    }
+                    const id = this.next++;
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const finish2 = (error, result2) => {
+                                if (!this.pending.delete(id))
+                                    return;
+                                clearTimeout(timer);
+                                error ? reject(error) : resolve(result2);
+                            };
+                            const timer = setTimeout(() => finish2(Error("NERONET_REPLY_TIMEOUT_NOT_RETRIED")), this.timeoutMs);
+                            this.pending.set(id, { acked: false, reply: null, ackOnly: true, finish: finish2, cmd, startedAt: Date.now() });
+                            this.socket.write(encode({ op: 19, requestId: id, cmd }), (error) => {
+                                if (error)
+                                    finish2(Error("NERONET_NATIVE_WRITE_FAILED"));
+                            });
+                        });
+                        accepted.push(cmd);
+                    }
+                    catch (error) {
+                        rejected.push({ cmd: commandLabel(cmd), reason: String(error?.message ?? error).replace(/^NERONET_NATIVE_REJECTED: /, "").slice(0, 80) });
+                    }
+                }
+                return { accepted, rejected };
+            }
+            setBusinessPaused(paused) {
+                if (this.closed)
+                    throw Error("NERONET_NATIVE_CLOSED");
+                if (this.pending.size)
+                    throw Error("NERONET_REQUESTS_STILL_PENDING");
+                if (!paused && !this.isLoggedIn)
+                    throw Error("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE");
+                this.businessPaused = Boolean(paused);
+            }
+            pendingSnapshot(now2 = Date.now()) {
+                return [...this.pending.entries()].slice(0, 16).map(([requestId, p2]) => ({ requestId, cmd: commandLabel(p2.cmd), acked: !!p2.acked, replied: !!p2.reply, waitedMs: Math.max(0, now2 - (p2.startedAt ?? now2)) }));
+            }
+            fail(reason) {
+                if (this.closed)
+                    return;
+                this.closed = true;
+                this.failure = { reason, stage: this.stage, socketError: this.socketError, pending: this.pendingSnapshot(), utc: (new Date()).toISOString() };
+                for (const p2 of [...this.pending.values()])
+                    p2.finish(Error(reason));
+                this.socket?.destroy();
+                this.emit("closed", reason);
+            }
+            close() {
+                if (this.closePromise)
+                    return this.closePromise;
+                if (this.closed || !this.socket || this.socket.destroyed || !this.hello) {
+                    this.fail("NERONET_APPLICATION_STOPPING");
+                    return Promise.resolve({ stopSent: false, peerClosed: false, timedOut: false });
+                }
+                this.closed = true;
+                for (const p2 of [...this.pending.values()])
+                    p2.finish(Error("NERONET_APPLICATION_STOPPING"));
+                const socket = this.socket;
+                this.closePromise = new Promise((resolve) => {
+                    let stopSent = false, finished = false;
+                    const done = (peerClosed, timedOut) => {
+                        if (finished)
+                            return;
+                        finished = true;
+                        clearTimeout(timer);
+                        socket.off("close", closed);
+                        socket.destroy();
+                        resolve({ stopSent, peerClosed, timedOut });
+                    };
+                    const closed = () => done(true, false);
+                    const timer = setTimeout(() => done(false, true), 750);
+                    socket.once("close", closed);
+                    socket.write(encode({ op: 32766 }), (error) => {
+                        if (error)
+                            done(false, false);
+                        else
+                            stopSent = true;
+                    });
+                });
+                this.emit("closed", "NERONET_APPLICATION_STOPPING");
+                return this.closePromise;
+            }
+        };
+    }
+});
+import fs5 from "node:fs";
+import path7 from "node:path";
+function bootTime() {
+    if (bootSeconds === null) {
+        const line = fs5.readFileSync("/proc/stat", "utf8").split("\n").find((l) => l.startsWith("btime "));
+        bootSeconds = Number(line?.split(/\s+/)[1]);
+        if (!Number.isSafeInteger(bootSeconds) || bootSeconds < 1)
+            throw Error("NERONET_LINUX_BOOT_TIME_UNAVAILABLE");
+    }
+    return bootSeconds;
+}
+function startTicks(pid2) {
+    try {
+        const text2 = fs5.readFileSync(`/proc/${pid2}/stat`, "utf8");
+        const fields2 = text2.slice(text2.lastIndexOf(")") + 2).split(" ");
+        const ticks = Number(fields2[19]);
+        return Number.isSafeInteger(ticks) ? ticks : null;
+    }
+    catch {
+        return null;
+    }
+}
+function startedIso(ticks) {
+    return new Date((bootTime() + ticks / CLOCK_TICKS) * 1e3).toISOString();
+}
+function argumentsOf(pid2) {
+    try {
+        return fs5.readFileSync(`/proc/${pid2}/cmdline`).toString("utf8").split("\0").filter(Boolean);
+    }
+    catch {
+        return null;
+    }
+}
+function pids() {
+    return fs5.readdirSync("/proc").filter((n2) => /^[1-9]\d{0,9}$/.test(n2)).map(Number);
+}
+function discoverQQ(qqExecutable) {
+    const wanted = fs5.realpathSync(qqExecutable), found = [];
+    for (const pid2 of pids()) {
+        if (pid2 === process.pid || !own(pid2) || exeOf(pid2) !== wanted || !isMain(pid2))
+            continue;
+        const ticks = startTicks(pid2);
+        if (ticks !== null)
+            found.push({ pid: pid2, started: startedIso(ticks) });
+    }
+    return found;
+}
+function runningQQExecutable() {
+    const seen = new Set();
+    for (const pid2 of pids()) {
+        const exe = exeOf(pid2);
+        if (exe && path7.basename(exe) === "qq" && own(pid2) && isMain(pid2) && mapsWrapper(pid2))
+            seen.add(exe);
+    }
+    if (!seen.size) {
+        if (fs5.existsSync("/opt/QQ/qq"))
+            return "/opt/QQ/qq";
+        throw Error("NERONET_NO_QQ_PROCESS");
+    }
+    if (seen.size > 1)
+        throw Error("NERONET_SEVERAL_QQ_INSTALLATIONS: " + [...seen].join(" | "));
+    return [...seen][0];
+}
+function qqExecutableOfProcess(pid2) {
+    if (!Number.isSafeInteger(pid2) || pid2 < 1)
+        throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
+    const exe = exeOf(pid2);
+    if (!exe || path7.basename(exe) !== "qq" || !own(pid2) || !isMain(pid2))
+        throw Error("NERONET_NOT_A_QQ_PROCESS: " + pid2);
+    return exe;
+}
+function mapsWrapper(pid2) {
+    return wrapperOfProcess2(pid2) !== null;
+}
+function wrapperOfProcess2(pid2) {
+    try {
+        for (const line of fs5.readFileSync(`/proc/${pid2}/maps`, "utf8").split("\n")) {
+            const file = line.split(/\s+/).slice(5).join(" ");
+            if (file.endsWith("/wrapper.node"))
+                return file;
+        }
+    }
+    catch {
+    }
+    return null;
+}
+function mapsFile(pid2, file) {
+    try {
+        const wanted = fs5.realpathSync(file);
+        return fs5.readFileSync(`/proc/${pid2}/maps`, "utf8").split("\n").some((line) => line.split(/\s+/).slice(5).join(" ") === wanted);
+    }
+    catch {
+        return false;
+    }
+}
+function mapsBaseName(pid2, name) {
+    try {
+        return fs5.readFileSync(`/proc/${pid2}/maps`, "utf8").split("\n").some((line) => path7.basename(line.split(/\s+/).slice(5).join(" ")) === name);
+    }
+    catch {
+        return false;
+    }
+}
+function qqBuildOfInstallation(qqExecutable) {
+    try {
+        const app = JSON.parse(fs5.readFileSync(path7.join(path7.dirname(qqExecutable), "resources/app/package.json"), "utf8"));
+        return typeof app.version === "string" && /^\d+\.\d+\.\d+-\d+$/.test(app.version) ? app.version : null;
+    }
+    catch {
+        return null;
+    }
+}
+function launchOf(pid2) {
+    const args = argumentsOf(pid2);
+    const env = {};
+    for (const item of fs5.readFileSync(`/proc/${pid2}/environ`).toString("utf8").split("\0")) {
+        const at = item.indexOf("=");
+        if (at > 0)
+            env[item.slice(0, at)] = item.slice(at + 1);
+    }
+    return { args: args.slice(1), env, cwd: fs5.readlinkSync(`/proc/${pid2}/cwd`) };
+}
+function alive(target) {
+    const ticks = startTicks(target.pid);
+    return ticks !== null && startedIso(ticks) === target.started;
+}
+var CLOCK_TICKS, bootSeconds, own, exeOf, isMain;
+var init_processes = __esm({
+    "linux/processes.mjs"() {
+        CLOCK_TICKS = 100;
+        bootSeconds = null;
+        own = (pid2) => {
+            try {
+                return fs5.statSync(`/proc/${pid2}`).uid === process.getuid();
+            }
+            catch {
+                return false;
+            }
+        };
+        exeOf = (pid2) => {
+            try {
+                return fs5.readlinkSync(`/proc/${pid2}/exe`);
+            }
+            catch {
+                return null;
+            }
+        };
+        isMain = (pid2) => {
+            const args = argumentsOf(pid2);
+            return !!args?.length && !args.some((a) => a.startsWith("--type="));
+        };
+    }
+});
+import fs6 from "node:fs";
+import path8 from "node:path";
+import os2 from "node:os";
+import { spawn, execFile as execFile2 } from "node:child_process";
+import { createHash as createHash2 } from "node:crypto";
+function frame(op, { body = Buffer.alloc(0), value = 0n } = {}) {
+    const head = Buffer.alloc(HEADER_BYTES);
+    MAGIC.copy(head, 0);
+    head.writeUInt16LE(1, 4);
+    head.writeUInt16LE(op, 6);
+    head.writeUInt32LE(body.length, 28);
+    head.writeBigUInt64LE(BigInt(value), 32);
+    return Buffer.concat([head, body]);
+}
+function parseHello(buffer) {
+    if (buffer.length < HEADER_BYTES || !buffer.subarray(0, 4).equals(MAGIC) || buffer.readUInt16LE(4) !== 1)
+        return null;
+    const ncmd = buffer.readUInt32LE(20), nmsg = buffer.readUInt32LE(24), nbody = buffer.readUInt32LE(28);
+    if (ncmd + nmsg + nbody > 4096)
+        return { invalid: true };
+    if (buffer.length < HEADER_BYTES + ncmd + nmsg + nbody)
+        return null;
+    return {
+        op: buffer.readUInt16LE(6),
+        requestId: buffer.readUInt32LE(8),
+        status: buffer.readUInt32LE(12),
+        value: Number(buffer.readBigUInt64LE(32)),
+        message: buffer.subarray(HEADER_BYTES + ncmd, HEADER_BYTES + ncmd + nmsg).toString("latin1")
+    };
+}
+function runDirectory(home4) {
+    const dir = path8.join(home4, "run");
+    fs6.mkdirSync(dir, { recursive: true, mode: 448 });
+    const st = fs6.lstatSync(dir);
+    if (!st.isDirectory() || st.uid !== process.getuid())
+        throw Error("NERONET_LINUX_RUN_DIRECTORY_INVALID");
+    if ((st.mode & 63) !== 0)
+        fs6.chmodSync(dir, 448);
+    return dir;
+}
+function bindingCacheRoot(env = process.env) {
+    const base = env.XDG_CACHE_HOME && path8.isAbsolute(env.XDG_CACHE_HOME) ? env.XDG_CACHE_HOME : path8.join(os2.homedir(), ".cache");
+    const root = path8.join(base, "NeroNet", "binding-cache");
+    fs6.mkdirSync(root, { recursive: true, mode: 448 });
+    return root;
+}
+function prepareBinding({ artifacts: artifacts3, qqExecutable, cacheRoot = bindingCacheRoot(), signal, onEvent = () => {
+} }) {
+    const locator = path8.join(artifacts3, LOCATOR), host = fs6.realpathSync(qqExecutable), wrapper = installationWrapper(qqExecutable);
+    if (!fs6.statSync(wrapper, { throwIfNoEntry: false })?.isFile())
+        return Promise.reject(Error("NERONET_LINUX_WRAPPER_MISSING"));
+    return new Promise((resolve, reject) => {
+        execFile2(locator, [wrapper, "--host-image=" + host, "--runtime-path=" + wrapper, "--prepare=" + cacheRoot], { timeout: 9e5, maxBuffer: 1 << 20, signal }, (error, stdout) => {
+            const events = [];
+            for (const line of String(stdout ?? "").split("\n")) {
+                if (!line.trim())
+                    continue;
+                try {
+                    const event = JSON.parse(line);
+                    events.push(event);
+                    try {
+                        onEvent(event);
+                    }
+                    catch {
+                    }
+                }
+                catch {
+                    return reject(Error("NERONET_PREPARE_RESULT_INVALID"));
+                }
+            }
+            if (error)
+                return reject(Object.assign(Error(signal?.aborted ? "NERONET_PREPARE_CANCELLED" : "NERONET_PREPARE_FAILED"), { events }));
+            const last = events.at(-1);
+            const image = createHash2("sha256").update(fs6.readFileSync(wrapper)).digest("hex");
+            if (!last || !events.every((e) => e.bindingPreparation === true && e.imageSha256 === image) || last.state !== "structurally-validated" || typeof last.binding !== "string")
+                return reject(Error("NERONET_PREPARE_RESULT_INVALID"));
+            const binding2 = fs6.realpathSync(last.binding), root = fs6.realpathSync(cacheRoot);
+            if (path8.relative(root, binding2).startsWith("..") || path8.isAbsolute(path8.relative(root, binding2)))
+                return reject(Error("NERONET_PREPARE_RESULT_INVALID"));
+            resolve({ binding: binding2, text: fs6.readFileSync(binding2, "ascii"), events, state: last.state, imageSha256: image });
+        });
+    });
+}
+function launchEnvironment(base, { component: component2, endpointDirectory }) {
+    const env = {};
+    for (const [key, value] of Object.entries(base))
+        if (!STRIP.includes(key) && typeof value === "string")
+            env[key] = value;
+    if (!env.DISPLAY && !env.WAYLAND_DISPLAY)
+        throw Error("NERONET_LINUX_DISPLAY_REQUIRED");
+    if (/[\s:]/.test(component2))
+        throw Error("NERONET_LINUX_PACKAGE_PATH_UNSUPPORTED");
+    return { ...env, LD_PRELOAD: component2, NERONET_OBSERVATION_FD: "3", NERONET_NATIVE_CLIENT_MODE: "1", NERONET_NATIVE_ENDPOINT_DIR: endpointDirectory };
+}
+function launchQQ({ qqExecutable, args = [], env, cwd, artifacts: artifacts3, home: home4, bindingText, logFile, timeoutMs = 9e4 }) {
+    const component2 = path8.join(artifacts3, COMPONENT), endpointDirectory = runDirectory(home4);
+    const environment = launchEnvironment(env, { component: component2, endpointDirectory });
+    const log = logFile ? fs6.openSync(logFile, "a", 384) : "ignore";
+    let child;
+    try {
+        child = spawn(fs6.realpathSync(qqExecutable), args, {
+            cwd: cwd ?? os2.homedir(),
+            env: environment,
+            detached: true,
+            stdio: ["ignore", log, log, "pipe"]
+        });
+    }
+    finally {
+        if (typeof log === "number")
+            fs6.closeSync(log);
+    }
+    const channel2 = child.stdio[3];
+    return new Promise((resolve, reject) => {
+        let received = Buffer.alloc(0), settled = false;
+        const finish2 = (error, value) => {
+            if (settled)
+                return;
+            settled = true;
+            clearTimeout(timer);
+            channel2.removeAllListeners("data");
+            channel2.destroy();
+            child.unref();
+            if (error) {
+                try {
+                    if (child.exitCode === null)
+                        process.kill(child.pid, "SIGTERM");
+                }
+                catch {
+                }
+                reject(error);
+            }
+            else
+                resolve(value);
+        };
+        const timer = setTimeout(() => finish2(Error("NERONET_LINUX_COMPONENT_START_TIMEOUT")), timeoutMs);
+        child.once("error", () => finish2(Error("NERONET_LINUX_QQ_START_FAILED")));
+        child.once("exit", () => finish2(Error("NERONET_LINUX_QQ_EXITED_DURING_START")));
+        channel2.on("error", () => finish2(Error("NERONET_LINUX_COMPONENT_CHANNEL_FAILED")));
+        channel2.on("close", () => finish2(Error("NERONET_LINUX_COMPONENT_NOT_STARTED")));
+        channel2.on("data", (chunk2) => {
+            received = Buffer.concat([received, chunk2]);
+            const hello = parseHello(received);
+            if (!hello)
+                return;
+            if (hello.invalid || hello.op !== 1 || hello.value !== child.pid || hello.requestId || hello.status || hello.message !== "neronet-linux-native")
+                return finish2(Error("NERONET_LINUX_COMPONENT_HELLO_MISMATCH"));
+            const ticks = startTicks(child.pid);
+            if (ticks === null)
+                return finish2(Error("NERONET_LINUX_QQ_EXITED_DURING_START"));
+            finish2(null, { pid: child.pid, started: startedIso(ticks), endpoint: endpointOf(home4, child.pid) });
+        });
+        channel2.write(frame(32761, { body: Buffer.from(bindingText, "ascii") }));
+    });
+}
+async function stopQQ(target, { waitMs = 2e4, sleep: sleep5 = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+    if (!alive(target))
+        return "gone";
+    try {
+        process.kill(target.pid, "SIGTERM");
+    }
+    catch {
+        return alive(target) ? "unknown" : "gone";
+    }
+    for (const until = Date.now() + waitMs; Date.now() < until;) {
+        if (!alive(target))
+            return "stopped";
+        await sleep5(250);
+    }
+    try {
+        process.kill(target.pid, "SIGKILL");
+    }
+    catch {
+    }
+    for (const until = Date.now() + 5e3; Date.now() < until;) {
+        if (!alive(target))
+            return "killed";
+        await sleep5(250);
+    }
+    return "unknown";
+}
+var HEADER_BYTES, MAGIC, LOCATOR, COMPONENT, endpointOf, installationWrapper, STRIP;
+var init_launch = __esm({
+    "linux/launch.mjs"() {
+        init_processes();
+        HEADER_BYTES = 40;
+        MAGIC = Buffer.from("QHP1");
+        LOCATOR = "neronet_native_locator";
+        COMPONENT = "neronet_live_binding.so";
+        endpointOf = (home4, pid2) => path8.join(home4, "run", `native-${pid2}.sock`);
+        installationWrapper = (qqExecutable) => path8.join(path8.dirname(fs6.realpathSync(qqExecutable)), "resources/app/wrapper.node");
+        STRIP = [
+            "LD_PRELOAD",
+            "NERONET_OBSERVATION_FD",
+            "NERONET_OBSERVATION_TIMEOUT_MS",
+            "NERONET_ENGINEERING_MODE",
+            "NERONET_NATIVE_CLIENT_MODE",
+            "NERONET_LIFECYCLE_FD",
+            "NERONET_NATIVE_ENDPOINT_DIR"
+        ];
+    }
+});
+function linuxFailureLines(message2) {
+    const code = /NERONET_[A-Z0-9_]+/.exec(String(message2 ?? ""))?.[0] ?? null;
+    const [what, todo] = TEXTS.get(code) ?? ["接入 QQ 没有成功。", "处理后重新运行 ./start.sh；仍然不行时请提交 issue，并附上这段内容。"];
+    return { code, lines: [what + (code ? `（错误编号 ${code}）` : ""), todo] };
+}
+var TEXTS;
+var init_failure_texts = __esm({
+    "linux/failure-texts.mjs"() {
+        TEXTS = new Map([
+            ["NERONET_LINUX_DISPLAY_REQUIRED", ["没有图形环境，QQ 无法启动。", "请在桌面里运行 ./start.sh，或者启动 Xvfb 并设置 DISPLAY（docs/DEPLOY.md 第 2 节）。"]],
+            ["NERONET_LINUX_PACKAGE_PATH_UNSUPPORTED", ["NeroNet 所在的路径里有空格或冒号，QQ 无法从这样的路径加载组件。", "请把 NeroNet 移到路径里没有空格和冒号的目录。"]],
+            ["NERONET_LINUX_WRAPPER_MISSING", ["在 QQ 的安装目录里没有找到 QQ 的程序文件（wrapper.node）。", "请确认部署配置里的 qqExecutable 指向完整安装的 Linux QQ（默认 /opt/QQ/qq）。"]],
+            ["NERONET_PREPARE_FAILED", ["识别这个版本的 QQ 没有成功。", "这一步只读取了 QQ 的程序文件，没有接触 QQ 进程。这个 QQ 版本可能改动了内部结构：请先把 NeroNet 更新到最新版本再试；仍然不行时请提交 issue，并附上这段内容。"]],
+            ["NERONET_PREPARE_RESULT_INVALID", ["识别 QQ 的结果无法使用。", "这一步只读取了 QQ 的程序文件。请运行 ./scripts/test-neronet.sh 检查 native 目录是否完整，再重新运行 ./start.sh。"]],
+            ["NERONET_PREPARE_CANCELLED", ["识别 QQ 的过程被停止了。", "重新运行 ./start.sh 即可。"]],
+            ["NERONET_LINUX_QQ_START_FAILED", ["QQ 没能启动。", "请确认 QQ 本身可以正常启动，输出见数据目录里的 qq-output.log。"]],
+            ["NERONET_LINUX_QQ_EXITED_DURING_START", ["QQ 启动后立即退出了。", "请查看数据目录里的 qq-output.log（例如缺少依赖库），确认 QQ 本身可以正常启动。"]],
+            ["NERONET_LINUX_COMPONENT_START_TIMEOUT", ["QQ 已经启动，但 NeroNet 的组件没有在规定时间内就绪。", "请运行 ./scripts/test-neronet.sh 检查 native 目录，并确认系统满足要求（glibc 2.35 或更新）。QQ 的输出见 qq-output.log。"]],
+            ["NERONET_LINUX_COMPONENT_NOT_STARTED", ["QQ 已经启动，但 NeroNet 的组件没有在 QQ 里运行。", "请运行 ./scripts/test-neronet.sh 检查 native 目录，并确认系统满足要求（glibc 2.35 或更新）。QQ 的输出见 qq-output.log。"]],
+            ["NERONET_LINUX_COMPONENT_CHANNEL_FAILED", ["与 QQ 里的组件建立连接失败。", "重新运行 ./start.sh；仍然不行时请提交 issue，并附上这段内容。"]],
+            ["NERONET_LINUX_COMPONENT_HELLO_MISMATCH", ["QQ 里的组件和这个 NeroNet 不匹配。", "请运行 ./scripts/test-neronet.sh 检查文件是否完整；不要把不同版本的文件混在一起使用。"]],
+            ["NERONET_LINUX_QQ_STOP_UNCONFIRMED", ["需要重启的 QQ 没有在规定时间内退出。", "请手动退出 QQ，NeroNet 会自动重新启动它。"]],
+            ["NERONET_LINUX_RUN_DIRECTORY_INVALID", ["数据目录里的 run 目录不属于当前用户，无法建立组件的连接端点。", "请用启动 NeroNet 的同一个用户检查数据目录的权限。"]],
+            ["NERONET_ACCOUNT_MISMATCH", ["QQ 登录的不是这个数据目录绑定的机器人账号，NeroNet 不会使用它。", "请在 QQ 里退出当前账号、登录机器人账号；NeroNet 会自动重新接入。"]]
+        ]);
+    }
+});
+var supervisor_exports = {};
+import fs7 from "node:fs";
+import path9 from "node:path";
+import { spawn as spawn2 } from "node:child_process";
+import { randomUUID } from "node:crypto";
+async function pause(ms) {
+    const until = Date.now() + ms;
+    while (Date.now() < until && !stopRequested())
+        await sleep(Math.min(250, until - Date.now()));
+}
+function otherSupervisorRunning() {
+    for (const name of fs7.readdirSync("/proc")) {
+        if (!/^\d+$/.test(name) || Number(name) === process.pid)
+            continue;
+        try {
+            if (fs7.statSync("/proc/" + name).uid !== process.getuid())
+                continue;
+            const args = fs7.readFileSync("/proc/" + name + "/cmdline", "utf8").split("\0");
+            const entry = args.findIndex((a) => a.endsWith("/app/index.mjs"));
+            if (entry >= 0 && args[entry + 1] === "supervisor")
+                return true;
+        }
+        catch {
+        }
+    }
+    return false;
+}
+function selectTarget() {
+    const all = discoverQQ(deployment.qqExecutable).filter((p2) => !blocked.has(processKey(p2)));
+    const resident = all.filter((p2) => mapsFile(p2.pid, component));
+    if (resident.length === 1)
+        return { target: resident[0], resident: true };
+    if (resident.length > 1)
+        return { reason: "ambiguous-bot-process" };
+    const foreign = all.filter((p2) => mapsBaseName(p2.pid, COMPONENT));
+    if (foreign.length > 1)
+        return { reason: "ambiguous-bot-process" };
+    if (foreign.length)
+        return otherSupervisorRunning() ? { reason: "other-build-loaded", target: foreign[0] } : { target: foreign[0], resident: false, foreign: true };
+    if (all.length > 1)
+        return { reason: "ambiguous-bot-process" };
+    return all.length ? { target: all[0], resident: false } : { target: null, resident: false };
+}
+async function probe(target) {
+    const socketPath = endpointOf(home, target.pid);
+    if (!fs7.existsSync(socketPath))
+        return "unavailable";
+    const client2 = new NativeClient(target.pid, { socketPath, timeoutMs: 8e3 });
+    try {
+        await client2.connect();
+        return "ready";
+    }
+    catch (error) {
+        return /READY_TIMEOUT/.test(String(error?.message)) ? "login-wait" : "unavailable";
+    }
+    finally {
+        try {
+            await client2.close();
+        }
+        catch {
+        }
+    }
+}
+async function ensureBinding() {
+    if (binding)
+        return binding;
+    operation = "prepare-binding";
+    report.state("preparing-binding", {});
+    const controller = new AbortController(), watch = setInterval(() => {
+        if (stopRequested())
+            controller.abort();
+    }, 500);
+    try {
+        binding = await prepareBinding({ artifacts, qqExecutable: deployment.qqExecutable, signal: controller.signal });
+        record({ bindingPrepared: true, state: binding.state, imageSha256: binding.imageSha256, events: binding.events.length });
+        return binding;
+    }
+    finally {
+        clearInterval(watch);
+    }
+}
+async function start(previous) {
+    const prepared = await ensureBinding();
+    let launch = { args: deployment.qqArguments ?? [], env: process.env, cwd: void 0 };
+    if (previous) {
+        launch = launchOf(previous.pid);
+        operation = "restart-qq";
+        record({ restartingQQ: true, pid: previous.pid, reason: "component-not-loaded" });
+        const result2 = await stopQQ(previous);
+        if (result2 === "unknown")
+            throw Error("NERONET_LINUX_QQ_STOP_UNCONFIRMED");
+    }
+    operation = "launch-qq";
+    report.state("starting", {});
+    const started = await launchQQ({
+        qqExecutable: deployment.qqExecutable,
+        args: launch.args,
+        env: launch.env,
+        cwd: launch.cwd,
+        artifacts,
+        home,
+        bindingText: prepared.text,
+        logFile: path9.join(home, "qq-output.log")
+    });
+    record({ qqStarted: true, pid: started.pid, replaced: previous?.pid ?? null, qqBuild });
+    return { pid: started.pid, started: started.started };
+}
+function spawnGateway(target) {
+    const stopMarker = "gateway-stop-" + randomUUID();
+    const child = spawn2(process.execPath, [...entryArguments("gateway"), String(target.pid), home, stopMarker, String(epoch + 1), target.started], { stdio: "ignore", env: { ...process.env, NERONET_NATIVE_SOCKET: endpointOf(home, target.pid) } });
+    const generation = { target, child, stopMarker, epoch: ++epoch, exited: false, exitCode: null, signal: null };
+    child.on("error", (error) => {
+        generation.exited = true;
+        generation.exitCode = error.code ?? "spawn-error";
+    });
+    child.on("exit", (code, signal) => {
+        generation.exited = true;
+        generation.exitCode = code;
+        generation.signal = signal;
+    });
+    record({
+        gatewayStarted: true,
+        epoch,
+        pid: target.pid,
+        qqStarted: target.started,
+        gatewayPid: child.pid,
+        ...recovering ? { recovered: true, recoveryAttempt: recovering.attempt, unavailableMs: Date.now() - recovering.since } : {}
+    });
+    return generation;
+}
+async function stopGateway(generation) {
+    if (generation.exited)
+        return true;
+    try {
+        fs7.writeFileSync(path9.join(home, generation.stopMarker), "controlled generation stop\n");
+    }
+    catch {
+    }
+    for (const until = Date.now() + 3e4; Date.now() < until;) {
+        if (generation.exited)
+            break;
+        await sleep(200);
+    }
+    if (!generation.exited) {
+        try {
+            generation.child.kill("SIGTERM");
+        }
+        catch {
+        }
+        for (const until = Date.now() + 5e3; Date.now() < until && !generation.exited;)
+            await sleep(200);
+    }
+    try {
+        fs7.rmSync(path9.join(home, generation.stopMarker), { force: true });
+    }
+    catch {
+    }
+    return generation.exited;
+}
+async function relaunchPause(pid2) {
+    const delayMs = RELAUNCH_DELAYS[Math.min(relaunches, RELAUNCH_DELAYS.length - 1)];
+    relaunches++;
+    record({ qqRelaunchScheduled: true, pid: pid2, attempt: relaunches, delayMs, businessRequestsRetried: 0 });
+    await standby.start();
+    report.state("recovering", { pid: pid2 });
+    recovering = recovering ?? { attempt: 0, since: Date.now() };
+    await pause(delayMs);
+}
+async function recover(reason, pid2) {
+    const step = recovery.next();
+    if (!step.allowed) {
+        record({ recoveryExhausted: true, reason, pid: pid2, attemptsInWindow: step.attemptsInWindow, windowMs: step.windowMs, businessRequestsRetried: 0 });
+        return false;
+    }
+    record({ recoveryScheduled: true, reason, pid: pid2, attempt: step.attempt, maxAttempts: step.maxAttempts, delayMs: step.delayMs, businessRequestsRetried: 0 });
+    await standby.start();
+    report.state("recovering", { pid: pid2 });
+    recovering = { attempt: step.attempt, since: Date.now() };
+    await pause(step.delayMs);
+    return true;
+}
+var sleep, argv, home, artifacts, deployment, component, metadataLog, runId, record, report, standby, retryFile, recovery, qqBuild, stopping, current, epoch, operation, lastWaiting, binding, recovering, blocked, stopRequested, waiting, RELAUNCH_DELAYS, relaunches, everAttached;
+var init_supervisor = __esm({
+    async "linux/supervisor.mjs"() {
+        init_deployment_profile();
+        init_recovery_policy();
+        init_metadata_log();
+        init_native_manifest();
+        init_layout_release();
+        init_startup_failure();
+        init_standby_server();
+        init_process_selection();
+        init_native_client();
+        init_processes();
+        init_launch();
+        init_failure_texts();
+        sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        argv = process.argv.slice(2);
+        if (argv.length !== 1)
+            throw Error("Usage: supervisor HOME");
+        home = path9.resolve(argv[0]);
+        artifacts = path9.resolve(process.env.NERONET_NATIVE_DIR ?? nativeDirectory);
+        deployment = validateDeploymentPaths(loadDeploymentProfile(), { home, artifacts });
+        verifyNativeArtifacts(loadNativeManifest(nativeManifestFile), artifacts);
+        fs7.mkdirSync(home, { recursive: true, mode: 448 });
+        if (fs7.existsSync(path9.join(home, "STOP")))
+            throw Error("Existing STOP marker: inspect prior shutdown before removing it");
+        runDirectory(home);
+        component = path9.join(artifacts, COMPONENT);
+        metadataLog = new BoundedJsonl(path9.join(home, "supervisor-metadata.jsonl"));
+        runId = /^[A-Za-z0-9-]{8,64}$/.test(process.env.NERONET_RUN_ID ?? "") ? process.env.NERONET_RUN_ID : randomUUID();
+        record = (event) => {
+            metadataLog.append({ utc: (new Date()).toISOString(), runId, platform: "linux", ...event });
+        };
+        report = startupReport(home, runId);
+        report.clear();
+        standby = standbyServer({ status: () => report.current });
+        retryFile = path9.join(home, RETRY_FILE);
+        try {
+            fs7.rmSync(retryFile, { force: true });
+        }
+        catch {
+        }
+        recovery = recoveryPolicy();
+        qqBuild = qqBuildOfInstallation(deployment.qqExecutable);
+        stopping = false;
+        current = null;
+        epoch = 0;
+        operation = "startup";
+        lastWaiting = "";
+        binding = null;
+        recovering = null;
+        blocked = new Set();
+        process.on("SIGINT", () => {
+            stopping = true;
+        });
+        process.on("SIGTERM", () => {
+            stopping = true;
+        });
+        stopRequested = () => stopping || fs7.existsSync(path9.join(home, "STOP"));
+        waiting = (reason, extra = {}) => {
+            if (reason !== lastWaiting) {
+                record({ waiting: reason, ...extra });
+                lastWaiting = reason;
+            }
+        };
+        RELAUNCH_DELAYS = [2e3, 5e3, 15e3, 3e4, 6e4];
+        relaunches = 0;
+        everAttached = false;
+        try {
+            await standby.start();
+            while (!stopRequested()) {
+                if (current) {
+                    if (!current.exited) {
+                        if (!alive(current.target)) {
+                            for (const until = Date.now() + 1e4; Date.now() < until && !current.exited;)
+                                await sleep(250);
+                            if (!current.exited)
+                                await stopGateway(current);
+                        }
+                        else {
+                            await sleep(1e3);
+                            continue;
+                        }
+                    }
+                    const ended = classifyGatewayExit({ exitCode: current.exitCode, signal: current.signal, stopRequested: stopRequested() });
+                    record({ gatewayEnded: true, epoch: current.epoch, pid: current.target.pid, exitCode: current.exitCode, signal: current.signal, classification: ended });
+                    const previous = current;
+                    current = null;
+                    lastWaiting = "";
+                    if (ended === "operator-stop")
+                        break;
+                    if (ended === "account-mismatch") {
+                        blocked.add(processKey(previous.target));
+                        report.failed({ target: previous.target, reason: "NERONET_ACCOUNT_MISMATCH", qqBuild, retry: "restart-qq", lines: linuxFailureLines("NERONET_ACCOUNT_MISMATCH").lines });
+                        continue;
+                    }
+                    if (!alive(previous.target)) {
+                        await relaunchPause(previous.target.pid);
+                        continue;
+                    }
+                    if (ended === "transport-fault") {
+                        if (!await recover("transport-fault", previous.target.pid)) {
+                            process.exitCode = 1;
+                            break;
+                        }
+                        continue;
+                    }
+                    if (ended === "failed")
+                        process.exitCode = 1;
+                    break;
+                }
+                operation = "select-qq";
+                const choice = selectTarget();
+                if (choice.reason) {
+                    waiting(choice.reason);
+                    report.state("waiting-for-bot", { lines: choice.reason === "ambiguous-bot-process" ? ["有多个 QQ 在运行，无法确定哪个是机器人。请只保留机器人 QQ 后重新运行 ./start.sh。"] : ["正在运行的 QQ 已加载了另一个版本的 NeroNet 组件。请退出这个 QQ 后重新运行 ./start.sh。"] });
+                    await pause(2e3);
+                    continue;
+                }
+                let target = choice.target;
+                try {
+                    if (!target) {
+                        if (everAttached && !recovering) {
+                            await relaunchPause(null);
+                            if (stopRequested())
+                                break;
+                        }
+                        target = await start(null);
+                    }
+                    else if (!choice.resident) {
+                        if (choice.foreign)
+                            record({ otherBuildLoaded: true, pid: target.pid, action: deployment.restartRunningQQ === false ? "wait" : "restart-qq" });
+                        if (deployment.restartRunningQQ === false) {
+                            waiting("qq-running-without-component", { pid: target.pid });
+                            report.state("waiting-for-bot", { pid: target.pid, lines: ["这个 QQ 是在 NeroNet 之外启动的。请退出它，让 ./start.sh 启动 QQ；或在部署配置里允许 NeroNet 重启它。"] });
+                            await pause(3e3);
+                            continue;
+                        }
+                        target = await start(target);
+                    }
+                }
+                catch (error) {
+                    const summary = errorSummary(error);
+                    record({ startupRejected: true, operation, error: summary });
+                    binding = null;
+                    if (fs7.existsSync(retryFile)) {
+                        try {
+                            fs7.rmSync(retryFile, { force: true });
+                        }
+                        catch {
+                        }
+                    }
+                    const described = linuxFailureLines(summary.message);
+                    report.failed({ target: target ?? { pid: 0, started: "" }, reason: described.code ?? "NERONET_LINUX_START_FAILED", qqBuild, retry: "automatic", lines: described.lines });
+                    if (!await recover("start-failed", target?.pid ?? null)) {
+                        process.exitCode = 1;
+                        break;
+                    }
+                    continue;
+                }
+                operation = "login-wait";
+                const state = await probe(target);
+                if (state === "login-wait") {
+                    waiting("account-login", { pid: target.pid });
+                    report.state("login-wait", { pid: target.pid });
+                    await pause(2500);
+                    continue;
+                }
+                if (state === "unavailable") {
+                    record({ componentUnavailable: true, pid: target.pid });
+                    if (!await recover("component-unavailable", target.pid)) {
+                        process.exitCode = 1;
+                        break;
+                    }
+                    try {
+                        await start(target);
+                    }
+                    catch (error) {
+                        record({ startupRejected: true, operation, error: errorSummary(error) });
+                    }
+                    continue;
+                }
+                operation = "spawn-gateway";
+                await standby.stop();
+                current = spawnGateway(target);
+                report.state("attached", { pid: target.pid });
+                everAttached = true;
+                recovering = null;
+                lastWaiting = "";
+                relaunches = 0;
+            }
+        }
+        catch (error) {
+            record({ supervisorFailed: true, operation, error: errorSummary(error), epoch, pid: current?.target.pid ?? null });
+            process.exitCode = 1;
+        }
+        finally {
+            if (current && !await stopGateway(current))
+                process.exitCode = 1;
+            await standby.stop();
+            report.state("stopped");
+            record({ supervisorStopped: true, generations: epoch });
+        }
+    }
+});
+function classifyDrain(result2, pid2, action) {
+    if (reportsBuildMismatch(result2))
+        return { kind: "unresolved", reason: BUILD_MISMATCH };
+    if (!result2 || result2.transport !== "exited" || result2.malformed || !Array.isArray(result2.rows))
+        return { kind: "unresolved", reason: "driver-result-incomplete" };
+    const reported = readNativeReport(result2.rows);
+    if (reported?.valid && (action === "stop" || action === "status") && provesNoRuntime(result2, reported.report, pid2, action))
+        return { kind: "closed", reason: "runtime-not-started", noRuntime: true, report: reportSummary(reported.report) };
+    const runs = result2.rows.filter((x) => x.liveRuntime === true), health2 = result2.rows.filter((x) => x.lifecycleHealth === true);
+    if (runs.length !== 1 || health2.length !== 1 || result2.rows.some((x) => Object.hasOwn(x, "error")))
+        return { kind: "unresolved", reason: "missing-or-ambiguous-native-result" };
+    const r = runs[0], h = health2[0], expected = action === "stop" ? 2 : action === "status" ? 1 : null;
+    if (expected === null || r.pid !== pid2 || r.action !== expected || !uint(r.code) || !uint(r.phase) || r.phase > 6 || ![0, 1].includes(r.serviceReleased) || ![0, 1].includes(h.closeDrained) || !uint(h.pendingCallbacks) || !uint(h.executorJobs))
+        return { kind: "unresolved", reason: "native-close-identity-or-schema" };
+    const snapshot = { pid: r.pid, action: r.action, code: r.code, phase: r.phase, serviceReleased: r.serviceReleased, closeDrained: h.closeDrained, pendingCallbacks: h.pendingCallbacks, executorJobs: h.executorJobs };
+    if (result2.exit === 0 && r.code === 0 && r.phase === 5 && r.serviceReleased === 1 && h.closeDrained === 1 && h.pendingCallbacks === 0 && h.executorJobs === 0)
+        return { kind: "closed", snapshot };
+    if (r.phase === 6 && (result2.exit === 0 && r.code === 0 || action === "stop" && result2.exit === 2 && r.code === 206))
+        return { kind: "pending", snapshot };
+    return { kind: "unresolved", reason: "native-close-not-confirmed", snapshot };
+}
+async function drainNative({ pid: pid2, observe: observe2, invoke, record: record4 = () => {
+}, budgetMs = 3e4, callTimeoutMs = 25e3, pollMs = 150, now: now2 = Date.now, sleep: sleep5 = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+    let diagnosticErrors = 0, pendingObserved = false, calls = 0;
+    const deadline = now2() + budgetMs;
+    const emit = (e) => {
+        try {
+            record4(e);
+        }
+        catch {
+            diagnosticErrors++;
+        }
+    };
+    const finish2 = (closed, reason, targetExists) => {
+        emit({ nativeCloseResult: true, pid: pid2, closed, reason, targetExists, pendingObserved, retainedWhenUnresolved: !closed, businessRequestsRetried: 0 });
+        return { closed, reason, targetExists, pendingObserved, calls, diagnosticErrors };
+    };
+    let action = "stop";
+    for (;;) {
+        let state;
+        try {
+            state = await observe2();
+        }
+        catch {
+            return finish2(false, "process-observation-unavailable", null);
+        }
+        if (state === "gone")
+            return finish2(true, "target-generation-exited", false);
+        if (state !== "same")
+            return finish2(false, "target-generation-ambiguous", null);
+        const left = deadline - now2();
+        if (left <= 0)
+            return finish2(false, "drain-deadline", true);
+        let result2;
+        try {
+            calls++;
+            result2 = await invoke(action, { timeoutMs: Math.max(1, Math.min(left, callTimeoutMs)) });
+        }
+        catch {
+            return finish2(false, "driver-call-threw-without-result", true);
+        }
+        const decision = classifyDrain(result2, pid2, action);
+        emit({ control: true, pid: pid2, action, classification: decision.kind, reason: decision.reason ?? null, exit: result2?.exit ?? null, transport: result2?.transport ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result2?.rows), errors: driverErrors(result2?.rows) });
+        if (decision.kind === "closed")
+            return finish2(true, decision.noRuntime ? "native-runtime-not-started" : "native-drain-confirmed", true);
+        if (decision.kind !== "pending")
+            return finish2(false, decision.reason, true);
+        pendingObserved ||= decision.snapshot.pendingCallbacks > 0;
+        action = decision.snapshot.pendingCallbacks === 0 && decision.snapshot.executorJobs === 0 ? "stop" : "status";
+        if (now2() >= deadline)
+            return finish2(false, "drain-deadline", true);
+        await sleep5(Math.min(pollMs, deadline - now2()));
+    }
+}
+var uint;
+var init_native_drain_transaction = __esm({
+    "native-drain-transaction.mjs"() {
+        init_native_start_transaction();
+        init_native_diagnostics();
+        uint = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 4294967295;
+    }
+});
+import fs8 from "node:fs";
+import path10 from "node:path";
+import { execFile as execFile3 } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
+function driver(pid2, artifactPath) {
+    if (!Number.isInteger(pid2) || pid2 < 1)
+        throw Error("Explicit target PID required");
+    const artifacts3 = fs8.realpathSync(artifactPath);
+    const nativeEnv2 = nativeEnvironment(loadDeploymentProfile(), artifacts3);
+    const exe = path10.join(artifacts3, "neronet_native_host.exe"), dll = path10.join(artifacts3, "neronet_live_binding.dll");
+    return async function call(action, { timeoutMs }) {
+        try {
+            const { stdout } = await exec2(exe, [String(pid2), dll, "--runtime-" + action], { windowsHide: true, timeout: timeoutMs, maxBuffer: 65536, env: nativeEnv2 });
+            return parseDriverResult(stdout);
+        }
+        catch (e) {
+            return parseDriverResult(e.stdout, e);
+        }
+    };
+}
+async function closeNativeWithDrain(pid2, artifactPath, record4, waitMs = 5e3, { observe: observe2 } = {}) {
+    if (typeof observe2 !== "function")
+        throw Error("Process generation observation required");
+    const result2 = await drainNative({ pid: pid2, observe: observe2, invoke: driver(pid2, artifactPath), record: record4, budgetMs: 25e3 + waitMs });
+    return result2.closed;
+}
+async function probeNativeStatus(pid2, artifactPath, record4, { timeoutMs = 1e4, invoke } = {}) {
+    let outcome;
+    try {
+        const result2 = await (invoke ?? driver(pid2, artifactPath))("status", { timeoutMs });
+        const decision = classifyDrain(result2, pid2, "status");
+        outcome = { faultStatusProbe: true, pid: pid2, obtained: result2.transport === "exited" && !result2.malformed, exit: result2.exit, transport: result2.transport, classification: decision.kind, reason: decision.reason ?? null, ...decision.snapshot ? { snapshot: decision.snapshot } : {}, diagnostics: diagnosticRows(result2.rows), errors: driverErrors(result2.rows) };
+    }
+    catch {
+        outcome = { faultStatusProbe: true, pid: pid2, obtained: false, reason: "status-probe-threw" };
+    }
+    try {
+        record4(outcome);
+    }
+    catch {
+    }
+    return outcome;
+}
+var exec2;
+var init_native_close = __esm({
+    "native-close.mjs"() {
+        init_deployment_profile();
+        init_native_start_transaction();
+        init_native_drain_transaction();
+        init_native_start_transaction();
+        exec2 = promisify2(execFile3);
+    }
+});
+function closeGeneration(generation, { markStop, observe: observe2, drain, record: record4 = () => {
+}, graceMs = 2e4, sleep: sleep5 = (ms) => new Promise((r) => setTimeout(r, ms)), now: now2 = Date.now }) {
+    if (closes.has(generation))
+        return closes.get(generation);
+    const emit = (e) => {
+        try {
+            record4(e);
+        }
+        catch {
+        }
+    };
+    const promise = Promise.resolve().then(async () => {
+        try {
+            await markStop(generation);
+        }
+        catch {
+            emit({ gatewayShutdownBlocked: true, reason: "stop-marker-write-failed", pid: generation.child.pid });
+            return false;
+        }
+        const until = now2() + graceMs;
+        while (!generation.exited && now2() < until)
+            await sleep5(Math.min(100, until - now2()));
+        if (!generation.exited) {
+            emit({ gatewayShutdownBlocked: true, reason: "gateway-exit-timeout", pid: generation.child.pid });
+            return false;
+        }
+        let state;
+        try {
+            state = await observe2();
+        }
+        catch {
+            emit({ generationCloseUnresolved: true, reason: "process-observation-unavailable" });
+            return false;
+        }
+        if (state !== "same" && state !== "gone") {
+            emit({ generationCloseUnresolved: true, reason: "target-generation-ambiguous" });
+            return false;
+        }
+        if (state === "same")
+            try {
+                if (!await drain())
+                    return false;
+            }
+            catch {
+                emit({ generationCloseUnresolved: true, reason: "native-drain-threw" });
+                return false;
+            }
+        emit({ generationClosed: true, epoch: generation.epoch, targetExists: state === "same" });
+        return true;
+    });
+    closes.set(generation, promise);
+    return promise;
+}
+var closes;
+var init_generation_close = __esm({
+    "generation-close.mjs"() {
+        closes = new WeakMap();
+    }
+});
+import fs9 from "node:fs";
+import path11 from "node:path";
+function startupGuard(home4) {
+    const file = path11.join(home4, "native-startup-unresolved.json");
+    return {
+        mark({ target, reason, cause: cause2 = null }) {
+            const entry = { schema: 1, target: { pid: target.pid, started: target.started }, reason, utc: (new Date()).toISOString(), automaticRetry: false, ...cause2 && typeof cause2 === "object" ? { cause: cause2 } : {} };
+            const temp = file + ".tmp";
+            fs9.writeFileSync(temp, JSON.stringify(entry, null, 2) + "\n");
+            fs9.renameSync(temp, file);
+        },
+        inspect(processes) {
+            if (!fs9.existsSync(file))
+                return null;
+            let entry;
+            try {
+                entry = JSON.parse(fs9.readFileSync(file, "utf8"));
+            }
+            catch {
+                return { blocked: true, reason: "unreadable-startup-guard" };
+            }
+            if (entry.schema !== 1 || !Number.isInteger(entry.target?.pid) || typeof entry.target?.started !== "string")
+                return { blocked: true, reason: "invalid-startup-guard" };
+            if (processes.some((p2) => processKey(p2) === processKey(entry.target)))
+                return { blocked: true, reason: entry.reason, target: entry.target, ...typeof entry.utc === "string" ? { since: entry.utc } : {}, ...entry.cause && typeof entry.cause === "object" ? { cause: entry.cause } : {} };
+            fs9.renameSync(file, file + ".target-exited-" + Date.now());
+            return { blocked: false, reason: "guarded-target-exited", target: entry.target };
+        }
+    };
+}
+var init_startup_guard = __esm({
+    "startup-guard.mjs"() {
+        init_process_selection();
+    }
+});
+var qq_processes_exports = {};
+__export(qq_processes_exports, {
+    discoverQQ: () => discoverQQ2,
+    discoveryCommand: () => discoveryCommand,
+    main: () => main2,
+    onlyCandidate: () => onlyCandidate,
+    qqExecutableOfProcess: () => qqExecutableOfProcess2,
+    runningQQExecutable: () => runningQQExecutable2
+});
+import { execFile as execFile4 } from "node:child_process";
+import { promisify as promisify3 } from "node:util";
+function discoveryCommand(qqExecutable) {
+    return "$items=@(Get-Process QQ -ErrorAction SilentlyContinue | Where-Object {$_.Path -eq '" + qqExecutable.replaceAll("'", "''") + "'} | ForEach-Object {try {if(@($_.Modules | Where-Object ModuleName -eq 'wrapper.node').Count){[pscustomobject]@{pid=$_.Id;started=$_.StartTime.ToUniversalTime().ToString('o')}}}catch{}}); ConvertTo-Json -InputObject @($items) -Compress";
+}
+async function discoverQQ2(qqExecutable, { run = exec3 } = {}) {
+    if (onLinux() && run === exec3)
+        return discoverQQ(qqExecutable);
+    const { stdout } = await run(POWERSHELL2, ["-NoProfile", "-NonInteractive", "-Command", discoveryCommand(qqExecutable)], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+    const rows2 = JSON.parse(String(stdout).trim() || "[]");
+    if (!Array.isArray(rows2) || rows2.some((p2) => !Number.isSafeInteger(p2?.pid) || p2.pid < 1 || typeof p2.started !== "string"))
+        throw Error("NERONET_QQ_DISCOVERY_INVALID");
+    return rows2.map(({ pid: pid2, started }) => ({ pid: pid2, started }));
+}
+async function runningQQExecutable2({ run = exec3 } = {}) {
+    if (onLinux() && run === exec3)
+        return runningQQExecutable();
+    const command2 = "$items=@(Get-Process QQ -ErrorAction SilentlyContinue | ForEach-Object {try {if($_.Path -and @($_.Modules | Where-Object ModuleName -eq 'wrapper.node').Count){$_.Path}}catch{}} | Sort-Object -Unique); ConvertTo-Json -InputObject @($items) -Compress";
+    const { stdout } = await run(POWERSHELL2, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+    const paths = JSON.parse(String(stdout).trim() || "[]");
+    if (!Array.isArray(paths) || paths.some((p2) => typeof p2 !== "string" || !/^[A-Za-z]:\\/.test(p2)))
+        throw Error("NERONET_QQ_DISCOVERY_INVALID");
+    const seen = new Map();
+    for (const p2 of paths)
+        if (!seen.has(p2.toLowerCase()))
+            seen.set(p2.toLowerCase(), p2);
+    const distinct = [...seen.values()];
+    if (!distinct.length)
+        throw Error("NERONET_NO_QQ_PROCESS");
+    if (distinct.length > 1)
+        throw Error("NERONET_SEVERAL_QQ_INSTALLATIONS: " + distinct.join(" | "));
+    return distinct[0];
+}
+async function qqExecutableOfProcess2(pid2, { run = exec3 } = {}) {
+    if (onLinux() && run === exec3)
+        return qqExecutableOfProcess(pid2);
+    if (!Number.isSafeInteger(pid2) || pid2 < 1)
+        throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
+    const command2 = "$p=Get-Process -Id " + pid2 + " -ErrorAction SilentlyContinue; $path=$null; try {if($p -and $p.ProcessName -eq 'QQ' -and $p.Path -and @($p.Modules | Where-Object ModuleName -eq 'wrapper.node').Count){$path=$p.Path}}catch{}; ConvertTo-Json -InputObject @($path | Where-Object {$_}) -Compress";
+    const { stdout } = await run(POWERSHELL2, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
+    const paths = JSON.parse(String(stdout).trim() || "[]");
+    if (!Array.isArray(paths) || paths.length > 1 || paths.some((p2) => typeof p2 !== "string" || !/^[A-Za-z]:\\/.test(p2)))
+        throw Error("NERONET_QQ_DISCOVERY_INVALID");
+    if (!paths.length)
+        throw Error("NERONET_NOT_A_QQ_PROCESS: " + pid2);
+    return paths[0];
+}
+function onlyCandidate(processes, excludedPid = null) {
+    const candidates = processes.filter((p2) => p2.pid !== excludedPid);
+    if (!candidates.length)
+        throw Error("NERONET_NO_QQ_PROCESS");
+    if (candidates.length > 1)
+        throw Error("NERONET_SEVERAL_QQ_PROCESSES: " + candidates.map((p2) => p2.pid).join(", "));
+    return candidates[0];
+}
+async function main2(args = process.argv.slice(2), { run } = {}) {
+    try {
+        const values2 = {};
+        for (let i = 0; i < args.length; i += 2) {
+            if (!["--profile", "--exclude"].includes(args[i]) || args[i + 1] === void 0 || values2[args[i]] !== void 0)
+                throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
+            values2[args[i]] = args[i + 1];
+        }
+        const excluded = values2["--exclude"] === void 0 ? null : Number(values2["--exclude"]);
+        if (excluded !== null && (!Number.isSafeInteger(excluded) || excluded < 1))
+            throw Error("NERONET_BOT_PROCESS_ARGUMENTS");
+        const profile = loadDeploymentProfile(values2["--profile"] ? { file: values2["--profile"] } : {});
+        console.log(JSON.stringify(onlyCandidate(await discoverQQ2(profile.qqExecutable, run ? { run } : {}), excluded)));
+    }
+    catch (e) {
+        console.error(e.message);
+        process.exitCode = 1;
+    }
+}
+var onLinux, exec3, POWERSHELL2;
+var init_qq_processes = __esm({
+    "qq-processes.mjs"() {
+        init_deployment_profile();
+        init_layout_release();
+        init_processes();
+        onLinux = () => process.platform === "linux";
+        exec3 = promisify3(execFile4);
+        POWERSHELL2 = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+        if (isMainModule(import.meta.url))
+            main2();
+    }
+});
+import { spawn as spawn3 } from "node:child_process";
 function runDriver(exe, args, { env, controlBudgetMs = CONTROL_BUDGET_MS, discoveryBudgetMs = DISCOVERY_BUDGET_MS, signal, onPreparation = () => {
-}, spawnProcess = spawn, now: now2 = Date.now } = {}) {
+}, spawnProcess = spawn3, now: now2 = Date.now } = {}) {
     return new Promise((resolve) => {
         const started = now2();
         let stdout = "", pending = "", overflow = false, settled = false, cancelled = false, timedOut = false, discovered = false, timer = null, child;
@@ -1859,33 +3099,33 @@ var init_native_driver = __esm({
         MAX_OUTPUT = 262144;
     }
 });
-function cause(result, reason, report2 = null) {
-    return { classification: "preparation-failed", reason, exit: exitOf(result), transport: result?.transport ?? null, legacy: null, errors: driverErrors(result?.rows), failure: report2 ? reportSummary(report2) : null, rules: readRuleFailures(result?.rows), cleanup: "not-required" };
+function cause(result2, reason, report3 = null) {
+    return { classification: "preparation-failed", reason, exit: exitOf(result2), transport: result2?.transport ?? null, legacy: null, errors: driverErrors(result2?.rows), failure: report3 ? reportSummary(report3) : null, rules: readRuleFailures(result2?.rows), cleanup: "not-required" };
 }
-function classifyPreparation(result) {
-    if (result.cancelled)
+function classifyPreparation(result2) {
+    if (result2.cancelled)
         return { kind: "cancelled" };
-    if (result.transport === "not-started")
-        return { kind: "failed", reason: "driver-launch-failed", cause: { ...cause(result, "driver-launch-failed"), classification: "not-started" } };
-    if (result.timedOut)
-        return { kind: "failed", reason: "binding-preparation-timeout", cause: cause(result, "binding-preparation-timeout") };
-    if (result.transport !== "exited" || result.malformed)
-        return { kind: "failed", reason: "binding-preparation-result-incomplete", cause: cause(result, "binding-preparation-result-incomplete") };
-    const reported = readNativeReport(result.rows);
+    if (result2.transport === "not-started")
+        return { kind: "failed", reason: "driver-launch-failed", cause: { ...cause(result2, "driver-launch-failed"), classification: "not-started" } };
+    if (result2.timedOut)
+        return { kind: "failed", reason: "binding-preparation-timeout", cause: cause(result2, "binding-preparation-timeout") };
+    if (result2.transport !== "exited" || result2.malformed)
+        return { kind: "failed", reason: "binding-preparation-result-incomplete", cause: cause(result2, "binding-preparation-result-incomplete") };
+    const reported = readNativeReport(result2.rows);
     if (reported?.valid)
-        return { kind: "failed", reason: reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", cause: cause(result, reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", reported.report) };
-    const steps = readPreparation(result.rows);
-    if (reported || !steps || !steps.length || result.exit !== 0 || result.rows.some((row) => row && Object.hasOwn(row, "error")))
-        return { kind: "failed", reason: "binding-preparation-result-invalid", cause: cause(result, "binding-preparation-result-invalid") };
+        return { kind: "failed", reason: reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", cause: cause(result2, reported.report.errorId ?? "NERONET_NATIVE_UNREGISTERED_FAILURE", reported.report) };
+    const steps = readPreparation(result2.rows);
+    if (reported || !steps || !steps.length || result2.exit !== 0 || result2.rows.some((row) => row && Object.hasOwn(row, "error")))
+        return { kind: "failed", reason: "binding-preparation-result-invalid", cause: cause(result2, "binding-preparation-result-invalid") };
     const last = steps.at(-1);
     if (last.state === "discovering" || steps.some((step) => step.imageSha256 !== last.imageSha256))
-        return { kind: "failed", reason: "binding-preparation-result-invalid", cause: cause(result, "binding-preparation-result-invalid") };
+        return { kind: "failed", reason: "binding-preparation-result-invalid", cause: cause(result2, "binding-preparation-result-invalid") };
     return { kind: "ok", state: last.state, imageSha256: last.imageSha256, runtimeVerified: last.runtimeVerified, discovered: steps.some((step) => step.state === "discovering"), cacheHit: last.cacheHit };
 }
-async function prepareBinding({ target, run, observe: observe2, loadedModule, record: record3 }) {
+async function prepareBinding2({ target, run, observe: observe2, loadedModule, record: record4 }) {
     const emit = (event) => {
         try {
-            record3(event);
+            record4(event);
         }
         catch {
         }
@@ -1899,8 +3139,8 @@ async function prepareBinding({ target, run, observe: observe2, loadedModule, re
     catch {
         return { kind: "target-changed" };
     }
-    const result = await run();
-    const decision = classifyPreparation(result);
+    const result2 = await run();
+    const decision = classifyPreparation(result2);
     emit({
         bindingPreparation: true,
         pid: target.pid,
@@ -1910,12 +3150,12 @@ async function prepareBinding({ target, run, observe: observe2, loadedModule, re
         imageSha256: decision.imageSha256 ?? null,
         runtimeVerified: decision.runtimeVerified ?? null,
         cacheHit: decision.cacheHit ?? null,
-        discovered: result.discovered === true,
-        elapsedMs: result.elapsedMs ?? null,
-        exit: exitOf(result),
-        transport: result.transport,
-        rows: diagnosticRows(result.rows),
-        errors: driverErrors(result.rows)
+        discovered: result2.discovered === true,
+        elapsedMs: result2.elapsedMs ?? null,
+        exit: exitOf(result2),
+        transport: result2.transport,
+        rows: diagnosticRows(result2.rows),
+        errors: driverErrors(result2.rows)
     });
     if (decision.kind !== "ok")
         return decision;
@@ -1937,7 +3177,7 @@ var init_binding_preparation = __esm({
     "binding-preparation.mjs"() {
         init_native_diagnostics();
         init_native_start_transaction();
-        exitOf = (result) => Number.isInteger(result?.exit) ? result.exit : typeof result?.exit === "string" && /^[A-Z0-9_]{1,24}$/.test(result.exit) ? result.exit : null;
+        exitOf = (result2) => Number.isInteger(result2?.exit) ? result2.exit : typeof result2?.exit === "string" && /^[A-Z0-9_]{1,24}$/.test(result2.exit) ? result2.exit : null;
     }
 });
 function attachSlots({ automaticDelaysMs = [15e3, 6e4], waitFirstMs = 2500, waitStepMs = 500, waitMaxMs = 1e4, now: now2 = Date.now } = {}) {
@@ -1998,122 +3238,37 @@ var init_attach_policy = __esm({
         init_process_selection();
     }
 });
-import http from "node:http";
-function localTime2(iso) {
-    const at = new Date(iso);
-    if (Number.isNaN(at.getTime()))
-        return "";
-    const two = (n2) => String(n2).padStart(2, "0");
-    return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + " " + two(at.getHours()) + ":" + two(at.getMinutes()) + ":" + two(at.getSeconds());
-}
-function statusPage(status, productName = "NeroNet") {
-    const lines = Array.isArray(status?.text) ? status.text : ["正在启动。"];
-    return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(productName) + ' 状态</title><style>body{font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#1f2328;background:#fff}@media(prefers-color-scheme:dark){body{color:#e6edf3;background:#0d1117}}h1{font-size:1.2rem}p{margin:.45rem 0}.first{font-weight:600}.note{opacity:.7;font-size:.85rem;margin-top:1.5rem}</style></head><body><h1>' + escape(productName) + " 还没有接入 QQ</h1>" + lines.map((line, i) => "<p" + (i === 0 ? ' class="first"' : "") + ">" + escape(line) + "</p>").join("") + '<p class="note">本页每 5 秒刷新一次。接入成功后，请使用管理界面。' + (status?.utc && localTime2(status.utc) ? "状态更新于 " + escape(localTime2(status.utc)) + "。" : "") + "</p></body></html>";
-}
-function standbyServer({ status, port: port3 = READINESS_PORT, productName = "NeroNet" }) {
-    let server = null, listening = false;
-    const handler = (req, res) => {
-        const current2 = status();
-        if (req.method !== "GET" && req.method !== "HEAD") {
-            res.writeHead(405, { "content-length": "0" });
-            res.end();
-            return;
-        }
-        const url = (req.url ?? "/").split("?")[0];
-        if (url === "/status") {
-            const body2 = statusPage(current2, productName);
-            res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" });
-            res.end(req.method === "HEAD" ? void 0 : body2);
-            return;
-        }
-        if (url !== "/") {
-            res.writeHead(404, { "content-length": "0" });
-            res.end();
-            return;
-        }
-        const body = JSON.stringify({ ready: false, attached: false, state: current2?.state ?? "starting", pid: current2?.pid ?? null, reason: current2?.reason ?? null, guarded: current2?.guarded === true, text: Array.isArray(current2?.text) ? current2.text : [], utc: current2?.utc ?? null });
-        res.writeHead(503, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(req.method === "HEAD" ? void 0 : body);
-    };
-    return {
-        get listening() {
-            return listening;
-        },
-        start() {
-            if (server)
-                return Promise.resolve(listening);
-            return new Promise((resolve) => {
-                const s = http.createServer(handler);
-                server = s;
-                s.once("error", () => {
-                    if (server === s)
-                        server = null;
-                    listening = false;
-                    resolve(false);
-                });
-                s.listen(port3, "127.0.0.1", () => {
-                    listening = true;
-                    s.on("error", () => {
-                    });
-                    resolve(true);
-                });
-            });
-        },
-        stop() {
-            const s = server;
-            server = null;
-            listening = false;
-            if (!s)
-                return Promise.resolve();
-            return new Promise((resolve) => {
-                try {
-                    s.closeAllConnections?.();
-                }
-                catch {
-                }
-                s.close(() => resolve());
-            });
-        }
-    };
-}
-var READINESS_PORT, escape;
-var init_standby_server = __esm({
-    "standby-server.mjs"() {
-        READINESS_PORT = 5100;
-        escape = (text2) => String(text2).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-    }
-});
-var supervisor_exports = {};
-import fs7 from "node:fs";
-import path8 from "node:path";
-import { spawn as spawn2, execFile as execFile4 } from "node:child_process";
+var supervisor_exports2 = {};
+import fs10 from "node:fs";
+import path12 from "node:path";
+import { spawn as spawn4, execFile as execFile5 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 async function listGenerations() {
     const command2 = "$ErrorActionPreference='Stop'; $items=@(Get-Process | Where-Object {$_.ProcessName -eq 'QQ'} | ForEach-Object {[pscustomobject]@{pid=$_.Id;started=$_.StartTime.ToUniversalTime().ToString('o')}}); ConvertTo-Json -InputObject @($items) -Compress";
     const { stdout } = await exec4(ps, ["-NoProfile", "-NonInteractive", "-Command", command2], { windowsHide: true, timeout: 15e3, maxBuffer: 32768 });
     return JSON.parse(stdout.trim() || "[]");
 }
-async function pause(ms) {
+async function pause2(ms) {
     const until = Date.now() + ms;
-    while (Date.now() < until && !stopRequested())
-        await sleep(Math.min(250, until - Date.now()));
+    while (Date.now() < until && !stopRequested2())
+        await sleep2(Math.min(250, until - Date.now()));
 }
 async function observe(target) {
     return (await generations()).some((p2) => processKey(p2) === processKey(target)) ? "same" : "gone";
 }
-function close(current2) {
-    return closeGeneration(current2, {
-        markStop: () => fs7.writeFileSync(path8.join(home, current2.stopMarker), "controlled generation stop\n"),
-        observe: () => observe(current2.target),
-        drain: () => closeNativeWithDrain(current2.target.pid, artifacts, record, 5e3, { observe: () => observe(current2.target) }),
-        record
+function close(current3) {
+    return closeGeneration(current3, {
+        markStop: () => fs10.writeFileSync(path12.join(home2, current3.stopMarker), "controlled generation stop\n"),
+        observe: () => observe(current3.target),
+        drain: () => closeNativeWithDrain(current3.target.pid, artifacts2, record2, 5e3, { observe: () => observe(current3.target) }),
+        record: record2
     });
 }
 function driver2(target, action, { cancellable = false } = {}) {
     const controller = new AbortController();
     const watch = cancellable ? setInterval(() => {
-        if (stopRequested())
+        if (stopRequested2())
             controller.abort();
     }, 500) : null;
     let slow = null;
@@ -2123,8 +3278,8 @@ function driver2(target, action, { cancellable = false } = {}) {
         onPreparation: (row) => {
             if (row.state === "discovering" && !slow)
                 slow = setTimeout(() => {
-                    record({ bindingDiscoveryRunning: true, pid: target.pid, during: action });
-                    report.state("preparing-binding", { pid: target.pid });
+                    record2({ bindingDiscoveryRunning: true, pid: target.pid, during: action });
+                    report2.state("preparing-binding", { pid: target.pid });
                 }, 3e3);
         }
     }).finally(() => {
@@ -2144,18 +3299,18 @@ async function residentComponents(pid2) {
     }
 }
 function takeRetryRequest() {
-    if (!fs7.existsSync(retryFile))
+    if (!fs10.existsSync(retryFile2))
         return false;
     try {
-        fs7.rmSync(retryFile, { force: true });
+        fs10.rmSync(retryFile2, { force: true });
     }
     catch {
         return false;
     }
     return true;
 }
-var exec4, sleep, argv, botArg, adminArg, homeArg, home, artifacts, deployment, nativeEnv, nativeManifest, metadataLog, runId, record, report, standby, retryFile, ps, operation, observed, discover, selection, stopping, current, pendingStartup, lastWaiting, epoch, recovering, guardNoted, recovery, guard, stopRequested, generations, blocked, slots, hostExe, bindingDll, showing, failureShown;
-var init_supervisor = __esm({
+var exec4, sleep2, argv2, botArg, adminArg, homeArg, home2, artifacts2, deployment2, nativeEnv, nativeManifest, metadataLog2, runId2, record2, report2, standby2, retryFile2, ps, operation2, observed, discover, selection, stopping2, current2, pendingStartup, lastWaiting2, epoch2, recovering2, guardNoted, recovery2, guard, stopRequested2, generations, blocked2, slots, hostExe, bindingDll, showing, failureShown;
+var init_supervisor2 = __esm({
     async "supervisor.mjs"() {
         init_deployment_profile();
         init_process_selection();
@@ -2173,118 +3328,118 @@ var init_supervisor = __esm({
         init_binding_preparation();
         init_attach_policy();
         init_standby_server();
-        exec4 = promisify4(execFile4);
-        sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-        argv = process.argv.slice(2);
-        if (argv.length !== 2 && argv.length !== 3)
+        exec4 = promisify4(execFile5);
+        sleep2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        argv2 = process.argv.slice(2);
+        if (argv2.length !== 2 && argv2.length !== 3)
             throw Error("Usage: supervisor BOT_PID [EXCLUDED_QQ_PID] HOME");
-        [botArg, adminArg, homeArg] = argv.length === 3 ? argv : [argv[0], null, argv[1]];
+        [botArg, adminArg, homeArg] = argv2.length === 3 ? argv2 : [argv2[0], null, argv2[1]];
         if (!homeArg)
             throw Error("Usage: supervisor BOT_PID [EXCLUDED_QQ_PID] HOME");
-        home = path8.resolve(homeArg);
-        artifacts = path8.resolve(process.env.NERONET_NATIVE_DIR ?? nativeDirectory);
-        deployment = validateDeploymentPaths(loadDeploymentProfile(), { home, artifacts });
-        nativeEnv = nativeEnvironment(deployment, artifacts);
+        home2 = path12.resolve(homeArg);
+        artifacts2 = path12.resolve(process.env.NERONET_NATIVE_DIR ?? nativeDirectory);
+        deployment2 = validateDeploymentPaths(loadDeploymentProfile(), { home: home2, artifacts: artifacts2 });
+        nativeEnv = nativeEnvironment(deployment2, artifacts2);
         nativeManifest = loadNativeManifest(nativeManifestFile);
-        verifyNativeArtifacts(nativeManifest, artifacts);
-        fs7.mkdirSync(home, { recursive: true });
-        if (fs7.existsSync(path8.join(home, "STOP")))
+        verifyNativeArtifacts(nativeManifest, artifacts2);
+        fs10.mkdirSync(home2, { recursive: true });
+        if (fs10.existsSync(path12.join(home2, "STOP")))
             throw Error("Existing STOP marker: inspect prior shutdown before removing it");
-        metadataLog = new BoundedJsonl(path8.join(home, "supervisor-metadata.jsonl"));
-        runId = /^[A-Za-z0-9\-]{8,64}$/.test(process.env.NERONET_RUN_ID ?? "") ? process.env.NERONET_RUN_ID : randomUUID();
-        record = (event) => {
-            metadataLog.append({ utc: (new Date()).toISOString(), runId, ...event });
+        metadataLog2 = new BoundedJsonl(path12.join(home2, "supervisor-metadata.jsonl"));
+        runId2 = /^[A-Za-z0-9\-]{8,64}$/.test(process.env.NERONET_RUN_ID ?? "") ? process.env.NERONET_RUN_ID : randomUUID2();
+        record2 = (event) => {
+            metadataLog2.append({ utc: (new Date()).toISOString(), runId: runId2, ...event });
         };
-        report = startupReport(home, runId);
-        report.clear();
-        standby = standbyServer({ status: () => report.current });
-        retryFile = path8.join(home, RETRY_FILE);
+        report2 = startupReport(home2, runId2);
+        report2.clear();
+        standby2 = standbyServer({ status: () => report2.current });
+        retryFile2 = path12.join(home2, RETRY_FILE);
         try {
-            fs7.rmSync(retryFile, { force: true });
+            fs10.rmSync(retryFile2, { force: true });
         }
         catch {
         }
         ps = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-        operation = "startup";
-        observed = (name, fn) => retrying(fn, { onRetry: (attempt) => record({ processObservationRetry: true, operation: name, attempt }) });
-        discover = () => observed("discover-qq", () => discoverQQ(deployment.qqExecutable));
+        operation2 = "startup";
+        observed = (name, fn) => retrying(fn, { onRetry: (attempt) => record2({ processObservationRetry: true, operation: name, attempt }) });
+        discover = () => observed("discover-qq", () => discoverQQ2(deployment2.qqExecutable));
         selection = selectInitial(await discover(), Number(botArg), adminArg === null ? null : Number(adminArg));
-        record({ selectedProcesses: selection, accountValidationRequired: true });
-        stopping = false;
-        current = null;
+        record2({ selectedProcesses: selection, accountValidationRequired: true });
+        stopping2 = false;
+        current2 = null;
         pendingStartup = null;
-        lastWaiting = "";
-        epoch = 0;
-        recovering = null;
+        lastWaiting2 = "";
+        epoch2 = 0;
+        recovering2 = null;
         guardNoted = null;
-        recovery = recoveryPolicy();
-        guard = startupGuard(home);
-        stopRequested = () => stopping || fs7.existsSync(path8.join(home, "STOP"));
+        recovery2 = recoveryPolicy();
+        guard = startupGuard(home2);
+        stopRequested2 = () => stopping2 || fs10.existsSync(path12.join(home2, "STOP"));
         generations = () => observed("list-qq-processes", listGenerations);
-        blocked = new Set();
+        blocked2 = new Set();
         slots = attachSlots();
-        process.on("SIGINT", () => stopping = true);
-        process.on("SIGTERM", () => stopping = true);
-        hostExe = path8.join(artifacts, "neronet_native_host.exe");
-        bindingDll = path8.join(artifacts, "neronet_live_binding.dll");
-        showing = (name) => report.current?.state === name;
-        failureShown = () => FAILED_STATES.includes(report.current?.state);
+        process.on("SIGINT", () => stopping2 = true);
+        process.on("SIGTERM", () => stopping2 = true);
+        hostExe = path12.join(artifacts2, "neronet_native_host.exe");
+        bindingDll = path12.join(artifacts2, "neronet_live_binding.dll");
+        showing = (name) => report2.current?.state === name;
+        failureShown = () => FAILED_STATES.includes(report2.current?.state);
         try {
-            await standby.start();
-            while (!stopRequested()) {
-                operation = "startup-guard";
+            await standby2.start();
+            while (!stopRequested2()) {
+                operation2 = "startup-guard";
                 const guardState = guard.inspect(await generations());
                 if (guardState?.blocked) {
                     const noted = guardState.target ? processKey(guardState.target) : guardState.reason;
                     if (guardNoted !== noted) {
-                        const sameRun = !!report.first?.guarded && !!guardState.target && processKey(guardState.target) === processKey(report.first.target);
-                        record({ startupGuardBlocked: true, ...guardState, createdInThisRun: sameRun, waitingForProcessExit: !!guardState.target });
+                        const sameRun = !!report2.first?.guarded && !!guardState.target && processKey(guardState.target) === processKey(report2.first.target);
+                        record2({ startupGuardBlocked: true, ...guardState, createdInThisRun: sameRun, waitingForProcessExit: !!guardState.target });
                         if (!sameRun)
-                            report.guardBlocked(guardState, { qqBuild: guardState.target ? await qqBuildOfProcess(guardState.target.pid) : null });
+                            report2.guardBlocked(guardState, { qqBuild: guardState.target ? await qqBuildOfProcess(guardState.target.pid) : null });
                         guardNoted = noted;
                     }
-                    await pause(2e3);
+                    await pause2(2e3);
                     continue;
                 }
                 if (guardState) {
-                    record({ startupGuardResolved: true, ...guardState });
+                    record2({ startupGuardResolved: true, ...guardState });
                     guardNoted = null;
-                    lastWaiting = "";
+                    lastWaiting2 = "";
                     if (failureShown())
-                        report.state("waiting-for-bot");
+                        report2.state("waiting-for-bot");
                 }
-                operation = "discover-qq";
+                operation2 = "discover-qq";
                 const candidates = await discover();
-                operation = "observe-generation";
-                if (current && await observe(current.target) === "gone") {
-                    operation = "close-generation";
-                    if (!await close(current))
+                operation2 = "observe-generation";
+                if (current2 && await observe(current2.target) === "gone") {
+                    operation2 = "close-generation";
+                    if (!await close(current2))
                         break;
-                    current = null;
-                    if (stopping || fs7.existsSync(path8.join(home, "STOP")))
+                    current2 = null;
+                    if (stopping2 || fs10.existsSync(path12.join(home2, "STOP")))
                         break;
                 }
-                const ended = current?.exited ? classifyGatewayExit({ exitCode: current.exitCode, signal: current.signal, stopRequested: stopRequested() }) : null;
+                const ended = current2?.exited ? classifyGatewayExit({ exitCode: current2.exitCode, signal: current2.signal, stopRequested: stopRequested2() }) : null;
                 if (ended)
-                    record({ gatewayEnded: true, epoch: current.epoch, pid: current.target.pid, qqStarted: current.target.started, exitCode: current.exitCode, signal: current.signal, classification: ended });
+                    record2({ gatewayEnded: true, epoch: current2.epoch, pid: current2.target.pid, qqStarted: current2.target.started, exitCode: current2.exitCode, signal: current2.signal, classification: ended });
                 if (ended === "account-mismatch") {
-                    const refused = current;
-                    operation = "close-generation";
+                    const refused = current2;
+                    operation2 = "close-generation";
                     if (!await close(refused))
                         break;
-                    blocked.add(processKey(refused.target));
-                    current = null;
-                    record({ startupRejected: true, pid: refused.target.pid, reason: "account-mismatch" });
-                    lastWaiting = "";
-                    if (stopping || fs7.existsSync(path8.join(home, "STOP")))
+                    blocked2.add(processKey(refused.target));
+                    current2 = null;
+                    record2({ startupRejected: true, pid: refused.target.pid, reason: "account-mismatch" });
+                    lastWaiting2 = "";
+                    if (stopping2 || fs10.existsSync(path12.join(home2, "STOP")))
                         break;
                     continue;
                 }
                 if (ended === "transport-fault") {
-                    const failed6 = current, pid2 = failed6.target.pid, faultSeenAt = Date.now();
-                    operation = "fault-status-probe";
-                    await probeNativeStatus(pid2, artifacts, record);
-                    operation = "fault-drain";
+                    const failed6 = current2, pid2 = failed6.target.pid, faultSeenAt = Date.now();
+                    operation2 = "fault-status-probe";
+                    await probeNativeStatus(pid2, artifacts2, record2);
+                    operation2 = "fault-drain";
                     let drained = false;
                     try {
                         drained = await close(failed6);
@@ -2292,7 +3447,7 @@ var init_supervisor = __esm({
                     catch {
                         drained = false;
                     }
-                    current = null;
+                    current2 = null;
                     if (!drained) {
                         const cause2 = { classification: "unresolved", reason: "recovery-drain-unconfirmed", exit: null, transport: null, legacy: null, errors: [], failure: null, cleanup: "unconfirmed" };
                         try {
@@ -2300,30 +3455,30 @@ var init_supervisor = __esm({
                         }
                         catch {
                         }
-                        record({ recoveryBlocked: true, pid: pid2, reason: "drain-unconfirmed", action: "exit-and-relogin-bot-qq", businessRequestsRetried: 0 });
-                        blocked.add(processKey(failed6.target));
-                        await standby.start();
-                        report.failed({ target: failed6.target, reason: "recovery-drain-unconfirmed", cause: cause2, guarded: true, guardReason: "recovery-drain-unconfirmed", qqBuild: await qqBuildOfProcess(pid2), retry: "restart-qq" });
+                        record2({ recoveryBlocked: true, pid: pid2, reason: "drain-unconfirmed", action: "exit-and-relogin-bot-qq", businessRequestsRetried: 0 });
+                        blocked2.add(processKey(failed6.target));
+                        await standby2.start();
+                        report2.failed({ target: failed6.target, reason: "recovery-drain-unconfirmed", cause: cause2, guarded: true, guardReason: "recovery-drain-unconfirmed", qqBuild: await qqBuildOfProcess(pid2), retry: "restart-qq" });
                         guardNoted = processKey(failed6.target);
                         continue;
                     }
-                    if (stopRequested())
+                    if (stopRequested2())
                         break;
-                    const step = recovery.next();
+                    const step = recovery2.next();
                     if (!step.allowed) {
-                        record({ recoveryExhausted: true, pid: pid2, attemptsInWindow: step.attemptsInWindow, windowMs: step.windowMs, action: "restart-neronet-after-checking-qq", businessRequestsRetried: 0 });
+                        record2({ recoveryExhausted: true, pid: pid2, attemptsInWindow: step.attemptsInWindow, windowMs: step.windowMs, action: "restart-neronet-after-checking-qq", businessRequestsRetried: 0 });
                         process.exitCode = 1;
                         break;
                     }
-                    record({ recoveryScheduled: true, pid: pid2, attempt: step.attempt, maxAttempts: step.maxAttempts, delayMs: step.delayMs, businessRequestsRetried: 0 });
-                    operation = "recovery-delay";
-                    await standby.start();
-                    report.state("recovering", { pid: pid2 });
-                    await pause(step.delayMs);
-                    if (stopRequested())
+                    record2({ recoveryScheduled: true, pid: pid2, attempt: step.attempt, maxAttempts: step.maxAttempts, delayMs: step.delayMs, businessRequestsRetried: 0 });
+                    operation2 = "recovery-delay";
+                    await standby2.start();
+                    report2.state("recovering", { pid: pid2 });
+                    await pause2(step.delayMs);
+                    if (stopRequested2())
                         break;
-                    recovering = { attempt: step.attempt, since: faultSeenAt };
-                    lastWaiting = "";
+                    recovering2 = { attempt: step.attempt, since: faultSeenAt };
+                    lastWaiting2 = "";
                     continue;
                 }
                 if (ended) {
@@ -2331,121 +3486,121 @@ var init_supervisor = __esm({
                         process.exitCode = 1;
                     break;
                 }
-                if (!current) {
-                    await standby.start();
-                    const choice = selectReplacement(candidates, selection, blocked), target = choice.target;
+                if (!current2) {
+                    await standby2.start();
+                    const choice = selectReplacement(candidates, selection, blocked2), target = choice.target;
                     if (!target) {
                         const reason = choice.reason;
-                        if (reason !== lastWaiting) {
-                            record({ waiting: reason });
-                            lastWaiting = reason;
+                        if (reason !== lastWaiting2) {
+                            record2({ waiting: reason });
+                            lastWaiting2 = reason;
                         }
                         if (!failureShown())
-                            report.state("waiting-for-bot", { lines: reason === "ambiguous-bot-process" ? ["有多个 QQ 在运行，无法确定哪个是机器人。请停止后用 -BotPid 重新启动。"] : [] });
-                        await sleep(1500);
+                            report2.state("waiting-for-bot", { lines: reason === "ambiguous-bot-process" ? ["有多个 QQ 在运行，无法确定哪个是机器人。请停止后用 -BotPid 重新启动。"] : [] });
+                        await sleep2(1500);
                         continue;
                     }
                     const slot = slots.of(target);
                     if (slot.held) {
                         if (!takeRetryRequest()) {
-                            await sleep(1e3);
+                            await sleep2(1e3);
                             continue;
                         }
                         slots.retry(target);
-                        record({ attachRetryRequested: true, pid: target.pid });
+                        record2({ attachRetryRequested: true, pid: target.pid });
                     }
                     if (Date.now() < slot.nextAt) {
-                        await sleep(500);
+                        await sleep2(500);
                         continue;
                     }
                     if (!slot.prepared) {
-                        operation = "prepare-binding";
+                        operation2 = "prepare-binding";
                         if (!showing("qq-initializing") && !showing("login-wait"))
-                            report.state("starting", { pid: target.pid });
-                        const prepared = await prepareBinding({ target, observe: () => observe(target), loadedModule: () => wrapperOfProcess(target.pid), record, run: () => driver2(target, "--prepare-binding", { cancellable: true }) });
+                            report2.state("starting", { pid: target.pid });
+                        const prepared = await prepareBinding2({ target, observe: () => observe(target), loadedModule: () => wrapperOfProcess(target.pid), record: record2, run: () => driver2(target, "--prepare-binding", { cancellable: true }) });
                         if (prepared.kind === "cancelled")
                             break;
                         if (prepared.kind === "target-changed") {
                             slots.forget(target);
-                            lastWaiting = "";
-                            await sleep(1e3);
+                            lastWaiting2 = "";
+                            await sleep2(1e3);
                             continue;
                         }
                         if (prepared.kind === "failed") {
                             const plan = slots.failed(target);
-                            const first = report.failed({ target, reason: prepared.reason, cause: prepared.cause, qqBuild: await qqBuildOfProcess(target.pid), retry: plan.retry, nextAttemptInMs: plan.delayMs });
-                            record({ startupRejected: true, pid: target.pid, stage: "prepare-binding", reason: prepared.reason, guarded: false, retry: plan.retry, delayMs: plan.delayMs, ...first ? { firstFailureOfRun: true } : {} });
-                            lastWaiting = "";
+                            const first = report2.failed({ target, reason: prepared.reason, cause: prepared.cause, qqBuild: await qqBuildOfProcess(target.pid), retry: plan.retry, nextAttemptInMs: plan.delayMs });
+                            record2({ startupRejected: true, pid: target.pid, stage: "prepare-binding", reason: prepared.reason, guarded: false, retry: plan.retry, delayMs: plan.delayMs, ...first ? { firstFailureOfRun: true } : {} });
+                            lastWaiting2 = "";
                             continue;
                         }
                         slot.prepared = prepared;
                     }
-                    operation = "native-start";
+                    operation2 = "native-start";
                     if (!showing("qq-initializing") && !showing("login-wait"))
-                        report.state("starting", { pid: target.pid });
+                        report2.state("starting", { pid: target.pid });
                     const attempt = await startNativeGeneration({
                         target,
                         observe: () => observe(target),
-                        stopRequested,
-                        close: () => closeNativeWithDrain(target.pid, artifacts, record, 5e3, { observe: () => observe(target) }),
+                        stopRequested: stopRequested2,
+                        close: () => closeNativeWithDrain(target.pid, artifacts2, record2, 5e3, { observe: () => observe(target) }),
                         markUnresolved: (entry) => guard.mark(entry),
-                        record,
+                        record: record2,
                         run: () => driver2(target, "--runtime-start")
                     });
                     if (attempt.kind === "login-wait") {
-                        if (lastWaiting !== "account-login") {
-                            record({ waiting: "account-login", pid: target.pid, businessRequestsRetried: 0 });
-                            lastWaiting = "account-login";
+                        if (lastWaiting2 !== "account-login") {
+                            record2({ waiting: "account-login", pid: target.pid, businessRequestsRetried: 0 });
+                            lastWaiting2 = "account-login";
                         }
-                        report.state("login-wait", { pid: target.pid });
-                        await sleep(2500);
+                        report2.state("login-wait", { pid: target.pid });
+                        await sleep2(2500);
                         continue;
                     }
                     if (attempt.kind === "stopped")
                         break;
                     if (attempt.kind === "deferred") {
-                        await sleep(1500);
+                        await sleep2(1500);
                         continue;
                     }
                     if (attempt.kind === "rejected" && attempt.retry === "wait-for-qq") {
                         const delayMs = slots.waiting(target);
-                        if (lastWaiting !== "qq-initializing") {
-                            record({ waiting: "qq-initializing", pid: target.pid, reason: attempt.reason, businessRequestsRetried: 0 });
-                            lastWaiting = "qq-initializing";
+                        if (lastWaiting2 !== "qq-initializing") {
+                            record2({ waiting: "qq-initializing", pid: target.pid, reason: attempt.reason, businessRequestsRetried: 0 });
+                            lastWaiting2 = "qq-initializing";
                         }
-                        report.state("qq-initializing", { pid: target.pid });
-                        await pause(Math.min(delayMs, 1e3));
+                        report2.state("qq-initializing", { pid: target.pid });
+                        await pause2(Math.min(delayMs, 1e3));
                         continue;
                     }
                     if (attempt.kind !== "ready") {
-                        const reason = attempt.reason ?? attempt.kind, qqBuild = await qqBuildOfProcess(target.pid);
-                        lastWaiting = "";
+                        const reason = attempt.reason ?? attempt.kind, qqBuild2 = await qqBuildOfProcess(target.pid);
+                        lastWaiting2 = "";
                         if (attempt.kind === "rejected" || attempt.kind === "failed" && attempt.closed === true) {
                             const plan = slots.failed(target);
-                            const first2 = report.failed({ target, reason, cause: attempt.cause ?? null, qqBuild, retry: plan.retry, nextAttemptInMs: plan.delayMs });
-                            record({ startupRejected: true, pid: target.pid, reason, guarded: false, retry: plan.retry, delayMs: plan.delayMs, ...first2 ? { firstFailureOfRun: true, qqBuild } : {}, ...recovering ? { duringRecovery: true } : {} });
+                            const first2 = report2.failed({ target, reason, cause: attempt.cause ?? null, qqBuild: qqBuild2, retry: plan.retry, nextAttemptInMs: plan.delayMs });
+                            record2({ startupRejected: true, pid: target.pid, reason, guarded: false, retry: plan.retry, delayMs: plan.delayMs, ...first2 ? { firstFailureOfRun: true, qqBuild: qqBuild2 } : {}, ...recovering2 ? { duringRecovery: true } : {} });
                             continue;
                         }
-                        blocked.add(processKey(target));
+                        blocked2.add(processKey(target));
                         if (attempt.cause && attempt.reason === BUILD_MISMATCH) {
                             const resident = await residentComponents(target.pid);
-                            if (resident && resident.length === 1 && path8.resolve(resident[0]).toLowerCase() === path8.resolve(bindingDll).toLowerCase())
+                            if (resident && resident.length === 1 && path12.resolve(resident[0]).toLowerCase() === path12.resolve(bindingDll).toLowerCase())
                                 attempt.cause.residentIsThisBuild = true;
                         }
-                        const first = report.failed({ target, reason, cause: attempt.cause ?? null, guarded: attempt.guarded === true, guardReason: attempt.guardReason ?? null, qqBuild, retry: "restart-qq" });
+                        const first = report2.failed({ target, reason, cause: attempt.cause ?? null, guarded: attempt.guarded === true, guardReason: attempt.guardReason ?? null, qqBuild: qqBuild2, retry: "restart-qq" });
                         if (attempt.guarded === true)
                             guardNoted = processKey(target);
-                        record({ startupRejected: true, pid: target.pid, reason, guarded: attempt.guarded === true, retry: "restart-qq", ...first ? { firstFailureOfRun: true, qqBuild } : {}, ...recovering ? { duringRecovery: true } : {} });
+                        record2({ startupRejected: true, pid: target.pid, reason, guarded: attempt.guarded === true, retry: "restart-qq", ...first ? { firstFailureOfRun: true, qqBuild: qqBuild2 } : {}, ...recovering2 ? { duringRecovery: true } : {} });
                         continue;
                     }
                     pendingStartup = attempt;
                     slots.attached(target);
-                    const stopMarker = "gateway-stop-" + randomUUID();
-                    operation = "spawn-gateway";
-                    await standby.stop();
-                    const child = spawn2(process.execPath, [...entryArguments("gateway"), String(target.pid), home, stopMarker, String(epoch + 1), String(target.started)], { windowsHide: true, stdio: "ignore" });
-                    const generation = { target, child, stopMarker, epoch: ++epoch, exited: false, exitCode: null, signal: null };
-                    current = generation;
+                    const stopMarker = "gateway-stop-" + randomUUID2();
+                    operation2 = "spawn-gateway";
+                    await standby2.stop();
+                    const child = spawn4(process.execPath, [...entryArguments("gateway"), String(target.pid), home2, stopMarker, String(epoch2 + 1), String(target.started)], { windowsHide: true, stdio: "ignore" });
+                    const generation = { target, child, stopMarker, epoch: ++epoch2, exited: false, exitCode: null, signal: null };
+                    current2 = generation;
                     pendingStartup = null;
                     child.on("error", (error) => {
                         generation.exited = true;
@@ -2456,347 +3611,41 @@ var init_supervisor = __esm({
                         generation.exitCode = code;
                         generation.signal = signal;
                     });
-                    record({ gatewayStarted: true, epoch, pid: target.pid, qqStarted: target.started, gatewayPid: child.pid, adminPid: selection.admin?.pid ?? null, binding: slot.prepared ? { state: slot.prepared.state, imageSha256: slot.prepared.imageSha256, runtimeVerified: slot.prepared.runtimeVerified } : null, ...recovering ? { recovered: true, recoveryAttempt: recovering.attempt, unavailableMs: Date.now() - recovering.since } : {} });
-                    report.state("attached", { pid: target.pid });
-                    recovering = null;
-                    lastWaiting = "";
+                    record2({ gatewayStarted: true, epoch: epoch2, pid: target.pid, qqStarted: target.started, gatewayPid: child.pid, adminPid: selection.admin?.pid ?? null, binding: slot.prepared ? { state: slot.prepared.state, imageSha256: slot.prepared.imageSha256, runtimeVerified: slot.prepared.runtimeVerified } : null, ...recovering2 ? { recovered: true, recoveryAttempt: recovering2.attempt, unavailableMs: Date.now() - recovering2.since } : {} });
+                    report2.state("attached", { pid: target.pid });
+                    recovering2 = null;
+                    lastWaiting2 = "";
                 }
-                operation = "idle";
-                await sleep(1500);
+                operation2 = "idle";
+                await sleep2(1500);
             }
         }
         catch (error) {
             const summary = errorSummary(error);
-            record({ supervisorFailed: true, errorCode: summary.code ?? "SUPERVISOR_FAILURE", operation, error: summary, epoch, pid: current?.target.pid ?? null });
+            record2({ supervisorFailed: true, errorCode: summary.code ?? "SUPERVISOR_FAILURE", operation: operation2, error: summary, epoch: epoch2, pid: current2?.target.pid ?? null });
             process.exitCode = 1;
         }
         finally {
             if (pendingStartup && !await pendingStartup.release())
                 process.exitCode = 1;
-            if (current) {
+            if (current2) {
                 try {
-                    if (!await close(current)) {
-                        guard.mark({ target: current.target, reason: "generation-drain-unconfirmed" });
+                    if (!await close(current2)) {
+                        guard.mark({ target: current2.target, reason: "generation-drain-unconfirmed" });
                         process.exitCode = 1;
                     }
                 }
                 catch {
-                    guard.mark({ target: current.target, reason: "shutdown-process-observation-unavailable" });
-                    record({ shutdownUnresolved: true, pid: current.target.pid });
+                    guard.mark({ target: current2.target, reason: "shutdown-process-observation-unavailable" });
+                    record2({ shutdownUnresolved: true, pid: current2.target.pid });
                     process.exitCode = 1;
                 }
             }
-            await standby.stop();
+            await standby2.stop();
             if (!failureShown())
-                report.state("stopped");
-            record({ supervisorStopped: true, generations: epoch });
+                report2.state("stopped");
+            record2({ supervisorStopped: true, generations: epoch2 });
         }
-    }
-});
-function header(bytes) {
-    if (bytes.length < 40)
-        throw Error("short header");
-    if (bytes.readUInt32LE(0) !== 827344977 || bytes.readUInt16LE(4) !== 1)
-        throw Error("bad magic/version");
-    const lengths = [bytes.readUInt32LE(20), bytes.readUInt32LE(24), bytes.readUInt32LE(28)];
-    if (lengths.some((n2, i) => n2 > Object.values(LIMITS)[i]))
-        throw Error("length limit");
-    return { op: bytes.readUInt16LE(6), requestId: bytes.readUInt32LE(8), status: bytes.readInt32LE(12), flags: bytes.readUInt32LE(16), value0: bytes.readBigUInt64LE(32), lengths, total: 40 + lengths.reduce((a, b) => a + b, 0) };
-}
-function encode(f) {
-    const cmd = Buffer.from(f.cmd ?? "", "utf8"), msg = Buffer.from(f.msg ?? "", "utf8"), body = Buffer.from(f.body ?? []);
-    if ([cmd.length, msg.length, body.length].some((n2, i) => n2 > Object.values(LIMITS)[i]))
-        throw Error("length limit");
-    const b = Buffer.alloc(40 + cmd.length + msg.length + body.length);
-    b.writeUInt32LE(827344977);
-    b.writeUInt16LE(1, 4);
-    b.writeUInt16LE(f.op, 6);
-    b.writeUInt32LE(f.requestId ?? 0, 8);
-    b.writeInt32LE(f.status ?? 0, 12);
-    b.writeUInt32LE(f.flags ?? 0, 16);
-    b.writeUInt32LE(cmd.length, 20);
-    b.writeUInt32LE(msg.length, 24);
-    b.writeUInt32LE(body.length, 28);
-    b.writeBigUInt64LE(f.value0 ?? 0n, 32);
-    cmd.copy(b, 40);
-    msg.copy(b, 40 + cmd.length);
-    body.copy(b, 40 + cmd.length + msg.length);
-    return b;
-}
-function decode(b) {
-    const h = header(b);
-    if (b.length !== h.total)
-        throw Error("frame length");
-    const [c, m] = h.lengths;
-    return { op: h.op, requestId: h.requestId, status: h.status, flags: h.flags, value0: h.value0, cmd: b.toString("utf8", 40, 40 + c), msg: b.toString("utf8", 40 + c, 40 + c + m), body: Buffer.from(b.subarray(40 + c + m)) };
-}
-var OPS, LIMITS, Reader;
-var init_wire = __esm({
-    "wire.mjs"() {
-        OPS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 17, 21, 22]);
-        LIMITS = Object.freeze({ cmd: 4096, msg: 65536, body: 16777216 });
-        Reader = class {
-            constructor(onFrame) {
-                this.bytes = Buffer.alloc(0);
-                this.onFrame = onFrame;
-                this.failed = false;
-            }
-            push(b) {
-                if (this.failed)
-                    throw Error("reader failed");
-                this.bytes = Buffer.concat([this.bytes, b]);
-                try {
-                    while (this.bytes.length >= 40) {
-                        const h = header(this.bytes);
-                        if (this.bytes.length < h.total)
-                            return;
-                        const f = decode(this.bytes.subarray(0, h.total));
-                        this.bytes = this.bytes.subarray(h.total);
-                        this.onFrame(f);
-                    }
-                }
-                catch (e) {
-                    this.failed = true;
-                    this.bytes = Buffer.alloc(0);
-                    throw e;
-                }
-            }
-            end() {
-                if (this.bytes.length) {
-                    this.failed = true;
-                    this.bytes = Buffer.alloc(0);
-                    throw Error("truncated frame");
-                }
-            }
-        };
-    }
-});
-import net from "node:net";
-import { EventEmitter } from "node:events";
-function socketErrorSummary(error) {
-    const text2 = (value) => typeof value === "string" && /^[\w.\- ]{1,48}$/.test(value) ? value : null;
-    return { code: text2(error?.code), errno: Number.isSafeInteger(error?.errno) ? error.errno : null, syscall: text2(error?.syscall) };
-}
-function nativeReasonCode(reason) {
-    if (typeof reason !== "string" || !reason)
-        return "NERONET_NATIVE_REASON_MISSING";
-    return reason;
-}
-var commandLabel, TRANSPORT_FAULTS, NativeClient;
-var init_native_client = __esm({
-    "native-client.mjs"() {
-        init_wire();
-        commandLabel = (cmd) => typeof cmd === "string" && /^[\w.\-]{1,96}$/.test(cmd) ? cmd : "(other)";
-        TRANSPORT_FAULTS = new Set(["NERONET_NATIVE_CONNECTION_FAILED", "NERONET_NATIVE_CLOSED", "NERONET_INVALID_NATIVE_FRAME", "NERONET_UNEXPECTED_NATIVE_RESPONSE"]);
-        NativeClient = class extends EventEmitter {
-            constructor(pid2, { expectedUin, timeoutMs = 15e3 } = {}) {
-                super();
-                if (!Number.isSafeInteger(pid2) || pid2 < 1)
-                    throw Error("Invalid QQ PID");
-                this.pid = pid2;
-                this.expectedUin = expectedUin ? String(expectedUin) : null;
-                this.timeoutMs = timeoutMs;
-                this.pending = new Map();
-                this.next = 1;
-                this.uin = "";
-                this.msf = null;
-                this.closed = false;
-                this.hello = false;
-                this.businessPaused = false;
-                this.stage = "idle";
-                this.socketError = null;
-                this.failure = null;
-            }
-            get isLoggedIn() {
-                return !this.closed && this.hello && !!this.uin && this.msf === 1;
-            }
-            connect() {
-                if (this.socket)
-                    throw Error("Already connected");
-                this.stage = "connecting";
-                this.socket = net.connect("\\\\.\\pipe\\neronet-own-live-" + this.pid);
-                const reader = new Reader((f) => this.onFrame(f));
-                this.socket.on("data", (b) => {
-                    try {
-                        reader.push(b);
-                    }
-                    catch {
-                        this.fail("NERONET_INVALID_NATIVE_FRAME");
-                    }
-                });
-                this.socket.once("connect", () => {
-                    if (this.stage === "connecting")
-                        this.stage = "connected";
-                });
-                this.socket.on("error", (error) => {
-                    this.socketError = socketErrorSummary(error);
-                    this.fail("NERONET_NATIVE_CONNECTION_FAILED");
-                });
-                this.socket.on("close", () => this.fail("NERONET_NATIVE_CLOSED"));
-                return new Promise((resolve, reject) => {
-                    const done = () => {
-                        clearTimeout(timer);
-                        this.off("ready", ready);
-                        this.off("closed", closed);
-                    };
-                    const ready = () => {
-                        done();
-                        resolve(this);
-                    };
-                    const closed = (reason) => {
-                        done();
-                        reject(Error(reason));
-                    };
-                    const timer = setTimeout(() => {
-                        done();
-                        this.fail("NERONET_NATIVE_READY_TIMEOUT");
-                        reject(Error("NERONET_NATIVE_READY_TIMEOUT"));
-                    }, this.timeoutMs);
-                    this.once("ready", ready);
-                    this.once("closed", closed);
-                });
-            }
-            onFrame(f) {
-                if (this.closed)
-                    return;
-                if (f.op === 1) {
-                    if (this.hello || f.value0 !== BigInt(this.pid))
-                        return this.fail("NERONET_NATIVE_HELLO_MISMATCH");
-                    this.hello = true;
-                    this.stage = "hello";
-                    return;
-                }
-                if (f.op === 32765) {
-                    this.msf = f.status;
-                    this.emit("network", this.msf);
-                    if (this.isLoggedIn) {
-                        this.stage = "ready";
-                        this.emit("ready");
-                    }
-                    return;
-                }
-                if (f.op === 32764) {
-                    const uin = f.status === 15 && f.value0 > 0n ? String(f.value0) : "";
-                    if (uin && this.expectedUin && uin !== this.expectedUin)
-                        return this.fail("NERONET_ACCOUNT_MISMATCH");
-                    if (this.uin && uin !== this.uin)
-                        return this.fail("NERONET_ACCOUNT_GENERATION_CHANGED");
-                    this.uin = uin;
-                    if (uin && !this.expectedUin)
-                        this.expectedUin = uin;
-                    if (this.isLoggedIn) {
-                        this.stage = "ready";
-                        this.emit("ready");
-                    }
-                    this.emit("identity", { valid: !!uin });
-                    return;
-                }
-                if (f.op === 6) {
-                    if (!this.isLoggedIn)
-                        return;
-                    this.emit("packet", { pid: this.pid, seqId: Number(f.value0), error: f.status, cmd: f.cmd, uin: this.uin, body: Buffer.from(f.body) });
-                    return;
-                }
-                const pending = this.pending.get(f.requestId);
-                if (!pending)
-                    return;
-                if (f.op === 5) {
-                    pending.finish(Error("NERONET_NATIVE_REJECTED: " + nativeReasonCode(f.msg)));
-                    return;
-                }
-                if (f.op === 3)
-                    pending.acked = true;
-                else if (f.op === 4)
-                    pending.reply = { requestId: f.requestId, error: f.status, message: f.msg, body: Buffer.from(f.body) };
-                else
-                    return this.fail("NERONET_UNEXPECTED_NATIVE_RESPONSE");
-                if (pending.acked && pending.reply)
-                    pending.finish(null, pending.reply);
-            }
-            send(cmd, body, { replyTimeoutMs = this.timeoutMs, wantReply = true } = {}) {
-                if (this.businessPaused)
-                    return Promise.reject(Error("NERONET_APPLICATION_PAUSED"));
-                if (!this.isLoggedIn)
-                    return Promise.reject(Error("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE"));
-                if (!wantReply)
-                    return Promise.reject(Error("NERONET_REPLY_REQUIRED"));
-                if (this.pending.size >= 16 || this.next > 4294967295)
-                    return Promise.reject(Error("NERONET_REQUEST_CAPACITY"));
-                const id = this.next++;
-                const frame = encode({ op: 2, requestId: id, flags: 1, cmd, body });
-                return new Promise((resolve, reject) => {
-                    const finish2 = (error, result) => {
-                        if (!this.pending.delete(id))
-                            return;
-                        clearTimeout(timer);
-                        error ? reject(error) : resolve(result);
-                    };
-                    const timer = setTimeout(() => finish2(Error("NERONET_REPLY_TIMEOUT_NOT_RETRIED")), replyTimeoutMs);
-                    this.pending.set(id, { acked: false, reply: null, finish: finish2, cmd, startedAt: Date.now() });
-                    this.socket.write(frame, (error) => {
-                        if (error)
-                            finish2(Error("NERONET_NATIVE_WRITE_FAILED"));
-                    });
-                });
-            }
-            setBusinessPaused(paused) {
-                if (this.closed)
-                    throw Error("NERONET_NATIVE_CLOSED");
-                if (this.pending.size)
-                    throw Error("NERONET_REQUESTS_STILL_PENDING");
-                if (!paused && !this.isLoggedIn)
-                    throw Error("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE");
-                this.businessPaused = Boolean(paused);
-            }
-            pendingSnapshot(now2 = Date.now()) {
-                return [...this.pending.entries()].slice(0, 16).map(([requestId, p2]) => ({ requestId, cmd: commandLabel(p2.cmd), acked: !!p2.acked, replied: !!p2.reply, waitedMs: Math.max(0, now2 - (p2.startedAt ?? now2)) }));
-            }
-            fail(reason) {
-                if (this.closed)
-                    return;
-                this.closed = true;
-                this.failure = { reason, stage: this.stage, socketError: this.socketError, pending: this.pendingSnapshot(), utc: (new Date()).toISOString() };
-                for (const p2 of [...this.pending.values()])
-                    p2.finish(Error(reason));
-                this.socket?.destroy();
-                this.emit("closed", reason);
-            }
-            close() {
-                if (this.closePromise)
-                    return this.closePromise;
-                if (this.closed || !this.socket || this.socket.destroyed || !this.hello) {
-                    this.fail("NERONET_APPLICATION_STOPPING");
-                    return Promise.resolve({ stopSent: false, peerClosed: false, timedOut: false });
-                }
-                this.closed = true;
-                for (const p2 of [...this.pending.values()])
-                    p2.finish(Error("NERONET_APPLICATION_STOPPING"));
-                const socket = this.socket;
-                this.closePromise = new Promise((resolve) => {
-                    let stopSent = false, finished = false;
-                    const done = (peerClosed, timedOut) => {
-                        if (finished)
-                            return;
-                        finished = true;
-                        clearTimeout(timer);
-                        socket.off("close", closed);
-                        socket.destroy();
-                        resolve({ stopSent, peerClosed, timedOut });
-                    };
-                    const closed = () => done(true, false);
-                    const timer = setTimeout(() => done(false, true), 750);
-                    socket.once("close", closed);
-                    socket.write(encode({ op: 32766 }), (error) => {
-                        if (error)
-                            done(false, false);
-                        else
-                            stopSent = true;
-                    });
-                });
-                this.emit("closed", "NERONET_APPLICATION_STOPPING");
-                return this.closePromise;
-            }
-        };
     }
 });
 function observeRuntime(client2, { pid: pid2, networkReady: networkReady2, closing: closing3, applicationStarted = true, connectionStatuses = [] }) {
@@ -2808,7 +3657,7 @@ var init_runtime_observation = __esm({
     "runtime-observation.mjs"() {
     }
 });
-async function cleanupSteps(steps, record3 = () => {
+async function cleanupSteps(steps, record4 = () => {
 }) {
     const outcomes = [];
     for (const [resource, dispose] of steps) {
@@ -2820,7 +3669,7 @@ async function cleanupSteps(steps, record3 = () => {
             outcomes.push({ resource, released: false, errorCode: errorCode(error) });
         }
         try {
-            record3({ cleanupStep: outcomes.at(-1) });
+            record4({ cleanupStep: outcomes.at(-1) });
         }
         catch {
         }
@@ -2870,8 +3719,8 @@ function applicationLifecycle({ interruptStartup, cleanup }) {
                         interruptError = errorCode(error);
                     }
                 await startupSettled;
-                const result = await cleanup(reason);
-                return { ...result, failed: !!result?.failed || !!interruptError, ...interruptError ? { interruptError } : {} };
+                const result2 = await cleanup(reason);
+                return { ...result2, failed: !!result2?.failed || !!interruptError, ...interruptError ? { interruptError } : {} };
             });
             controller.abort(stoppingError());
             return stopPromise;
@@ -2888,7 +3737,7 @@ var init_application_lifecycle = __esm({
 function closeOwnedServer(server, { graceMs = 2e3 } = {}) {
     if (closing.has(server))
         return closing.get(server);
-    const result = new Promise((resolve, reject) => {
+    const result2 = new Promise((resolve, reject) => {
         const timer = setTimeout(() => server.closeAllConnections?.(), graceMs);
         timer.unref();
         server.close((error) => {
@@ -2900,8 +3749,8 @@ function closeOwnedServer(server, { graceMs = 2e3 } = {}) {
         });
         server.closeIdleConnections?.();
     });
-    closing.set(server, result);
-    return result;
+    closing.set(server, result2);
+    return result2;
 }
 function startListening(factory, { signal } = {}) {
     if (signal?.aborted)
@@ -2973,10 +3822,10 @@ var init_server_lifecycle = __esm({
         closing = new WeakMap();
     }
 });
-import fs8 from "node:fs";
-import path9 from "node:path";
+import fs11 from "node:fs";
+import path13 from "node:path";
 function resolveActionPolicy(spec2) {
-    const actions = new Set(DEFAULT_ACTIONS), profiles = [];
+    const actions = new Set(DEFAULT_ACTIONS), profiles = [], extraActionNames = [];
     let extra = 0;
     if (spec2 !== null && spec2 !== void 0) {
         if (typeof spec2 !== "object" || Array.isArray(spec2))
@@ -3000,26 +3849,29 @@ function resolveActionPolicy(spec2) {
         if (spec2.extraActions !== void 0) {
             if (!Array.isArray(spec2.extraActions) || spec2.extraActions.some((name) => typeof name !== "string" || !ACTION_NAME.test(name)))
                 throw Error("Invalid action policy: extraActions must be plain action names");
-            for (const name of spec2.extraActions)
+            for (const name of spec2.extraActions) {
                 actions.add(name);
+                if (!extraActionNames.includes(name))
+                    extraActionNames.push(name);
+            }
             extra = spec2.extraActions.length;
         }
     }
-    return { actions, profiles, extraActions: extra };
+    return { actions, profiles, extraActions: extra, extraActionNames };
 }
 function loadActionPolicy(configDir) {
-    const candidates = ["neronet-actions.json"].map((name) => path9.join(configDir, name)).filter((file2) => fs8.existsSync(file2));
+    const candidates = ["neronet-actions.json"].map((name) => path13.join(configDir, name)).filter((file2) => fs11.existsSync(file2));
     if (!candidates.length)
         return { ...resolveActionPolicy(null), file: null };
     const file = candidates[0];
     let spec2;
     try {
-        spec2 = JSON.parse(fs8.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+        spec2 = JSON.parse(fs11.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
     }
     catch {
-        throw Error("Invalid action policy JSON: " + path9.basename(file));
+        throw Error("Invalid action policy JSON: " + path13.basename(file));
     }
-    return { ...resolveActionPolicy(spec2), file: path9.basename(file) };
+    return { ...resolveActionPolicy(spec2), file: path13.basename(file) };
 }
 function describeActionPolicy(policy) {
     if (!policy)
@@ -3070,341 +3922,13 @@ var init_action_policy = __esm({
             ]),
             "qqbridge-stickers": Object.freeze(["add_custom_face", "modify_custom_face"]),
             "message-read": Object.freeze(["mark_msg_as_read", "mark_group_msg_as_read", "mark_private_msg_as_read"]),
-            qzone: Object.freeze(["send_qzone_msg", "delete_qzone_msg", "get_qzone_msg_list", "get_qzone_msg_detail", "set_qzone_msg_right"])
+            qzone: Object.freeze(["send_qzone_msg", "delete_qzone_msg", "get_qzone_msg_list", "get_qzone_msg_detail", "set_qzone_msg_right"]),
+            "group-admin": Object.freeze(["set_group_kick", "set_group_ban", "set_group_whole_ban", "set_group_admin", "set_group_card", "set_group_name", "set_group_special_title", "set_group_leave"]),
+            requests: Object.freeze(["set_friend_add_request", "set_group_add_request", "get_group_system_msg"]),
+            "group-notice": Object.freeze(["_get_group_notice", "_send_group_notice", "_del_group_notice"]),
+            "web-credentials": Object.freeze(["get_cookies", "get_csrf_token", "get_credentials"])
         });
         ACTION_NAME = /^[a-z][a-z0-9_]{1,63}$/;
-    }
-});
-function highwayProxyValue(env = process.env) {
-    return env.NERONET_HIGHWAY_PROXY ?? env.HTTP_PROXY ?? "";
-}
-function describeMediaNetwork(env = process.env, args = process.execArgv) {
-    const raw = highwayProxyValue(env);
-    let upload = "direct", issue = null;
-    if (raw) {
-        try {
-            const u = new URL(raw);
-            upload = "http-connect";
-            if (u.protocol !== "http:" || u.username || u.password || u.search || u.hash || u.pathname !== "/")
-                issue = "UNSUPPORTED_PROXY";
-        }
-        catch {
-            upload = "invalid";
-            issue = "INVALID_PROXY";
-        }
-    }
-    const configured = Boolean(env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY);
-    const enabled = env.NODE_USE_ENV_PROXY === "1" || args.includes("--use-env-proxy") || /(?:^|\s)--use-env-proxy(?:\s|$)/.test(env.NODE_OPTIONS ?? "");
-    return { scope: "process-configuration-only", connectivity: "not-probed", upload: { transport: upload, source: highwayProxySource(env), issue }, download: { transport: configured && enabled ? "environment-proxy-configured" : configured ? "proxy-configured-but-not-enabled" : "direct-or-custom-dispatcher", bypassRulesPresent: Boolean(env.NO_PROXY || env.no_proxy) }, warning: issue ? "上传代理格式不受支持，请检查部署配置。" : configured && !enabled ? "下载代理已配置，但未声明 Node 环境代理开关；请检查启动命令。" : null, note: "上传使用 TCP/HTTP CONNECT，下载使用 Node fetch。此处仅显示当前进程配置，不证明网络可达；启动后修改环境变量或自定义 dispatcher 可能改变实际行为。" };
-}
-function imageNetworkError(error) {
-    const codes = new Set();
-    let e = error;
-    const seen = new Set();
-    for (let i = 0; e && typeof e === "object" && i < 6 && !seen.has(e); i++, e = e.cause) {
-        seen.add(e);
-        if (typeof e.code === "string")
-            codes.add(e.code);
-    }
-    if ([...codes].some((c) => ["ENOTFOUND", "EAI_AGAIN"].includes(c)))
-        return "NERONET_IMAGE_DNS_FAILED";
-    if ([...codes].some((c) => ["CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", "ERR_TLS_CERT_ALTNAME_INVALID"].includes(c)))
-        return "NERONET_IMAGE_TLS_FAILED";
-    if ([...codes].some((c) => ["ECONNREFUSED", "ECONNRESET", "EHOSTUNREACH", "ENETUNREACH"].includes(c)))
-        return "NERONET_IMAGE_CONNECTION_FAILED";
-    if ([...codes].some((c) => ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"].includes(c)))
-        return "NERONET_IMAGE_NETWORK_TIMEOUT";
-    return "NERONET_IMAGE_DOWNLOAD_FAILED";
-}
-var highwayProxySource;
-var init_media_network = __esm({
-    "media-network.mjs"() {
-        highwayProxySource = (env) => env.NERONET_HIGHWAY_PROXY !== void 0 ? "NERONET_HIGHWAY_PROXY" : env.HTTP_PROXY !== void 0 ? "HTTP_PROXY" : "none";
-    }
-});
-import fs9 from "node:fs/promises";
-import path10 from "node:path";
-import crypto from "node:crypto";
-function imageMime(bytes) {
-    if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
-        return "image/png";
-    if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255)
-        return "image/jpeg";
-    if (["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("latin1")))
-        return "image/gif";
-    if (bytes.subarray(0, 4).toString("latin1") === "RIFF" && bytes.subarray(8, 12).toString("latin1") === "WEBP")
-        return "image/webp";
-    if (bytes.subarray(0, 2).toString("latin1") === "BM")
-        return "image/bmp";
-    return null;
-}
-function cdnUrl(raw) {
-    let url;
-    try {
-        url = new URL(raw);
-    }
-    catch {
-        throw fail("NERONET_IMAGE_INVALID_URL");
-    }
-    if (url.protocol === "http:" && HTTP_UPGRADE_HOSTS.has(url.hostname) && !url.port)
-        url.protocol = "https:";
-    if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443" || !CDN_HOSTS.has(url.hostname))
-        throw fail("NERONET_IMAGE_UNSUPPORTED_CDN");
-    return url;
-}
-async function renameRetry(from, to) {
-    try {
-        await fs9.rename(from, to);
-    }
-    catch (e) {
-        if (e.code !== "EPERM" && e.code !== "EBUSY" && e.code !== "EACCES")
-            throw e;
-        await new Promise((r) => setTimeout(r, 50));
-        await fs9.rename(from, to);
-    }
-}
-var IMAGE_CACHE, CDN_HOSTS, HTTP_UPGRADE_HOSTS, hash, fail, isMd5, ImageCache;
-var init_image_cache = __esm({
-    "upper/media/image-cache.mjs"() {
-        init_media_network();
-        IMAGE_CACHE = Object.freeze({ maxBytes: 8 * 1024 * 1024, timeoutMs: 2e4, redirects: 3, maxTotalBytes: 512 * 1024 * 1024, pruneEvery: 64 });
-        CDN_HOSTS = new Set(["multimedia.nt.qq.com.cn", "gchat.qpic.cn", "c2cpicdw.qpic.cn", "gxh.vip.qq.com"]);
-        HTTP_UPGRADE_HOSTS = new Set(["gchat.qpic.cn", "c2cpicdw.qpic.cn"]);
-        hash = (alg, b) => crypto.createHash(alg).update(b).digest("hex");
-        fail = (code) => Object.assign(new Error(code), { code });
-        isMd5 = (s) => typeof s === "string" && /^[0-9a-f]{32}$/i.test(s);
-        ImageCache = class {
-            constructor({ dir, fetchImpl = fetch, log = () => {
-            }, limits = {} }) {
-                this.dir = dir;
-                this.fetchImpl = fetchImpl;
-                this.log = log;
-                this.limits = { ...IMAGE_CACHE, ...limits };
-                this.inflight = new Map();
-                this.stopper = new AbortController();
-                this.writes = 0;
-            }
-            close() {
-                this.stopper.abort();
-            }
-            #base(md52) {
-                return path10.join(this.dir, md52.toLowerCase());
-            }
-            async cleanTemps() {
-                let names;
-                try {
-                    names = await fs9.readdir(this.dir);
-                }
-                catch (e) {
-                    if (e.code === "ENOENT")
-                        return 0;
-                    throw e;
-                }
-                let n2 = 0;
-                for (const name of names)
-                    if (name.endsWith(".tmp")) {
-                        await fs9.unlink(path10.join(this.dir, name)).then(() => n2++, () => {
-                        });
-                    }
-                await this.prune();
-                return n2;
-            }
-            async prune() {
-                let names;
-                try {
-                    names = await fs9.readdir(this.dir);
-                }
-                catch {
-                    return 0;
-                }
-                const entries = [];
-                for (const name of names) {
-                    if (!name.endsWith(".bin"))
-                        continue;
-                    try {
-                        const st = await fs9.stat(path10.join(this.dir, name));
-                        entries.push({ base: path10.join(this.dir, name.slice(0, -4)), size: st.size, used: st.mtimeMs });
-                    }
-                    catch {
-                    }
-                }
-                let total = entries.reduce((s, e) => s + e.size, 0), removed = 0;
-                entries.sort((a, b) => a.used - b.used);
-                for (const e of entries) {
-                    if (total <= this.limits.maxTotalBytes)
-                        break;
-                    await Promise.all([fs9.rm(e.base + ".bin", { force: true }), fs9.rm(e.base + ".json", { force: true })]).catch(() => {
-                    });
-                    total -= e.size;
-                    removed++;
-                }
-                if (removed)
-                    this.log({ upperImageCachePruned: removed });
-                return removed;
-            }
-            async read(md52) {
-                if (!isMd5(md52))
-                    return null;
-                const base = this.#base(md52);
-                try {
-                    const [metaText, bytes] = await Promise.all([fs9.readFile(base + ".json", "utf8"), fs9.readFile(base + ".bin")]);
-                    const meta = JSON.parse(metaText);
-                    if (!bytes.length || bytes.length > this.limits.maxBytes || bytes.length !== meta.bytes || hash("md5", bytes) !== md52.toLowerCase() || hash("sha256", bytes) !== meta.sha256 || imageMime(bytes) !== meta.mimeType)
-                        throw fail("NERONET_IMAGE_CACHE_INVALID");
-                    const now2 = new Date();
-                    await fs9.utimes(base + ".bin", now2, now2).catch(() => {
-                    });
-                    return bytes;
-                }
-                catch (e) {
-                    if (e.code === "ENOENT")
-                        return null;
-                    if (e instanceof SyntaxError || e.code === "NERONET_IMAGE_CACHE_INVALID") {
-                        this.log({ upperImageCacheRepair: true });
-                        await Promise.all([fs9.rm(base + ".json", { force: true }), fs9.rm(base + ".bin", { force: true })]).catch(() => {
-                        });
-                        return null;
-                    }
-                    this.log({ upperImageCacheReadFailed: e.code ?? "EIO" });
-                    return null;
-                }
-            }
-            async write(md52, bytes, origin) {
-                if (!isMd5(md52) || hash("md5", bytes) !== md52.toLowerCase())
-                    throw fail("NERONET_IMAGE_MD5_MISMATCH");
-                const mimeType = imageMime(bytes);
-                if (!mimeType)
-                    throw fail("NERONET_IMAGE_INVALID_FORMAT");
-                if (!bytes.length || bytes.length > this.limits.maxBytes)
-                    throw fail("NERONET_IMAGE_TOO_LARGE");
-                const base = this.#base(md52), suffix = `.${crypto.randomUUID()}.tmp`;
-                const dataTmp = base + ".bin" + suffix, metaTmp = base + ".json" + suffix;
-                try {
-                    await fs9.mkdir(this.dir, { recursive: true });
-                    await fs9.writeFile(dataTmp, bytes, { flag: "wx" });
-                    await fs9.writeFile(metaTmp, JSON.stringify({ sha256: hash("sha256", bytes), md5: md52.toLowerCase(), bytes: bytes.length, mimeType, fetchedUtc: (new Date()).toISOString(), origin }), { flag: "wx" });
-                    await renameRetry(dataTmp, base + ".bin");
-                    await renameRetry(metaTmp, base + ".json");
-                }
-                catch {
-                    throw fail("NERONET_IMAGE_CACHE_WRITE_FAILED");
-                }
-                finally {
-                    await Promise.all([fs9.rm(dataTmp, { force: true }), fs9.rm(metaTmp, { force: true })]).catch(() => {
-                    });
-                }
-                if (++this.writes % this.limits.pruneEvery === 0)
-                    await this.prune();
-            }
-            async retain(md52, bytes) {
-                try {
-                    if (isMd5(md52) && bytes?.length && bytes.length <= this.limits.maxBytes && imageMime(bytes)) {
-                        await this.write(md52, Buffer.from(bytes), "sent");
-                        this.log({ upperSentImageRetained: true, bytes: bytes.length });
-                    }
-                }
-                catch (e) {
-                    this.log({ upperSentImageRetentionFailed: e.code ?? "NERONET_IMAGE_CACHE_IO" });
-                }
-            }
-            async content({ md5: md52, url }) {
-                const key = isMd5(md52) ? md52.toLowerCase() : `url:${url}`;
-                if (!this.inflight.has(key)) {
-                    this.inflight.set(key, (async () => {
-                        const cached = await this.read(md52);
-                        if (cached)
-                            return cached;
-                        if (!url)
-                            throw fail("NERONET_IMAGE_URL_UNAVAILABLE");
-                        const bytes = await this.#download(url);
-                        if (isMd5(md52) && hash("md5", bytes) === md52.toLowerCase()) {
-                            try {
-                                await this.write(md52, bytes, "network");
-                            }
-                            catch (e) {
-                                this.log({ upperImageCacheWriteFailed: e.code });
-                            }
-                        }
-                        else
-                            this.log({ upperImageNotCached: isMd5(md52) ? "md5-mismatch" : "no-md5" });
-                        this.log({ upperImageMaterialized: true, bytes: bytes.length });
-                        return bytes;
-                    })().finally(() => this.inflight.delete(key)));
-                }
-                return this.inflight.get(key);
-            }
-            async #download(raw) {
-                const timeout = AbortSignal.timeout(this.limits.timeoutMs);
-                const combined = AbortSignal.any([this.stopper.signal, timeout]);
-                let url = cdnUrl(raw);
-                try {
-                    for (let hop = 0; hop <= this.limits.redirects; hop++) {
-                        const res = await this.fetchImpl(url, { redirect: "manual", signal: combined });
-                        if ([301, 302, 303, 307, 308].includes(res.status)) {
-                            const location = res.headers.get("location");
-                            await res.body?.cancel().catch(() => {
-                            });
-                            if (!location)
-                                throw fail("NERONET_IMAGE_INVALID_REDIRECT");
-                            let next;
-                            try {
-                                next = new URL(location, url).href;
-                            }
-                            catch {
-                                throw fail("NERONET_IMAGE_INVALID_REDIRECT");
-                            }
-                            url = cdnUrl(next);
-                            continue;
-                        }
-                        if (!res.ok) {
-                            await res.body?.cancel().catch(() => {
-                            });
-                            throw fail(`NERONET_IMAGE_HTTP_${res.status}`);
-                        }
-                        if (Number(res.headers.get("content-length")) > this.limits.maxBytes) {
-                            await res.body?.cancel().catch(() => {
-                            });
-                            throw fail("NERONET_IMAGE_TOO_LARGE");
-                        }
-                        if (!res.body)
-                            throw fail("NERONET_IMAGE_EMPTY");
-                        const reader = res.body.getReader(), chunks = [];
-                        let size = 0;
-                        try {
-                            for (;;) {
-                                const part = await reader.read();
-                                if (part.done)
-                                    break;
-                                size += part.value.length;
-                                if (size > this.limits.maxBytes)
-                                    throw fail("NERONET_IMAGE_TOO_LARGE");
-                                chunks.push(part.value);
-                            }
-                        }
-                        finally {
-                            await reader.cancel().catch(() => {
-                            });
-                        }
-                        const bytes = Buffer.concat(chunks);
-                        if (!bytes.length)
-                            throw fail("NERONET_IMAGE_EMPTY");
-                        if (!imageMime(bytes))
-                            throw fail("NERONET_IMAGE_INVALID_FORMAT");
-                        return bytes;
-                    }
-                    throw fail("NERONET_IMAGE_REDIRECT_LIMIT");
-                }
-                catch (e) {
-                    if (/^NERONET_IMAGE_[A-Z0-9_]+$/.test(e.code ?? ""))
-                        throw e;
-                    if (this.stopper.signal.aborted)
-                        throw fail("NERONET_IMAGE_CANCELLED");
-                    if (timeout.aborted)
-                        throw fail("NERONET_IMAGE_TIMEOUT");
-                    throw fail(imageNetworkError(e));
-                }
-            }
-        };
     }
 });
 var require_protobuf = __commonJS({
@@ -3478,11 +4002,11 @@ var require_protobuf = __commonJS({
                         var s64 = new Array(123);
                         for (var i = 0; i < 64;)
                             s64[b64[i] = i < 26 ? i + 65 : i < 52 ? i + 71 : i < 62 ? i - 4 : i - 59 | 43] = i++;
-                        base64.encode = function encode3(buffer, start, end) {
+                        base64.encode = function encode3(buffer, start2, end) {
                             var parts = null, chunk2 = [];
                             var i2 = 0, j = 0, t;
-                            while (start < end) {
-                                var b = buffer[start++];
+                            while (start2 < end) {
+                                var b = buffer[start2++];
                                 switch (j) {
                                     case 0:
                                         chunk2[i2++] = b64[b >> 2];
@@ -3520,7 +4044,7 @@ var require_protobuf = __commonJS({
                         };
                         var invalidEncoding = "invalid encoding";
                         base64.decode = function decode3(string, buffer, offset) {
-                            var start = offset;
+                            var start2 = offset;
                             var j = 0, t;
                             for (var i2 = 0; i2 < string.length;) {
                                 var c = string.charCodeAt(i2++);
@@ -3551,7 +4075,7 @@ var require_protobuf = __commonJS({
                             }
                             if (j === 1)
                                 throw Error(invalidEncoding);
-                            return offset - start;
+                            return offset - start2;
                         };
                         base64.test = function test(string) {
                             return /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(string);
@@ -3658,7 +4182,7 @@ var require_protobuf = __commonJS({
                         "use strict";
                         module2.exports = fetch2;
                         var asPromise = require2(1), inquire2 = require2(7);
-                        var fs36 = inquire2("fs");
+                        var fs42 = inquire2("fs");
                         function fetch2(filename, options, callback) {
                             if (typeof options === "function") {
                                 callback = options;
@@ -3668,8 +4192,8 @@ var require_protobuf = __commonJS({
                                 options = {};
                             if (!callback)
                                 return asPromise(fetch2, this, filename, options);
-                            if (!options.xhr && fs36 && fs36.readFile)
-                                return fs36.readFile(filename, function fetchReadFileCallback(err2, contents) {
+                            if (!options.xhr && fs42 && fs42.readFile)
+                                return fs42.readFile(filename, function fetchReadFileCallback(err2, contents) {
                                     return err2 && typeof XMLHttpRequest !== "undefined" ? fetch2.xhr(filename, options, callback) : err2 ? callback(err2) : callback(null, options.binary ? contents : contents.toString("utf8"));
                                 });
                             return fetch2.xhr(filename, options, callback);
@@ -3900,13 +4424,13 @@ var require_protobuf = __commonJS({
                         }
                     }, {}], 8: [function (require2, module2, exports2) {
                         "use strict";
-                        var path35 = exports2;
-                        var isAbsolute = (path35.isAbsolute = function isAbsolute2(path36) {
-                            return /^(?:\/|\w+:)/.test(path36);
+                        var path42 = exports2;
+                        var isAbsolute = (path42.isAbsolute = function isAbsolute2(path43) {
+                            return /^(?:\/|\w+:)/.test(path43);
                         });
-                        var normalize = (path35.normalize = function normalize2(path36) {
-                            path36 = path36.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
-                            var parts = path36.split("/"), absolute = isAbsolute(path36), prefix = "";
+                        var normalize = (path42.normalize = function normalize2(path43) {
+                            path43 = path43.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+                            var parts = path43.split("/"), absolute = isAbsolute(path43), prefix = "";
                             if (absolute)
                                 prefix = parts.shift() + "/";
                             for (var i = 0; i < parts.length;) {
@@ -3925,7 +4449,7 @@ var require_protobuf = __commonJS({
                             }
                             return prefix + parts.join("/");
                         });
-                        path35.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+                        path42.resolve = function resolve(originPath, includePath, alreadyNormalized) {
                             if (!alreadyNormalized)
                                 includePath = normalize(includePath);
                             if (isAbsolute(includePath))
@@ -3975,24 +4499,24 @@ var require_protobuf = __commonJS({
                             }
                             return len;
                         };
-                        utf8.read = function utf8_read(buffer, start, end) {
-                            var len = end - start;
+                        utf8.read = function utf8_read(buffer, start2, end) {
+                            var len = end - start2;
                             if (len < 1)
                                 return "";
                             var parts = null, chunk2 = [], i = 0, t;
-                            while (start < end) {
-                                t = buffer[start++];
+                            while (start2 < end) {
+                                t = buffer[start2++];
                                 if (t < 128)
                                     chunk2[i++] = t;
                                 else if (t > 191 && t < 224)
-                                    chunk2[i++] = (t & 31) << 6 | buffer[start++] & 63;
+                                    chunk2[i++] = (t & 31) << 6 | buffer[start2++] & 63;
                                 else if (t > 239 && t < 365) {
-                                    t = ((t & 7) << 18 | (buffer[start++] & 63) << 12 | (buffer[start++] & 63) << 6 | buffer[start++] & 63) - 65536;
+                                    t = ((t & 7) << 18 | (buffer[start2++] & 63) << 12 | (buffer[start2++] & 63) << 6 | buffer[start2++] & 63) - 65536;
                                     chunk2[i++] = 55296 + (t >> 10);
                                     chunk2[i++] = 56320 + (t & 1023);
                                 }
                                 else
-                                    chunk2[i++] = (t & 15) << 12 | (buffer[start++] & 63) << 6 | buffer[start++] & 63;
+                                    chunk2[i++] = (t & 15) << 12 | (buffer[start2++] & 63) << 6 | buffer[start2++] & 63;
                                 if (i > 8191) {
                                     (parts || (parts = [])).push(String.fromCharCode.apply(String, chunk2));
                                     i = 0;
@@ -4006,7 +4530,7 @@ var require_protobuf = __commonJS({
                             return String.fromCharCode.apply(String, chunk2.slice(0, i));
                         };
                         utf8.write = function utf8_write(string, buffer, offset) {
-                            var start = offset, c1, c2;
+                            var start2 = offset, c1, c2;
                             for (var i = 0; i < string.length; ++i) {
                                 c1 = string.charCodeAt(i);
                                 if (c1 < 128) {
@@ -4030,7 +4554,7 @@ var require_protobuf = __commonJS({
                                     buffer[offset++] = c1 & 63 | 128;
                                 }
                             }
-                            return offset - start;
+                            return offset - start2;
                         };
                     }, {}], 11: [function (require2, module2, exports2) {
                         "use strict";
@@ -4242,14 +4766,14 @@ var require_protobuf = __commonJS({
                             if (field.resolvedType) {
                                 if (field.resolvedType instanceof Enum) {
                                     gen("switch(d%s){", prop);
-                                    for (var values = field.resolvedType.values, keys = Object.keys(values), i = 0; i < keys.length; ++i) {
-                                        if (values[keys[i]] === field.typeDefault && !defaultAlreadyEmitted) {
+                                    for (var values2 = field.resolvedType.values, keys = Object.keys(values2), i = 0; i < keys.length; ++i) {
+                                        if (values2[keys[i]] === field.typeDefault && !defaultAlreadyEmitted) {
                                             gen("default:")('if(typeof(d%s)==="number"){m%s=d%s;break}', prop, prop, prop);
                                             if (!field.repeated)
                                                 gen("break");
                                             defaultAlreadyEmitted = true;
                                         }
-                                        gen("case%j:", keys[i])("case %i:", values[keys[i]])("m%s=%j", prop, values[keys[i]])("break");
+                                        gen("case%j:", keys[i])("case %i:", values2[keys[i]])("m%s=%j", prop, values2[keys[i]])("break");
                                     }
                                     gen("}");
                                 }
@@ -4530,9 +5054,9 @@ var require_protobuf = __commonJS({
                         var ReflectionObject = require2(24);
                         ((Enum.prototype = Object.create(ReflectionObject.prototype)).constructor = Enum).className = "Enum";
                         var Namespace = require2(23), util = require2(37);
-                        function Enum(name, values, options, comment2, comments, valuesOptions) {
+                        function Enum(name, values2, options, comment2, comments, valuesOptions) {
                             ReflectionObject.call(this, name, options);
-                            if (values && typeof values !== "object")
+                            if (values2 && typeof values2 !== "object")
                                 throw TypeError("values must be an object");
                             this.valuesById = {};
                             this.values = Object.create(this.valuesById);
@@ -4540,10 +5064,10 @@ var require_protobuf = __commonJS({
                             this.comments = comments || {};
                             this.valuesOptions = valuesOptions;
                             this.reserved = undefined;
-                            if (values) {
-                                for (var keys = Object.keys(values), i = 0; i < keys.length; ++i)
-                                    if (typeof values[keys[i]] === "number")
-                                        this.valuesById[this.values[keys[i]] = values[keys[i]]] = keys[i];
+                            if (values2) {
+                                for (var keys = Object.keys(values2), i = 0; i < keys.length; ++i)
+                                    if (typeof values2[keys[i]] === "number")
+                                        this.valuesById[this.values[keys[i]] = values2[keys[i]]] = keys[i];
                             }
                         }
                         Enum.fromJSON = function fromJSON(name, json2) {
@@ -5084,16 +5608,16 @@ var require_protobuf = __commonJS({
                             object2.onRemove(this);
                             return clearCache(this);
                         };
-                        Namespace.prototype.define = function define2(path35, json2) {
-                            if (util.isString(path35))
-                                path35 = path35.split(".");
-                            else if (!Array.isArray(path35))
+                        Namespace.prototype.define = function define2(path42, json2) {
+                            if (util.isString(path42))
+                                path42 = path42.split(".");
+                            else if (!Array.isArray(path42))
                                 throw TypeError("illegal path");
-                            if (path35 && path35.length && path35[0] === "")
+                            if (path42 && path42.length && path42[0] === "")
                                 throw Error("path must be relative");
                             var ptr = this;
-                            while (path35.length > 0) {
-                                var part = path35.shift();
+                            while (path42.length > 0) {
+                                var part = path42.shift();
                                 if (ptr.nested && ptr.nested[part]) {
                                     ptr = ptr.nested[part];
                                     if (!(ptr instanceof Namespace))
@@ -5115,61 +5639,61 @@ var require_protobuf = __commonJS({
                                     nested[i++].resolve();
                             return this.resolve();
                         };
-                        Namespace.prototype.lookup = function lookup(path35, filterTypes, parentAlreadyChecked) {
+                        Namespace.prototype.lookup = function lookup(path42, filterTypes, parentAlreadyChecked) {
                             if (typeof filterTypes === "boolean") {
                                 parentAlreadyChecked = filterTypes;
                                 filterTypes = undefined;
                             }
                             else if (filterTypes && !Array.isArray(filterTypes))
                                 filterTypes = [filterTypes];
-                            if (util.isString(path35) && path35.length) {
-                                if (path35 === ".")
+                            if (util.isString(path42) && path42.length) {
+                                if (path42 === ".")
                                     return this.root;
-                                path35 = path35.split(".");
+                                path42 = path42.split(".");
                             }
-                            else if (!path35.length)
+                            else if (!path42.length)
                                 return this;
-                            if (path35[0] === "")
-                                return this.root.lookup(path35.slice(1), filterTypes);
-                            var found = this.get(path35[0]);
+                            if (path42[0] === "")
+                                return this.root.lookup(path42.slice(1), filterTypes);
+                            var found = this.get(path42[0]);
                             if (found) {
-                                if (path35.length === 1) {
+                                if (path42.length === 1) {
                                     if (!filterTypes || filterTypes.indexOf(found.constructor) > -1)
                                         return found;
                                 }
-                                else if (found instanceof Namespace && (found = found.lookup(path35.slice(1), filterTypes, true)))
+                                else if (found instanceof Namespace && (found = found.lookup(path42.slice(1), filterTypes, true)))
                                     return found;
                             }
                             else
                                 for (var i = 0; i < this.nestedArray.length; ++i)
-                                    if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i].lookup(path35, filterTypes, true)))
+                                    if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i].lookup(path42, filterTypes, true)))
                                         return found;
                             if (this.parent === null || parentAlreadyChecked)
                                 return null;
-                            return this.parent.lookup(path35, filterTypes);
+                            return this.parent.lookup(path42, filterTypes);
                         };
-                        Namespace.prototype.lookupType = function lookupType(path35) {
-                            var found = this.lookup(path35, [Type]);
+                        Namespace.prototype.lookupType = function lookupType(path42) {
+                            var found = this.lookup(path42, [Type]);
                             if (!found)
-                                throw Error("no such type: " + path35);
+                                throw Error("no such type: " + path42);
                             return found;
                         };
-                        Namespace.prototype.lookupEnum = function lookupEnum(path35) {
-                            var found = this.lookup(path35, [Enum]);
+                        Namespace.prototype.lookupEnum = function lookupEnum(path42) {
+                            var found = this.lookup(path42, [Enum]);
                             if (!found)
-                                throw Error("no such Enum '" + path35 + "' in " + this);
+                                throw Error("no such Enum '" + path42 + "' in " + this);
                             return found;
                         };
-                        Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path35) {
-                            var found = this.lookup(path35, [Type, Enum]);
+                        Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path42) {
+                            var found = this.lookup(path42, [Type, Enum]);
                             if (!found)
-                                throw Error("no such Type or Enum '" + path35 + "' in " + this);
+                                throw Error("no such Type or Enum '" + path42 + "' in " + this);
                             return found;
                         };
-                        Namespace.prototype.lookupService = function lookupService(path35) {
-                            var found = this.lookup(path35, [Service]);
+                        Namespace.prototype.lookupService = function lookupService(path42) {
+                            var found = this.lookup(path42, [Service]);
                             if (!found)
-                                throw Error("no such Service '" + path35 + "' in " + this);
+                                throw Error("no such Service '" + path42 + "' in " + this);
                             return found;
                         };
                         Namespace._configure = function (Type_, Service_, Enum_) {
@@ -5207,12 +5731,12 @@ var require_protobuf = __commonJS({
                             },
                             fullName: {
                                 get: function () {
-                                    var path35 = [this.name], ptr = this.parent;
+                                    var path42 = [this.name], ptr = this.parent;
                                     while (ptr) {
-                                        path35.unshift(ptr.name);
+                                        path42.unshift(ptr.name);
                                         ptr = ptr.parent;
                                     }
-                                    return path35.join(".");
+                                    return path42.join(".");
                                 }
                             }
                         });
@@ -5415,15 +5939,15 @@ var require_protobuf = __commonJS({
                                 return Error("illegal " + (name || "token") + " '" + token2 + "' (" + (filename ? filename + ", " : "") + "line " + tn.line + ")");
                             }
                             function readString() {
-                                var values = [], token2;
+                                var values2 = [], token2;
                                 do {
                                     if ((token2 = next()) !== '"' && token2 !== "'")
                                         throw illegal(token2);
-                                    values.push(next());
+                                    values2.push(next());
                                     skip(token2);
                                     token2 = peek();
                                 } while (token2 === '"' || token2 === "'");
-                                return values.join("");
+                                return values2.join("");
                             }
                             function readValue(acceptTypeRef) {
                                 var token2 = next();
@@ -5449,12 +5973,12 @@ var require_protobuf = __commonJS({
                                 }
                             }
                             function readRanges(target, acceptStrings) {
-                                var token2, start;
+                                var token2, start2;
                                 do {
                                     if (acceptStrings && ((token2 = peek()) === '"' || token2 === "'"))
                                         target.push(readString());
                                     else
-                                        target.push([start = parseId(next()), skip("to", true) ? parseId(next()) : start]);
+                                        target.push([start2 = parseId(next()), skip("to", true) ? parseId(next()) : start2]);
                                 } while (skip(",", true));
                                 var dummy = { options: undefined };
                                 dummy.setOption = function (name, value) {
@@ -6153,17 +6677,17 @@ var require_protobuf = __commonJS({
                             return value;
                         };
                         Reader2.prototype.bytes = function read_bytes() {
-                            var length = this.uint32(), start = this.pos, end = this.pos + length;
+                            var length = this.uint32(), start2 = this.pos, end = this.pos + length;
                             if (end > this.len)
                                 throw indexOutOfRange(this, length);
                             this.pos += length;
                             if (Array.isArray(this.buf))
-                                return this.buf.slice(start, end);
-                            if (start === end) {
+                                return this.buf.slice(start2, end);
+                            if (start2 === end) {
                                 var nativeBuffer = util.Buffer;
                                 return nativeBuffer ? nativeBuffer.alloc(0) : new this.buf.constructor(0);
                             }
-                            return this._slice.call(this.buf, start, end);
+                            return this._slice.call(this.buf, start2, end);
                         };
                         Reader2.prototype.string = function read_string() {
                             var bytes = this.bytes();
@@ -6671,9 +7195,9 @@ var require_protobuf = __commonJS({
                             function charAt(pos) {
                                 return source.charAt(pos);
                             }
-                            function setComment(start, end, isLeading) {
+                            function setComment(start2, end, isLeading) {
                                 var comment2 = {
-                                    type: source.charAt(start++),
+                                    type: source.charAt(start2++),
                                     lineEmpty: false,
                                     leading: isLeading
                                 };
@@ -6684,14 +7208,14 @@ var require_protobuf = __commonJS({
                                 else {
                                     lookback = 3;
                                 }
-                                var commentOffset = start - lookback, c;
+                                var commentOffset = start2 - lookback, c;
                                 do {
                                     if (--commentOffset < 0 || (c = source.charAt(commentOffset)) === "\n") {
                                         comment2.lineEmpty = true;
                                         break;
                                     }
                                 } while (c === " " || c === "	");
-                                var lines = source.substring(start, end).split(setCommentSplitRe);
+                                var lines = source.substring(start2, end).split(setCommentSplitRe);
                                 for (var i = 0; i < lines.length; ++i)
                                     lines[i] = lines[i].replace(alternateCommentMode ? setCommentAltRe : setCommentRe, "").trim();
                                 comment2.text = lines.join("\n").trim();
@@ -6716,7 +7240,7 @@ var require_protobuf = __commonJS({
                                     return stack.shift();
                                 if (stringDelim)
                                     return readString();
-                                var repeat, prev, curr, start, isDoc, isLeadingComment = offset === 0;
+                                var repeat, prev, curr, start2, isDoc, isLeadingComment = offset === 0;
                                 do {
                                     if (offset === length)
                                         return null;
@@ -6735,7 +7259,7 @@ var require_protobuf = __commonJS({
                                         }
                                         if (charAt(offset) === "/") {
                                             if (!alternateCommentMode) {
-                                                isDoc = charAt(start = offset + 1) === "/";
+                                                isDoc = charAt(start2 = offset + 1) === "/";
                                                 while (charAt(++offset) !== "\n") {
                                                     if (offset === length) {
                                                         return null;
@@ -6743,14 +7267,14 @@ var require_protobuf = __commonJS({
                                                 }
                                                 ++offset;
                                                 if (isDoc) {
-                                                    setComment(start, offset - 1, isLeadingComment);
+                                                    setComment(start2, offset - 1, isLeadingComment);
                                                     isLeadingComment = true;
                                                 }
                                                 ++line;
                                                 repeat = true;
                                             }
                                             else {
-                                                start = offset;
+                                                start2 = offset;
                                                 isDoc = false;
                                                 if (isDoubleSlashCommentLine(offset - 1)) {
                                                     isDoc = true;
@@ -6769,7 +7293,7 @@ var require_protobuf = __commonJS({
                                                     offset = Math.min(length, findEndOfLine(offset) + 1);
                                                 }
                                                 if (isDoc) {
-                                                    setComment(start, offset, isLeadingComment);
+                                                    setComment(start2, offset, isLeadingComment);
                                                     isLeadingComment = true;
                                                 }
                                                 line++;
@@ -6777,8 +7301,8 @@ var require_protobuf = __commonJS({
                                             }
                                         }
                                         else if ((curr = charAt(offset)) === "*") {
-                                            start = offset + 1;
-                                            isDoc = alternateCommentMode || charAt(start) === "*";
+                                            start2 = offset + 1;
+                                            isDoc = alternateCommentMode || charAt(start2) === "*";
                                             do {
                                                 if (curr === "\n") {
                                                     ++line;
@@ -6791,7 +7315,7 @@ var require_protobuf = __commonJS({
                                             } while (prev !== "*" || curr !== "/");
                                             ++offset;
                                             if (isDoc) {
-                                                setComment(start, offset - 2, isLeadingComment);
+                                                setComment(start2, offset - 2, isLeadingComment);
                                                 isLeadingComment = true;
                                             }
                                             repeat = true;
@@ -7158,11 +7682,11 @@ var require_protobuf = __commonJS({
                             "string",
                             "bytes"
                         ];
-                        function bake(values, offset) {
+                        function bake(values2, offset) {
                             var i = 0, o = {};
                             offset |= 0;
-                            while (i < values.length)
-                                o[s[i + offset]] = values[i++];
+                            while (i < values2.length)
+                                o[s[i + offset]] = values2[i++];
                             return o;
                         }
                         types.basic = bake([
@@ -7313,14 +7837,14 @@ var require_protobuf = __commonJS({
                             Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
                             return enm;
                         };
-                        util.setProperty = function setProperty(dst, path35, value) {
-                            function setProp(dst2, path36, value2) {
-                                var part = path36.shift();
+                        util.setProperty = function setProperty(dst, path42, value) {
+                            function setProp(dst2, path43, value2) {
+                                var part = path43.shift();
                                 if (part === "__proto__" || part === "prototype") {
                                     return dst2;
                                 }
-                                if (path36.length > 0) {
-                                    dst2[part] = setProp(dst2[part] || {}, path36, value2);
+                                if (path43.length > 0) {
+                                    dst2[part] = setProp(dst2[part] || {}, path43, value2);
                                 }
                                 else {
                                     var prevValue = dst2[part];
@@ -7332,10 +7856,10 @@ var require_protobuf = __commonJS({
                             }
                             if (typeof dst !== "object")
                                 throw TypeError("dst must be an object");
-                            if (!path35)
+                            if (!path42)
                                 throw TypeError("path must be specified");
-                            path35 = path35.split(".");
-                            return setProp(dst, path35, value);
+                            path42 = path42.split(".");
+                            return setProp(dst, path42, value);
                         };
                         Object.defineProperty(util, "decorateRoot", {
                             get: function () {
@@ -7449,7 +7973,7 @@ var require_protobuf = __commonJS({
                         util.isString = function isString(value) {
                             return typeof value === "string" || value instanceof String;
                         };
-                        util.isObject = function isObject(value) {
+                        util.isObject = function isObject2(value) {
                             return value && typeof value === "object";
                         };
                         util.isset =
@@ -8384,20 +8908,20 @@ var require_umd = __commonJS({
                     return fromString(str2.substring(1), unsigned, radix).neg();
                 }
                 var radixToPower = fromNumber(pow_dbl(radix, 8));
-                var result = ZERO;
+                var result2 = ZERO;
                 for (var i = 0; i < str2.length; i += 8) {
                     var size = Math.min(8, str2.length - i), value = parseInt(str2.substring(i, i + size), radix);
                     if (size < 8) {
                         var power = fromNumber(pow_dbl(radix, size));
-                        result = result.mul(power).add(fromNumber(value));
+                        result2 = result2.mul(power).add(fromNumber(value));
                     }
                     else {
-                        result = result.mul(radixToPower);
-                        result = result.add(fromNumber(value));
+                        result2 = result2.mul(radixToPower);
+                        result2 = result2.add(fromNumber(value));
                     }
                 }
-                result.unsigned = unsigned;
-                return result;
+                result2.unsigned = unsigned;
+                return result2;
             }
             Long.fromString = fromString;
             function fromValue(val, unsigned) {
@@ -8454,16 +8978,16 @@ var require_umd = __commonJS({
                         return "-" + this.neg().toString(radix);
                 }
                 var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned), rem = this;
-                var result = "";
+                var result2 = "";
                 while (true) {
                     var remDiv = rem.div(radixToPower), intval = rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0, digits = intval.toString(radix);
                     rem = remDiv;
                     if (rem.isZero())
-                        return digits + result;
+                        return digits + result2;
                     else {
                         while (digits.length < 6)
                             digits = "0" + digits;
-                        result = "" + digits + result;
+                        result2 = "" + digits + result2;
                     }
                 }
             };
@@ -8899,14 +9423,14 @@ var require_umd = __commonJS({
     }
 });
 function schemaText(file) {
-    if (!Object.hasOwn(TEXTS, file))
+    if (!Object.hasOwn(TEXTS2, file))
         throw Error("unknown wire schema file: " + file);
-    return TEXTS[file];
+    return TEXTS2[file];
 }
-var TEXTS;
+var TEXTS2;
 var init_schema_text = __esm({
     "upper/wire/schema-text.mjs"() {
-        TEXTS = { "c2c_history.proto": 'syntax = "proto3";\npackage neronet.wire.c2chistory;\nmessage C2cRangeRequest {\n  string friendUid = 2;\n  uint32 startSequence = 3;\n  uint32 endSequence = 4;\n}\nmessage C2cRangeResponse {\n  int32 result = 1;\n  string errorMessage = 2;\n  string friendUid = 4;\n  repeated PushMsgBody messages = 7;\n}\nmessage RoamRequest {\n  string friendUid = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 count = 4;\n  int32 direction = 5;\n}\nmessage RoamResponse {\n  string friendUid = 3;\n  uint32 timestamp = 5;\n  uint32 random = 6;\n  repeated PushMsgBody messages = 7;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "custom_faces.proto": 'syntax = "proto3";\npackage neronet.wire.customfaces;\nmessage FaceroamOpReq {\n  FaceroamOpReqInner inner = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  FaceroamOpBody body = 5;\n  uint32 field6 = 6;\n}\nmessage FaceroamOpResp {\n  uint32 retCode = 1;\n  string message = 2;\n  uint32 field3 = 3;\n  FaceroamOpRespItem item = 4;\n}\nmessage CustomFaceMoveBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  repeated CustomFaceMoveEntry emojis = 4;\n}\nmessage CustomFaceModifyBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  CustomFaceModifyEntry entry = 5;\n  uint32 field12 = 12;\n}\nmessage CustomFaceModifyResp {\n  uint32 retCode = 1;\n  string errMsg = 2;\n  uint32 opType = 3;\n  repeated CustomFaceModifyRespEntry entries = 4;\n}\nmessage BDHExpressionRoamReq {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamInner inner = 3;\n  uint32 field7 = 7;\n  BDHExpressionRoamTail tail = 1001;\n}\nmessage BDHExpressionRoamResp {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamRespInner inner = 3;\n}\nmessage FavEmojiHighwayHead {\n  FavEmojiHighwayBaseHead baseHead = 1;\n  FavEmojiHighwaySegHead segHead = 2;\n  FavEmojiIdWrap emojiIdWrap = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n  uint64 field8 = 8;\n}\nmessage FaceroamOpReqInner {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  string qqVersion = 3;\n}\nmessage FaceroamOpBody {\n  string emojiId = 1;\n}\nmessage FaceroamOpRespItem {\n  repeated string faceIds = 1;\n  string category = 3;\n  uint32 totalCount = 4;\n}\nmessage CustomFaceMoveEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage CustomFaceModifyEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string desc = 2;\n}\nmessage CustomFaceModifyRespEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string legacyDesc = 2;\n  string desc = 3;\n}\nmessage BDHExpressionRoamInner {\n  uint32 field1 = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  bytes md5 = 4;\n  uint32 filesize = 5;\n  uint32 field7 = 7;\n  uint32 field8 = 8;\n  uint32 field9 = 9;\n  string ver = 13;\n  uint32 field16 = 16;\n}\nmessage BDHExpressionRoamTail {\n  BDHExpressionRoamTailInner inner = 1;\n  uint32 field2 = 2;\n}\nmessage BDHExpressionRoamRespInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  repeated uint32 field6 = 6 [packed = false];\n  repeated uint32 field7 = 7 [packed = false];\n  bytes token = 8;\n  uint32 field12 = 12;\n}\nmessage FavEmojiHighwayBaseHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint64 filesize = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage FavEmojiHighwaySegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint64 dataLength = 4;\n  bytes serviceTicket = 6;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n}\nmessage FavEmojiIdWrap {\n  string emojiId = 1;\n}\nmessage CustomFaceOpEmojiEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage BDHExpressionRoamTailInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  string field3 = 3;\n}\n', "elements_in.proto": 'syntax = "proto3";\npackage neronet.wire.elemin;\nmessage MentionExtra {\n  int32 type = 3;\n  uint32 uin = 4;\n  int32 field5 = 5;\n  string uid = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  int32 qsid = 3;\n  int32 sourceType = 4;\n  int32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  int32 randomType = 9;\n}\nmessage MsgInfo {\n  repeated MsgInfoBody msgInfoBody = 1;\n  ExtBizInfo extBizInfo = 2;\n}\nmessage GroupFileExtra {\n  uint32 field1 = 1;\n  string fileName = 2;\n  string display = 3;\n  GroupFileExtraInner inner = 7;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage MsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage GroupFileExtraInner {\n  GroupFileInfo info = 2;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage GroupFileInfo {\n  uint32 busId = 1;\n  string fileId = 2;\n  uint64 fileSize = 3;\n  string fileName = 4;\n  uint32 field5 = 5;\n  bytes fileSha = 6;\n  string extInfoString = 7;\n  bytes fileMd5 = 8;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "elements_out.proto": 'syntax = "proto3";\npackage neronet.wire.elemout;\nmessage MentionExtraSend {\n  uint32 type = 3;\n  uint32 uin = 4;\n  uint32 field5 = 5;\n  string uid = 9;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  uint32 qsid = 3;\n  uint32 sourceType = 4;\n  uint32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  uint32 randomType = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\n', "file_upload.proto": 'syntax = "proto3";\npackage neronet.wire.fileupload;\nmessage OidbPrivateFileUploadReq {\n  uint32 command = 1;\n  uint32 seq = 2;\n  OidbPrivateFileUploadReqBody upload = 19;\n  uint32 businessId = 101;\n  uint32 clientType = 102;\n  uint32 flagSupportMediaPlatform = 200;\n}\nmessage OidbPrivateFileUploadResp {\n  OidbPrivateFileUploadRespBody upload = 19;\n}\nmessage OidbGroupSendFileReq {\n  OidbGroupTransFileReq transFile = 1;\n  OidbGroupSendFileBody body = 5;\n}\nmessage OidbEmpty {\n}\nmessage OidbOfflineFileFinalizeReq {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbOfflineFileFinalizeReqBody body = 10;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n}\nmessage OidbOfflineFileFinalizeResp {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  OidbOfflineFileFinalizeRespBody body = 10;\n  uint32 field50 = 50;\n}\nmessage FileUploadExt {\n  uint32 unknown1 = 1;\n  uint32 unknown2 = 2;\n  uint32 unknown3 = 3;\n  FileUploadEntry entry = 100;\n  uint32 unknown200 = 200;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage OidbPrivateFileUploadReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  uint32 fileSize = 30;\n  string fileName = 40;\n  bytes md510MCheckSum = 50;\n  bytes sha1CheckSum = 60;\n  string localPath = 70;\n  bytes md5CheckSum = 110;\n  bytes sha3CheckSum = 120;\n}\nmessage OidbPrivateFileUploadRespBody {\n  int32 retCode = 10;\n  string retMsg = 20;\n  string uploadIp = 60;\n  string uploadDomain = 70;\n  uint32 uploadPort = 80;\n  string uuid = 90;\n  bytes uploadKey = 100;\n  bool boolFileExist = 110;\n  repeated string uploadIpList = 130;\n  int32 uploadHttpsPort = 140;\n  string uploadHttpsDomain = 150;\n  string uploadDns = 160;\n  string uploadLanip = 170;\n  string fileAddon = 200;\n  repeated IPv4 rtpMediaPlatformUploadAddress = 210;\n  bytes mediaPlatformUploadKey = 220;\n}\nmessage OidbGroupTransFileReq {\n  uint64 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupSendFileBody {\n  uint32 groupUin = 1;\n  uint32 type = 2;\n  OidbGroupSendFileInfo info = 3;\n}\nmessage OidbOfflineFileFinalizeReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  string fileUuid = 30;\n  string fileHash = 40;\n}\nmessage OidbOfflineFileFinalizeRespBody {\n  uint32 field10 = 10;\n  OidbOfflineFileMetadata metadata = 30;\n}\nmessage FileUploadEntry {\n  FileUploadBusiInfo busiBuff = 100;\n  FileUploadFileEntry fileEntry = 200;\n  FileUploadClientInfo clientInfo = 300;\n  FileUploadNameInfo fileNameInfo = 400;\n  FileUploadHostConfig host = 500;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IPv4 {\n  int32 outIP = 1;\n  int32 outPort = 2;\n  int32 inIP = 3;\n  int32 inPort = 4;\n  int32 iPType = 5;\n}\nmessage OidbGroupSendFileInfo {\n  uint32 busiType = 1;\n  string fileId = 2;\n  uint32 field3 = 3;\n  string field4 = 4;\n  int32 field5 = 5;\n}\nmessage OidbOfflineFileMetadata {\n  uint32 field3 = 3;\n  bytes field100 = 100;\n  bytes field101 = 101;\n  uint32 field110 = 110;\n  uint32 timestamp1 = 130;\n}\nmessage FileUploadBusiInfo {\n  uint32 busId = 1;\n  uint64 senderUin = 100;\n  uint64 receiverUin = 200;\n  uint64 groupCode = 400;\n}\nmessage FileUploadFileEntry {\n  uint64 fileSize = 100;\n  bytes md5 = 200;\n  bytes checkKey = 300;\n  bytes md5S2 = 400;\n  string fileId = 600;\n  bytes uploadKey = 700;\n}\nmessage FileUploadClientInfo {\n  uint32 clientType = 100;\n  string appId = 200;\n  uint32 terminalType = 300;\n  string clientVer = 400;\n  uint32 unknown = 600;\n}\nmessage FileUploadNameInfo {\n  string fileName = 100;\n}\nmessage FileUploadHostConfig {\n  repeated FileUploadHost hosts = 200;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileUploadHost {\n  FileUploadUrl url = 1;\n  uint32 port = 2;\n}\nmessage FileUploadUrl {\n  uint32 unknown = 1;\n  string host = 2;\n}\n', "file_url.proto": 'syntax = "proto3";\npackage neronet.wire.fileurl;\nmessage GroupFileRequest {\n  OidbGroupFileUploadReq file = 1;\n  OidbGroupFileDownloadReq download = 3;\n  OidbGroupFileDeleteReq delete = 4;\n  OidbGroupFileRenameReq rename = 5;\n  OidbGroupFileMoveReq move = 6;\n}\nmessage GroupFileResponse {\n  OidbGroupFileUploadResp upload = 1;\n  OidbGroupFileDownloadResp download = 3;\n  OidbGroupFileRetResp delete = 4;\n  OidbGroupFileRetResp rename = 5;\n  OidbGroupFileRetResp move = 6;\n}\nmessage PrivateFileUrlRequest {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbPrivateFileDownloadReqBody body = 14;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n  bytes field99999 = 99999;\n}\nmessage PrivateFileUrlResponse {\n  OidbPrivateFileDownloadRespBody body = 14;\n}\nmessage OidbGroupFileUploadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  uint32 entrance = 4;\n  string targetDirectory = 5;\n  string fileName = 6;\n  string localDirectory = 7;\n  uint64 fileSize = 8;\n  bytes fileSha1 = 9;\n  bytes fileSha3 = 10;\n  bytes fileMd5 = 11;\n  int32 field15 = 15;\n}\nmessage OidbGroupFileDownloadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupFileDeleteReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 5;\n}\nmessage OidbGroupFileRenameReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentFolder = 5;\n  string newFileName = 6;\n}\nmessage OidbGroupFileMoveReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentDirectory = 5;\n  string targetDirectory = 6;\n}\nmessage OidbGroupFileUploadResp {\n  int32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string uploadIp = 4;\n  string serverDns = 5;\n  int32 busId = 6;\n  string fileId = 7;\n  bytes checkKey = 8;\n  bytes fileKey = 9;\n  bool boolFileExist = 10;\n  uint32 uploadPort = 14;\n}\nmessage OidbGroupFileDownloadResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string downloadIp = 4;\n  string downloadDns = 5;\n  bytes downloadUrl = 6;\n  string saveFileName = 11;\n}\nmessage OidbGroupFileRetResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n}\nmessage OidbPrivateFileDownloadReqBody {\n  string receiverUid = 10;\n  string fileUuid = 20;\n  uint32 type = 30;\n  string fileHash = 60;\n  uint32 t2 = 601;\n}\nmessage OidbPrivateFileDownloadRespBody {\n  string state = 20;\n  OidbPrivateFileDownloadRespResult result = 30;\n}\nmessage OidbPrivateFileDownloadRespResult {\n  string server = 20;\n  uint32 port = 40;\n  string url = 50;\n}\n', "forward.proto": 'syntax = "proto3";\npackage neronet.wire.forward;\nmessage SendLongMsgReq {\n  SendLongMsgInfo info = 2;\n  LongMsgSettings settings = 15;\n}\nmessage SendLongMsgResp {\n  SendLongMsgRespResult result = 2;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgReq {\n  RecvLongMsgInfo info = 1;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgResp {\n  RecvLongMsgRespResult result = 1;\n  LongMsgSettings settings = 15;\n}\nmessage LongMsgResult {\n  repeated LongMsgAction action = 2;\n}\nmessage SendLongMsgInfo {\n  uint32 type = 1;\n  LongMsgUid uid = 2;\n  uint32 groupUin = 3;\n  bytes payload = 4;\n}\nmessage LongMsgSettings {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n}\nmessage SendLongMsgRespResult {\n  string resId = 3;\n}\nmessage RecvLongMsgInfo {\n  LongMsgUid uid = 1;\n  string resId = 2;\n  int32 acquire = 3;\n}\nmessage RecvLongMsgRespResult {\n  string resId = 3;\n  bytes payload = 4;\n}\nmessage LongMsgAction {\n  string actionCommand = 1;\n  LongMsgContent actionData = 2;\n}\nmessage LongMsgUid {\n  string uid = 2;\n}\nmessage LongMsgContent {\n  repeated PushMsgBody msgBody = 1;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "friend_list.proto": 'syntax = "proto3";\npackage neronet.wire.friendlist;\nmessage FriendListRequest {\n  uint32 friendCount = 2;\n  uint32 field4 = 4;\n  bytes cookie = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  repeated OidbFriendListBodyItem body = 10001;\n  repeated uint32 field10002 = 10002 [packed = false];\n  uint32 field10003 = 10003;\n}\nmessage FriendListResponse {\n  bytes cookie = 2;\n  bool isEnd = 3;\n  uint64 timestamp = 6;\n  uint64 selfUin = 7;\n  uint32 smallSeq = 8;\n  repeated OidbFriend friends = 101;\n  repeated OidbFriendCategory categories = 102;\n}\nmessage OidbFriendListBodyItem {\n  uint32 type = 1;\n  OidbFriendListNumber number = 2;\n}\nmessage OidbFriend {\n  string uid = 1;\n  uint32 customGroup = 2;\n  uint32 uin = 3;\n  repeated OidbFriendAdditional additional = 10001;\n}\nmessage OidbFriendCategory {\n  uint32 categoryId = 1;\n  string categoryName = 2;\n  uint32 memberCount = 3;\n  uint32 sortId = 4;\n}\nmessage OidbFriendListNumber {\n  repeated uint32 numbers = 1 [packed = false];\n}\nmessage OidbFriendAdditional {\n  uint32 type = 1;\n  OidbFriendLayer1 layer1 = 2;\n}\nmessage OidbFriendLayer1 {\n  repeated OidbFriendProperty properties = 2;\n}\nmessage OidbFriendProperty {\n  uint32 code = 1;\n  string value = 2;\n}\n', "group_history.proto": 'syntax = "proto3";\npackage neronet.wire.grouphistory;\nmessage GroupHistoryRequest {\n  GroupHistoryRange info = 1;\n  int32 direction = 2;\n}\nmessage GroupHistoryResponse {\n  GroupHistoryBody body = 3;\n}\nmessage GroupHistoryRange {\n  uint32 groupUin = 1;\n  uint32 startSequence = 2;\n  uint32 endSequence = 3;\n}\nmessage GroupHistoryBody {\n  uint32 groupUin = 3;\n  uint32 startSequence = 4;\n  uint32 endSequence = 5;\n  repeated PushMsgBody messages = 6;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "group_list.proto": 'syntax = "proto3";\npackage neronet.wire.grouplist;\nmessage GroupListRequest {\n  GroupListConfig config = 1;\n}\nmessage GroupListResponse {\n  repeated GroupListEntry groups = 2;\n}\nmessage GroupListConfig {\n  GroupListConfig1 config1 = 1;\n  GroupListConfig2 config2 = 2;\n  GroupListConfig3 config3 = 3;\n}\nmessage GroupListEntry {\n  uint32 groupUin = 3;\n  GroupListInfo info = 4;\n  GroupListCustomInfo customInfo = 5;\n}\nmessage GroupListConfig1 {\n  int32 groupOwner = 1;\n  int32 field2 = 2;\n  int32 memberMax = 3;\n  int32 memberCount = 4;\n  int32 groupName = 5;\n  int32 field8 = 8;\n  int32 field9 = 9;\n  int32 field10 = 10;\n  int32 field11 = 11;\n  int32 field12 = 12;\n  int32 field13 = 13;\n  int32 field14 = 14;\n  int32 field15 = 15;\n  int32 field16 = 16;\n  int32 field17 = 17;\n  int32 field18 = 18;\n  int32 question = 19;\n  int32 field20 = 20;\n  int32 field22 = 22;\n  int32 field23 = 23;\n  int32 field24 = 24;\n  int32 field25 = 25;\n  int32 field26 = 26;\n  int32 field27 = 27;\n  int32 field28 = 28;\n  int32 field29 = 29;\n  int32 field30 = 30;\n  int32 field31 = 31;\n  int32 field32 = 32;\n  int32 field5001 = 5001;\n  int32 field5002 = 5002;\n  int32 field5003 = 5003;\n}\nmessage GroupListConfig2 {\n  int32 field1 = 1;\n  int32 field2 = 2;\n  int32 remark = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n  int32 field8 = 8;\n}\nmessage GroupListConfig3 {\n  int32 field5 = 5;\n  int32 field6 = 6;\n}\nmessage GroupListInfo {\n  GroupListOwner groupOwner = 1;\n  uint32 createdTime = 2;\n  uint32 memberMax = 3;\n  uint32 memberCount = 4;\n  string groupName = 5;\n  uint32 shutUpAllTimestamp = 10;\n  string description = 18;\n  string question = 19;\n  string announcement = 30;\n}\nmessage GroupListCustomInfo {\n  string remark = 3;\n}\nmessage GroupListOwner {\n  string uid = 2;\n}\n', "group_members.proto": 'syntax = "proto3";\npackage neronet.wire.groupmembers;\nmessage GroupMemberListRequest {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  GroupMemberListFields body = 4;\n  string token = 15;\n}\nmessage GroupMemberListResponse {\n  uint32 groupUin = 1;\n  repeated GroupMember members = 2;\n  uint32 field3 = 3;\n  uint32 memberChangeSeq = 5;\n  uint32 memberCardChangeSeq = 6;\n  string token = 15;\n}\nmessage GroupMemberListFields {\n  int32 memberName = 10;\n  int32 memberCard = 11;\n  int32 level = 12;\n  int32 field13 = 13;\n  int32 field16 = 16;\n  int32 specialTitle = 17;\n  int32 field18 = 18;\n  int32 field20 = 20;\n  int32 field21 = 21;\n  int32 joinTimestamp = 100;\n  int32 lastMsgTimestamp = 101;\n  int32 shutUpTimestamp = 102;\n  int32 field103 = 103;\n  int32 field104 = 104;\n  int32 field105 = 105;\n  int32 field106 = 106;\n  int32 permission = 107;\n  int32 field200 = 200;\n  int32 field201 = 201;\n}\nmessage GroupMember {\n  GroupMemberId uin = 1;\n  string memberName = 10;\n  GroupMemberCard memberCard = 11;\n  GroupMemberLevel level = 12;\n  string specialTitle = 17;\n  uint32 joinTimestamp = 100;\n  uint32 lastMsgTimestamp = 101;\n  uint32 shutUpTimestamp = 102;\n  uint32 permission = 107;\n}\nmessage GroupMemberId {\n  string uid = 2;\n  uint32 uin = 4;\n}\nmessage GroupMemberCard {\n  string memberCard = 2;\n}\nmessage GroupMemberLevel {\n  repeated uint32 infos = 1 [packed = false];\n  uint32 level = 2;\n}\n', "highway.proto": 'syntax = "proto3";\npackage neronet.wire.highway;\nmessage SessionRequest {\n  HttpConn httpConn = 1281;\n}\nmessage SessionResponse {\n  HttpConnResponse httpConn = 1281;\n}\nmessage ReqDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  bytes bytesReqExtendInfo = 3;\n  uint64 timestamp = 4;\n  LoginSigHead msgLoginSigHead = 5;\n}\nmessage RespDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  uint32 errorCode = 3;\n}\nmessage NTV2RichMediaHighwayExt {\n  string fileUuid = 1;\n  string uKey = 2;\n  HighwayNetwork network = 5;\n  repeated HighwayMsgInfoBody msgInfoBody = 6;\n  uint32 blockSize = 10;\n  HighwayHash hash = 11;\n}\nmessage HttpConn {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  repeated uint32 serviceTypes = 7 [packed = false];\n  uint32 field9 = 9;\n  uint32 field10 = 10;\n  uint32 field11 = 11;\n  string ver = 15;\n}\nmessage HttpConnResponse {\n  bytes sigSession = 1;\n  bytes sessionKey = 2;\n  repeated ServerInfo serverInfos = 3;\n}\nmessage DataHighwayHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint32 appId = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage SegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint32 dataLength = 4;\n  uint32 retCode = 5;\n  bytes serviceTicket = 6;\n  uint32 flag = 7;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n  uint32 cacheAddr = 10;\n  uint32 cachePort = 13;\n}\nmessage LoginSigHead {\n  uint32 loginSigType = 1;\n  uint32 appId = 3;\n}\nmessage HighwayNetwork {\n  repeated HighwayIPv4 ipv4s = 1;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  int32 fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage HighwayHash {\n  repeated bytes fileSha1 = 1;\n}\nmessage ServerInfo {\n  uint32 serviceType = 1;\n  repeated ServerAddr serverAddrs = 2;\n}\nmessage HighwayIPv4 {\n  HighwayDomain domain = 1;\n  uint32 port = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage ServerAddr {\n  uint32 type = 1;\n  sfixed32 ip = 2;\n  uint32 port = 3;\n  uint32 area = 4;\n}\nmessage HighwayDomain {\n  int32 isEnable = 1;\n  string ip = 2;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "interaction.proto": 'syntax = "proto3";\npackage neronet.wire.interaction;\nmessage PokeRequest {\n  uint32 uin = 1;\n  uint32 groupUin = 2;\n  uint32 friendUin = 5;\n  uint32 ext = 6;\n}\nmessage GroupReactionRequest {\n  uint32 groupUin = 2;\n  uint32 sequence = 3;\n  string code = 4;\n  uint32 type = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n}\nmessage Empty {\n}\n', "media_download.proto": 'syntax = "proto3";\npackage neronet.wire.mediadown;\nmessage RichMediaRequest {\n  NTV2ReqHead reqHead = 1;\n  NTV2DownloadReq download = 3;\n  NTV2DownloadRKeyReq downloadRkey = 4;\n}\nmessage RichMediaResponse {\n  NTV2RespHead respHead = 1;\n  NTV2MediaDownloadResp download = 3;\n  NTV2DownloadRKeyResp downloadRkey = 4;\n}\nmessage NTV2ReqHead {\n  NTV2CommonHead common = 1;\n  NTV2SceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2DownloadReq {\n  NTV2IndexNode node = 1;\n  NTV2DownloadExt download = 2;\n}\nmessage NTV2DownloadRKeyReq {\n  repeated uint32 types = 1 [packed = false];\n}\nmessage NTV2RespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2MediaDownloadResp {\n  string rKeyParam = 1;\n  uint32 rKeyTtlSecond = 2;\n  NTV2MediaDownloadInfo info = 3;\n  uint32 rKeyCreateTime = 4;\n}\nmessage NTV2DownloadRKeyResp {\n  repeated NTV2RKeyInfo rkeys = 1;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2SceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2IndexNode {\n  NTV2FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage NTV2DownloadExt {\n  NTV2VideoDownloadExt video = 2;\n}\nmessage NTV2MediaDownloadInfo {\n  string domain = 1;\n  string urlPath = 2;\n  uint32 httpsPort = 3;\n}\nmessage NTV2RKeyInfo {\n  string rkey = 1;\n  uint64 rkeyTtlSec = 2;\n  uint32 storeId = 3;\n  uint32 rkeyCreateTime = 4;\n  uint32 type = 5;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage NTV2VideoDownloadExt {\n  uint32 busiType = 1;\n  uint32 sceneType = 2;\n  uint32 subBusiType = 3;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "media_upload.proto": 'syntax = "proto3";\npackage neronet.wire.mediaup;\nmessage UploadRequest {\n  NTV2UploadReqHead reqHead = 1;\n  NTV2UploadReq upload = 2;\n}\nmessage UploadResponse {\n  NTV2UploadRespHead respHead = 1;\n  NTV2UploadRespBody upload = 2;\n}\nmessage MediaMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  EncodableMediaExtBizInfo extBizInfo = 2;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage PttWaveform {\n  uint32 size = 1;\n  bytes amplitudes = 2;\n}\nmessage NTV2UploadReqHead {\n  NTV2CommonHead common = 1;\n  NTV2UploadSceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2UploadReq {\n  repeated NTV2UploadInfo uploadInfo = 1;\n  int32 tryFastUploadCompleted = 2;\n  int32 srvSendMsg = 3;\n  uint64 clientRandomId = 4;\n  uint32 compatQmsgSceneType = 5;\n  NTV2ExtBizInfo extBizInfo = 6;\n  uint32 clientSeq = 7;\n  int32 noNeedCompatMsg = 8;\n}\nmessage NTV2UploadRespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2UploadRespBody {\n  string uKey = 1;\n  uint32 uKeyTtl = 2;\n  repeated NTV2IPv4 ipv4s = 3;\n  uint64 msgSeq = 5;\n  NTV2UploadRespMsgInfo msgInfo = 6;\n  repeated NTV2SubFileInfoResp subFileInfos = 10;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage EncodableMediaExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2UploadSceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2UploadInfo {\n  NTV2FileInfo fileInfo = 1;\n  uint32 subFileType = 2;\n}\nmessage NTV2ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NTV2IPv4 {\n  uint32 outIp = 1;\n  uint32 outPort = 2;\n}\nmessage NTV2UploadRespMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  NTV2ExtBizInfo extBizInfo = 2;\n}\nmessage NTV2SubFileInfoResp {\n  uint32 subType = 1;\n  string uKey = 2;\n  uint32 uKeyTtl = 3;\n  repeated NTV2IPv4 ipv4s = 4;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n  bytes routingHead = 3;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "msg_push.proto": 'syntax = "proto3";\npackage neronet.wire.push;\nmessage PushMsg {\n  PushMsgBody message = 1;\n  int32 status = 3;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "notices.proto": 'syntax = "proto3";\npackage neronet.wire.notices;\nmessage GroupMute {\n  uint32 groupUin = 1;\n  uint32 subType = 2;\n  uint32 field3 = 3;\n  string operatorUid = 4;\n  GroupMuteData data = 5;\n}\nmessage NotifyMessageBody {\n  uint32 type = 1;\n  uint32 groupUin = 4;\n  bytes eventParam = 5;\n  GroupRecall recall = 11;\n  uint32 field13 = 13;\n  string operatorUid = 21;\n  GeneralGrayTipInfo generalGrayTip = 26;\n  EssenceMessage essenceMessage = 33;\n  uint32 msgSequence = 37;\n  uint32 field39 = 39;\n}\nmessage GroupReactNotify {\n  uint64 groupUin = 4;\n  uint32 field13 = 13;\n  GroupReactionData groupReactionData = 44;\n}\nmessage FriendRecall {\n  FriendRecallInfo info = 1;\n  uint32 instId = 2;\n  uint32 appId = 3;\n  uint32 longMessageFlag = 4;\n  bytes reserved = 5;\n}\nmessage GeneralGrayTipInfo {\n  uint64 busiType = 1;\n  uint64 busiId = 2;\n  uint32 ctrlFlag = 3;\n  uint32 c2cType = 4;\n  uint32 serviceType = 5;\n  uint64 templId = 6;\n  repeated TemplParam msgTemplParam = 7;\n  string content = 8;\n}\nmessage NewFriend {\n  uint32 field1 = 1;\n  NewFriendInfo info = 2;\n}\nmessage GroupChange {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  string memberUid = 3;\n  uint32 decreaseType = 4;\n  bytes operatorBytes = 5;\n  uint32 increaseType = 6;\n  bytes field7 = 7;\n}\nmessage SelfJoinInGroup {\n  uint64 groupUin = 1;\n  uint32 field2 = 2;\n  string operatorUid = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  string field7 = 7;\n}\nmessage GroupAdmin {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  bool isPromote = 3;\n  GroupAdminBody body = 4;\n}\nmessage OperatorInfo {\n  OperatorField1 operatorField = 1;\n}\nmessage GroupSpecialTitleChange {\n  string tipText = 2;\n  uint32 memberUin = 5;\n}\nmessage GroupNameChange {\n  string name = 2;\n}\nmessage GroupMuteData {\n  uint32 timestamp = 1;\n  uint32 type = 2;\n  GroupMuteState state = 3;\n}\nmessage GroupRecall {\n  string operatorUid = 1;\n  repeated RecallMessage recallMessages = 3;\n  bytes userDef = 5;\n  int32 groupType = 6;\n  int32 opType = 7;\n  GroupRecallTipInfo tipInfo = 9;\n}\nmessage EssenceMessage {\n  uint32 groupUin = 1;\n  uint32 msgSequence = 2;\n  uint32 random = 3;\n  uint32 setFlag = 4;\n  uint32 memberUin = 5;\n  uint32 operatorUin = 6;\n  uint32 timestamp = 7;\n  uint32 msgSequence2 = 8;\n  string operatorNickname = 9;\n  string memberNickname = 10;\n  uint32 setFlag2 = 11;\n}\nmessage GroupReactionData {\n  GroupReactionDataInner data = 1;\n}\nmessage FriendRecallInfo {\n  string fromUid = 1;\n  string toUid = 2;\n  uint32 clientSequence = 3;\n  uint64 newId = 4;\n  uint32 time = 5;\n  uint32 random = 6;\n  uint32 pkgNum = 7;\n  uint32 pkgIndex = 8;\n  uint32 divSeq = 9;\n  FriendRecallTipInfo tipInfo = 13;\n}\nmessage TemplParam {\n  string name = 1;\n  string value = 2;\n}\nmessage NewFriendInfo {\n  string uid = 1;\n  uint32 field2 = 2;\n  uint32 time = 3;\n  string message = 4;\n  string nickName = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  string toUid = 9;\n}\nmessage GroupAdminBody {\n  GroupAdminExtra extraDisable = 1;\n  GroupAdminExtra extraEnable = 2;\n}\nmessage OperatorField1 {\n  string uid = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n}\nmessage GroupMuteState {\n  string targetUid = 1;\n  uint32 duration = 2;\n}\nmessage RecallMessage {\n  uint32 sequence = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 type = 4;\n  uint32 flag = 5;\n  string authorUid = 6;\n}\nmessage GroupRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupReactionDataInner {\n  GroupReactionDataInnerData data = 1;\n}\nmessage FriendRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupAdminExtra {\n  string adminUid = 1;\n  bool isPromote = 2;\n}\nmessage GroupReactionDataInnerData {\n  GroupReactionDataInnerDataTarget groupReactionTarget = 2;\n  GroupReactionDataContent groupReactionDataContent = 3;\n}\nmessage GroupReactionDataInnerDataTarget {\n  uint64 seq = 1;\n}\nmessage GroupReactionDataContent {\n  string code = 1;\n  uint32 count = 3;\n  string operatorUid = 4;\n  uint32 type = 5;\n}\n', "oidb.proto": 'syntax = "proto3";\npackage neronet.wire.oidb;\nmessage OidbEnvelope {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  uint32 errorCode = 3;\n  bytes body = 4;\n  string errorMsg = 5;\n  repeated OidbProperty properties = 11;\n  uint32 reserved = 12;\n}\nmessage OidbProperty {\n  string key = 1;\n  bytes value = 2;\n}\n', "read_state.proto": 'syntax = "proto3";\nmessage GroupReadTarget { uint64 groupUin = 1; uint64 lastReadSeq = 2; }\nmessage PrivateReadTarget { string uid = 2; uint64 lastReadTime = 3; uint64 lastReadSeq = 4; }\nmessage ReadStateRequest { repeated GroupReadTarget groupList = 1; repeated PrivateReadTarget c2cList = 2; }\nmessage GroupReadState { uint32 resultCode = 1; string errorMessage = 2; uint64 groupUin = 3; uint64 readSeq = 4; uint64 latestSeq = 5; }\nmessage PrivateReadState { uint32 resultCode = 1; string errorMessage = 2; uint64 targetUin = 3; string uid = 4; uint64 readSeq = 5; uint64 latestSeq = 6; uint64 lastMsgTime = 7; }\nmessage ReadStateResponse { uint32 resultCode = 1; string errorMessage = 2; repeated GroupReadState groupList = 3; repeated PrivateReadState c2cList = 4; }\n', "recall.proto": 'syntax = "proto3";\npackage neronet.wire.recall;\nmessage GroupRecallRequest {\n  uint32 type = 1;\n  uint32 groupUin = 2;\n  GroupRecallInfo info = 3;\n  GroupRecallSettings settings = 4;\n}\nmessage C2CRecallRequest {\n  uint32 type = 1;\n  string targetUid = 3;\n  C2CRecallInfo info = 4;\n  C2CRecallSettings settings = 5;\n  int32 field6 = 6;\n}\nmessage GroupRecallInfo {\n  uint32 sequence = 1;\n  uint32 random = 2;\n  uint32 field3 = 3;\n}\nmessage GroupRecallSettings {\n  uint32 field1 = 1;\n}\nmessage C2CRecallInfo {\n  uint32 clientSequence = 1;\n  uint32 random = 2;\n  uint64 messageId = 3;\n  uint32 timestamp = 4;\n  uint32 field5 = 5;\n  uint32 messageSequence = 6;\n}\nmessage C2CRecallSettings {\n  int32 field1 = 1;\n  int32 field2 = 2;\n}\n', "send_msg.proto": 'syntax = "proto3";\npackage neronet.wire.send;\nmessage SendMessageRequest {\n  RoutingHead routingHead = 1;\n  SendContentHead contentHead = 2;\n  SendMessageBody messageBody = 3;\n  uint32 clientSequence = 4;\n  uint32 random = 5;\n  bytes syncCookie = 6;\n  uint32 via = 8;\n  uint32 dataStatist = 9;\n  MessageControl ctrl = 12;\n  uint32 multiSendSeq = 14;\n}\nmessage SendMessageResponse {\n  int32 result = 1;\n  string errMsg = 2;\n  uint32 timestamp1 = 3;\n  int32 reviewResult = 6;\n  SendMessageServerResult serverResult = 7;\n  uint32 field10 = 10;\n  uint32 groupSequence = 11;\n  uint32 timestamp2 = 12;\n  uint32 privateSequence = 14;\n}\nmessage RoutingHead {\n  RoutingC2C c2c = 1;\n  RoutingGroup grp = 2;\n  RoutingGrpTmp grpTmp = 3;\n  RoutingTrans0x211 trans0x211 = 15;\n}\nmessage SendContentHead {\n  uint32 type = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n}\nmessage SendMessageBody {\n  SendRichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage MessageControl {\n  uint32 msgFlag = 1;\n}\nmessage SendMessageServerResult {\n  int32 type = 1;\n  int32 code = 2;\n  string message = 3;\n}\nmessage RoutingC2C {\n  uint32 uin = 1;\n  string uid = 2;\n}\nmessage RoutingGroup {\n  uint64 groupCode = 1;\n}\nmessage RoutingGrpTmp {\n  uint64 groupUin = 3;\n  string toUid = 4;\n}\nmessage RoutingTrans0x211 {\n  uint64 toUin = 1;\n  uint32 ccCmd = 2;\n  string uid = 8;\n}\nmessage SendRichText {\n  repeated Elem elems = 2;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  uint32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  uint32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  uint32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  uint32 bizType = 16;\n  uint32 result = 17;\n  uint32 index = 18;\n  bytes opFaceBuf = 19;\n  int32 oldPicMd5 = 20;\n  uint32 thumbWidth = 21;\n  uint32 thumbHeight = 22;\n  uint32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  uint32 x400Width = 27;\n  uint32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  uint32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  uint32 serverIp = 8;\n  uint32 serverPort = 9;\n  uint32 fileType = 10;\n  bytes signature = 11;\n  uint32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  uint32 bizType = 17;\n  uint32 repeatIndex = 18;\n  uint32 repeatImage = 19;\n  uint32 imageType = 20;\n  uint32 index = 21;\n  uint32 width = 22;\n  uint32 height = 23;\n  uint32 source = 24;\n  uint32 size = 25;\n  uint32 origin = 26;\n  uint32 thumbWidth = 27;\n  uint32 thumbHeight = 28;\n  uint32 showLen = 29;\n  uint32 downloadLen = 30;\n  string x400Url = 31;\n  uint32 x400Width = 32;\n  uint32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  uint32 serviceId = 2;\n  bytes msgResId = 3;\n  uint32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  uint32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  uint32 level = 3;\n  uint32 flags = 4;\n  uint32 groupMask = 5;\n  uint32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  uint32 msgStateFlag = 10;\n  uint32 apnsSoundType = 11;\n  uint32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  uint32 fileFormat = 4;\n  uint32 fileTime = 5;\n  uint32 fileSize = 6;\n  uint32 thumbWidth = 7;\n  uint32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  uint32 thumbFileSize = 11;\n  uint32 busiType = 12;\n  uint32 fromChatType = 13;\n  uint32 toChatType = 14;\n  int32 supportProgressive = 15;\n  uint32 fileWidth = 16;\n  uint32 fileHeight = 17;\n  uint32 subBusiType = 18;\n  uint32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  uint32 bubbleDiyTextId = 1;\n  uint32 groupFlagNew = 2;\n  uint64 uin = 3;\n  uint32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  uint32 time = 3;\n  uint32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  uint32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  uint32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  uint32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\n', "sys_faces.proto": 'syntax = "proto3";\npackage neronet.wire.sysfaces;\nmessage CatalogRequest {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  OidbFetchSysFacesExpInfo field4 = 4;\n}\nmessage CatalogResponse {\n  int32 field1 = 1;\n  OidbFaceContent commonFace = 2;\n  OidbFaceContent specialBigFace = 3;\n  OidbFaceContent specialMagicFace = 4;\n}\nmessage FaceRequest {\n  string qSid = 1;\n}\nmessage FaceResponse {\n  OidbFaceEmoji emoji = 1;\n  bool field2 = 2;\n}\nmessage OidbFetchSysFacesExpInfo {\n  string field1 = 1;\n}\nmessage OidbFaceContent {\n  repeated OidbFaceEmojiList emojiList = 1;\n  OidbFaceResourceUrl resourceUrl = 2;\n}\nmessage OidbFaceEmoji {\n  string qSid = 1;\n  string qDes = 2;\n  string emCode = 3;\n  int32 qCid = 4;\n  int32 aniStickerType = 5;\n  int32 aniStickerPackId = 6;\n  int32 aniStickerId = 7;\n  OidbFaceResourceUrl url = 8;\n  repeated string emojiNameAlias = 9;\n  int32 unknown10 = 10;\n  int32 aniStickerWidth = 13;\n  int32 aniStickerHeight = 14;\n}\nmessage OidbFaceEmojiList {\n  string emojiPackName = 1;\n  repeated OidbFaceEmoji emojiDetail = 2;\n}\nmessage OidbFaceResourceUrl {\n  string baseUrl = 1;\n  string advUrl = 2;\n}\n', "user_profile.proto": 'syntax = "proto3";\npackage neronet.wire.profile;\nmessage UserInfoRequest {\n  uint32 uin = 1;\n  repeated OidbUserInfoKey keys = 3;\n}\nmessage UserInfoResponse {\n  OidbUserInfoResponseBody body = 1;\n}\nmessage AvatarInfo {\n  string url = 5;\n}\nmessage OidbUserInfoKey {\n  uint32 key = 1;\n}\nmessage OidbUserInfoResponseBody {\n  string uid = 1;\n  OidbUserInfoProperty properties = 2;\n  uint32 uin = 3;\n}\nmessage OidbUserInfoProperty {\n  repeated OidbTwoNumber numberProperties = 1;\n  repeated OidbByteProperty bytesProperties = 2;\n}\nmessage OidbTwoNumber {\n  uint32 number1 = 1;\n  uint32 number2 = 2;\n}\nmessage OidbByteProperty {\n  uint32 code = 1;\n  bytes value = 2;\n}\n', "web_auth.proto": 'syntax = "proto3";\nmessage ClientKeyRequest {}\nmessage ClientKeyResponse { uint32 keyIndex = 2; string clientKey = 3; uint32 expireTime = 4; }\nmessage PskeyRequest { repeated string domainList = 1; }\nmessage PskeyItem { string domain = 1; string pskey = 2; uint64 expireTime = 3; }\nmessage PskeyResponse { repeated PskeyItem pskeyItems = 1; }\n' };
+        TEXTS2 = { "c2c_history.proto": 'syntax = "proto3";\npackage neronet.wire.c2chistory;\nmessage C2cRangeRequest {\n  string friendUid = 2;\n  uint32 startSequence = 3;\n  uint32 endSequence = 4;\n}\nmessage C2cRangeResponse {\n  int32 result = 1;\n  string errorMessage = 2;\n  string friendUid = 4;\n  repeated PushMsgBody messages = 7;\n}\nmessage RoamRequest {\n  string friendUid = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 count = 4;\n  int32 direction = 5;\n}\nmessage RoamResponse {\n  string friendUid = 3;\n  uint32 timestamp = 5;\n  uint32 random = 6;\n  repeated PushMsgBody messages = 7;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "custom_faces.proto": 'syntax = "proto3";\npackage neronet.wire.customfaces;\nmessage FaceroamOpReq {\n  FaceroamOpReqInner inner = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  FaceroamOpBody body = 5;\n  uint32 field6 = 6;\n}\nmessage FaceroamOpResp {\n  uint32 retCode = 1;\n  string message = 2;\n  uint32 field3 = 3;\n  FaceroamOpRespItem item = 4;\n}\nmessage CustomFaceMoveBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  repeated CustomFaceMoveEntry emojis = 4;\n}\nmessage CustomFaceModifyBody {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  uint32 opType = 3;\n  CustomFaceModifyEntry entry = 5;\n  uint32 field12 = 12;\n}\nmessage CustomFaceModifyResp {\n  uint32 retCode = 1;\n  string errMsg = 2;\n  uint32 opType = 3;\n  repeated CustomFaceModifyRespEntry entries = 4;\n}\nmessage BDHExpressionRoamReq {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamInner inner = 3;\n  uint32 field7 = 7;\n  BDHExpressionRoamTail tail = 1001;\n}\nmessage BDHExpressionRoamResp {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  BDHExpressionRoamRespInner inner = 3;\n}\nmessage FavEmojiHighwayHead {\n  FavEmojiHighwayBaseHead baseHead = 1;\n  FavEmojiHighwaySegHead segHead = 2;\n  FavEmojiIdWrap emojiIdWrap = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n  uint64 field8 = 8;\n}\nmessage FaceroamOpReqInner {\n  uint32 field1 = 1;\n  string osVersion = 2;\n  string qqVersion = 3;\n}\nmessage FaceroamOpBody {\n  string emojiId = 1;\n}\nmessage FaceroamOpRespItem {\n  repeated string faceIds = 1;\n  string category = 3;\n  uint32 totalCount = 4;\n}\nmessage CustomFaceMoveEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage CustomFaceModifyEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string desc = 2;\n}\nmessage CustomFaceModifyRespEntry {\n  CustomFaceOpEmojiEntry emoji = 1;\n  string legacyDesc = 2;\n  string desc = 3;\n}\nmessage BDHExpressionRoamInner {\n  uint32 field1 = 1;\n  uint64 uin = 2;\n  uint32 field3 = 3;\n  bytes md5 = 4;\n  uint32 filesize = 5;\n  uint32 field7 = 7;\n  uint32 field8 = 8;\n  uint32 field9 = 9;\n  string ver = 13;\n  uint32 field16 = 16;\n}\nmessage BDHExpressionRoamTail {\n  BDHExpressionRoamTailInner inner = 1;\n  uint32 field2 = 2;\n}\nmessage BDHExpressionRoamRespInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  repeated uint32 field6 = 6 [packed = false];\n  repeated uint32 field7 = 7 [packed = false];\n  bytes token = 8;\n  uint32 field12 = 12;\n}\nmessage FavEmojiHighwayBaseHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint64 filesize = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage FavEmojiHighwaySegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint64 dataLength = 4;\n  bytes serviceTicket = 6;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n}\nmessage FavEmojiIdWrap {\n  string emojiId = 1;\n}\nmessage CustomFaceOpEmojiEntry {\n  string emojiId = 1;\n  string md5 = 2;\n}\nmessage BDHExpressionRoamTailInner {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  string field3 = 3;\n}\n', "elements_in.proto": 'syntax = "proto3";\npackage neronet.wire.elemin;\nmessage MentionExtra {\n  int32 type = 3;\n  uint32 uin = 4;\n  int32 field5 = 5;\n  string uid = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  int32 qsid = 3;\n  int32 sourceType = 4;\n  int32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  int32 randomType = 9;\n}\nmessage MsgInfo {\n  repeated MsgInfoBody msgInfoBody = 1;\n  ExtBizInfo extBizInfo = 2;\n}\nmessage GroupFileExtra {\n  uint32 field1 = 1;\n  string fileName = 2;\n  string display = 3;\n  GroupFileExtraInner inner = 7;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage MsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage GroupFileExtraInner {\n  GroupFileInfo info = 2;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage GroupFileInfo {\n  uint32 busId = 1;\n  string fileId = 2;\n  uint64 fileSize = 3;\n  string fileName = 4;\n  uint32 field5 = 5;\n  bytes fileSha = 6;\n  string extInfoString = 7;\n  bytes fileMd5 = 8;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "elements_out.proto": 'syntax = "proto3";\npackage neronet.wire.elemout;\nmessage MentionExtraSend {\n  uint32 type = 3;\n  uint32 uin = 4;\n  uint32 field5 = 5;\n  string uid = 9;\n}\nmessage QFaceExtra {\n  string packId = 1;\n  string stickerId = 2;\n  uint32 qsid = 3;\n  uint32 sourceType = 4;\n  uint32 stickerType = 5;\n  string resultId = 6;\n  string text = 7;\n  uint32 randomType = 9;\n}\nmessage QSmallFaceExtra {\n  uint32 faceId = 1;\n  string preview = 2;\n  string preview2 = 3;\n}\n', "file_upload.proto": 'syntax = "proto3";\npackage neronet.wire.fileupload;\nmessage OidbPrivateFileUploadReq {\n  uint32 command = 1;\n  uint32 seq = 2;\n  OidbPrivateFileUploadReqBody upload = 19;\n  uint32 businessId = 101;\n  uint32 clientType = 102;\n  uint32 flagSupportMediaPlatform = 200;\n}\nmessage OidbPrivateFileUploadResp {\n  OidbPrivateFileUploadRespBody upload = 19;\n}\nmessage OidbGroupSendFileReq {\n  OidbGroupTransFileReq transFile = 1;\n  OidbGroupSendFileBody body = 5;\n}\nmessage OidbEmpty {\n}\nmessage OidbOfflineFileFinalizeReq {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbOfflineFileFinalizeReqBody body = 10;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n}\nmessage OidbOfflineFileFinalizeResp {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  OidbOfflineFileFinalizeRespBody body = 10;\n  uint32 field50 = 50;\n}\nmessage FileUploadExt {\n  uint32 unknown1 = 1;\n  uint32 unknown2 = 2;\n  uint32 unknown3 = 3;\n  FileUploadEntry entry = 100;\n  uint32 unknown200 = 200;\n}\nmessage FileExtra {\n  NotOnlineFile file = 1;\n  PrivateFileExtra field6 = 6;\n}\nmessage OidbPrivateFileUploadReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  uint32 fileSize = 30;\n  string fileName = 40;\n  bytes md510MCheckSum = 50;\n  bytes sha1CheckSum = 60;\n  string localPath = 70;\n  bytes md5CheckSum = 110;\n  bytes sha3CheckSum = 120;\n}\nmessage OidbPrivateFileUploadRespBody {\n  int32 retCode = 10;\n  string retMsg = 20;\n  string uploadIp = 60;\n  string uploadDomain = 70;\n  uint32 uploadPort = 80;\n  string uuid = 90;\n  bytes uploadKey = 100;\n  bool boolFileExist = 110;\n  repeated string uploadIpList = 130;\n  int32 uploadHttpsPort = 140;\n  string uploadHttpsDomain = 150;\n  string uploadDns = 160;\n  string uploadLanip = 170;\n  string fileAddon = 200;\n  repeated IPv4 rtpMediaPlatformUploadAddress = 210;\n  bytes mediaPlatformUploadKey = 220;\n}\nmessage OidbGroupTransFileReq {\n  uint64 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupSendFileBody {\n  uint32 groupUin = 1;\n  uint32 type = 2;\n  OidbGroupSendFileInfo info = 3;\n}\nmessage OidbOfflineFileFinalizeReqBody {\n  string senderUid = 10;\n  string receiverUid = 20;\n  string fileUuid = 30;\n  string fileHash = 40;\n}\nmessage OidbOfflineFileFinalizeRespBody {\n  uint32 field10 = 10;\n  OidbOfflineFileMetadata metadata = 30;\n}\nmessage FileUploadEntry {\n  FileUploadBusiInfo busiBuff = 100;\n  FileUploadFileEntry fileEntry = 200;\n  FileUploadClientInfo clientInfo = 300;\n  FileUploadNameInfo fileNameInfo = 400;\n  FileUploadHostConfig host = 500;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage PrivateFileExtra {\n  PrivateFileExtraField2 field2 = 2;\n}\nmessage IPv4 {\n  int32 outIP = 1;\n  int32 outPort = 2;\n  int32 inIP = 3;\n  int32 inPort = 4;\n  int32 iPType = 5;\n}\nmessage OidbGroupSendFileInfo {\n  uint32 busiType = 1;\n  string fileId = 2;\n  uint32 field3 = 3;\n  string field4 = 4;\n  int32 field5 = 5;\n}\nmessage OidbOfflineFileMetadata {\n  uint32 field3 = 3;\n  bytes field100 = 100;\n  bytes field101 = 101;\n  uint32 field110 = 110;\n  uint32 timestamp1 = 130;\n}\nmessage FileUploadBusiInfo {\n  uint32 busId = 1;\n  uint64 senderUin = 100;\n  uint64 receiverUin = 200;\n  uint64 groupCode = 400;\n}\nmessage FileUploadFileEntry {\n  uint64 fileSize = 100;\n  bytes md5 = 200;\n  bytes checkKey = 300;\n  bytes md5S2 = 400;\n  string fileId = 600;\n  bytes uploadKey = 700;\n}\nmessage FileUploadClientInfo {\n  uint32 clientType = 100;\n  string appId = 200;\n  uint32 terminalType = 300;\n  string clientVer = 400;\n  uint32 unknown = 600;\n}\nmessage FileUploadNameInfo {\n  string fileName = 100;\n}\nmessage FileUploadHostConfig {\n  repeated FileUploadHost hosts = 200;\n}\nmessage PrivateFileExtraField2 {\n  uint32 field1 = 1;\n  string fileUuid = 4;\n  string fileName = 5;\n  uint32 field6 = 6;\n  bytes field7 = 7;\n  bytes field8 = 8;\n  uint32 timestamp1 = 9;\n  string fileHash = 14;\n  string selfUid = 15;\n  string destUid = 16;\n}\nmessage FileUploadHost {\n  FileUploadUrl url = 1;\n  uint32 port = 2;\n}\nmessage FileUploadUrl {\n  uint32 unknown = 1;\n  string host = 2;\n}\n', "file_url.proto": 'syntax = "proto3";\npackage neronet.wire.fileurl;\nmessage GroupFileRequest {\n  OidbGroupFileUploadReq file = 1;\n  OidbGroupFileDownloadReq download = 3;\n  OidbGroupFileDeleteReq delete = 4;\n  OidbGroupFileRenameReq rename = 5;\n  OidbGroupFileMoveReq move = 6;\n}\nmessage GroupFileResponse {\n  OidbGroupFileUploadResp upload = 1;\n  OidbGroupFileDownloadResp download = 3;\n  OidbGroupFileRetResp delete = 4;\n  OidbGroupFileRetResp rename = 5;\n  OidbGroupFileRetResp move = 6;\n}\nmessage PrivateFileUrlRequest {\n  uint32 subCommand = 1;\n  uint32 field2 = 2;\n  OidbPrivateFileDownloadReqBody body = 14;\n  uint32 field101 = 101;\n  uint32 field102 = 102;\n  uint32 field200 = 200;\n  bytes field99999 = 99999;\n}\nmessage PrivateFileUrlResponse {\n  OidbPrivateFileDownloadRespBody body = 14;\n}\nmessage OidbGroupFileUploadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  uint32 entrance = 4;\n  string targetDirectory = 5;\n  string fileName = 6;\n  string localDirectory = 7;\n  uint64 fileSize = 8;\n  bytes fileSha1 = 9;\n  bytes fileSha3 = 10;\n  bytes fileMd5 = 11;\n  int32 field15 = 15;\n}\nmessage OidbGroupFileDownloadReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n}\nmessage OidbGroupFileDeleteReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 5;\n}\nmessage OidbGroupFileRenameReq {\n  uint32 groupUin = 1;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentFolder = 5;\n  string newFileName = 6;\n}\nmessage OidbGroupFileMoveReq {\n  uint32 groupUin = 1;\n  uint32 appId = 2;\n  uint32 busId = 3;\n  string fileId = 4;\n  string parentDirectory = 5;\n  string targetDirectory = 6;\n}\nmessage OidbGroupFileUploadResp {\n  int32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string uploadIp = 4;\n  string serverDns = 5;\n  int32 busId = 6;\n  string fileId = 7;\n  bytes checkKey = 8;\n  bytes fileKey = 9;\n  bool boolFileExist = 10;\n  uint32 uploadPort = 14;\n}\nmessage OidbGroupFileDownloadResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n  string downloadIp = 4;\n  string downloadDns = 5;\n  bytes downloadUrl = 6;\n  string saveFileName = 11;\n}\nmessage OidbGroupFileRetResp {\n  uint32 retCode = 1;\n  string retMsg = 2;\n  string clientWording = 3;\n}\nmessage OidbPrivateFileDownloadReqBody {\n  string receiverUid = 10;\n  string fileUuid = 20;\n  uint32 type = 30;\n  string fileHash = 60;\n  uint32 t2 = 601;\n}\nmessage OidbPrivateFileDownloadRespBody {\n  string state = 20;\n  OidbPrivateFileDownloadRespResult result = 30;\n}\nmessage OidbPrivateFileDownloadRespResult {\n  string server = 20;\n  uint32 port = 40;\n  string url = 50;\n}\n', "forward.proto": 'syntax = "proto3";\npackage neronet.wire.forward;\nmessage SendLongMsgReq {\n  SendLongMsgInfo info = 2;\n  LongMsgSettings settings = 15;\n}\nmessage SendLongMsgResp {\n  SendLongMsgRespResult result = 2;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgReq {\n  RecvLongMsgInfo info = 1;\n  LongMsgSettings settings = 15;\n}\nmessage RecvLongMsgResp {\n  RecvLongMsgRespResult result = 1;\n  LongMsgSettings settings = 15;\n}\nmessage LongMsgResult {\n  repeated LongMsgAction action = 2;\n}\nmessage SendLongMsgInfo {\n  uint32 type = 1;\n  LongMsgUid uid = 2;\n  uint32 groupUin = 3;\n  bytes payload = 4;\n}\nmessage LongMsgSettings {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n}\nmessage SendLongMsgRespResult {\n  string resId = 3;\n}\nmessage RecvLongMsgInfo {\n  LongMsgUid uid = 1;\n  string resId = 2;\n  int32 acquire = 3;\n}\nmessage RecvLongMsgRespResult {\n  string resId = 3;\n  bytes payload = 4;\n}\nmessage LongMsgAction {\n  string actionCommand = 1;\n  LongMsgContent actionData = 2;\n}\nmessage LongMsgUid {\n  string uid = 2;\n}\nmessage LongMsgContent {\n  repeated PushMsgBody msgBody = 1;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "friend_list.proto": 'syntax = "proto3";\npackage neronet.wire.friendlist;\nmessage FriendListRequest {\n  uint32 friendCount = 2;\n  uint32 field4 = 4;\n  bytes cookie = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  repeated OidbFriendListBodyItem body = 10001;\n  repeated uint32 field10002 = 10002 [packed = false];\n  uint32 field10003 = 10003;\n}\nmessage FriendListResponse {\n  bytes cookie = 2;\n  bool isEnd = 3;\n  uint64 timestamp = 6;\n  uint64 selfUin = 7;\n  uint32 smallSeq = 8;\n  repeated OidbFriend friends = 101;\n  repeated OidbFriendCategory categories = 102;\n}\nmessage OidbFriendListBodyItem {\n  uint32 type = 1;\n  OidbFriendListNumber number = 2;\n}\nmessage OidbFriend {\n  string uid = 1;\n  uint32 customGroup = 2;\n  uint32 uin = 3;\n  repeated OidbFriendAdditional additional = 10001;\n}\nmessage OidbFriendCategory {\n  uint32 categoryId = 1;\n  string categoryName = 2;\n  uint32 memberCount = 3;\n  uint32 sortId = 4;\n}\nmessage OidbFriendListNumber {\n  repeated uint32 numbers = 1 [packed = false];\n}\nmessage OidbFriendAdditional {\n  uint32 type = 1;\n  OidbFriendLayer1 layer1 = 2;\n}\nmessage OidbFriendLayer1 {\n  repeated OidbFriendProperty properties = 2;\n}\nmessage OidbFriendProperty {\n  uint32 code = 1;\n  string value = 2;\n}\n', "group_admin.proto": 'syntax = "proto3";\npackage neronet.wire.groupadmin;\nmessage KickMemberRequest {\n  uint32 groupUin = 1;\n  string targetUid = 3;\n  int32 rejectAddRequest = 4;\n  string reason = 5;\n}\nmessage KickMemberResponse {\n  uint32 groupUin = 1;\n  repeated OidbKickMemberResult results = 2;\n}\nmessage MuteMemberRequest {\n  uint32 groupUin = 1;\n  uint32 type = 2;\n  OidbMuteMemberBody body = 3;\n}\nmessage MuteAllRequest {\n  uint32 groupUin = 1;\n  OidbMuteAllState muteState = 2;\n}\nmessage SetAdminRequest {\n  uint32 groupUin = 1;\n  string uid = 2;\n  int32 isAdmin = 3;\n}\nmessage MemberCardRequest {\n  uint32 groupUin = 1;\n  OidbRenameMemberBody body = 3;\n}\nmessage GroupNameRequest {\n  uint32 groupUin = 1;\n  OidbRenameGroupBody body = 2;\n}\nmessage SpecialTitleRequest {\n  uint32 groupUin = 1;\n  OidbSpecialTitleBody body = 3;\n}\nmessage LeaveGroupRequest {\n  uint32 groupUin = 1;\n}\nmessage GroupRequestAction {\n  uint32 accept = 1;\n  OidbGroupRequestBody body = 2;\n}\nmessage GroupRequestInboxRequest {\n  uint32 count = 1;\n  uint64 field2 = 2;\n}\nmessage GroupRequestInboxResponse {\n  repeated OidbSvcTrpcTcp0x10C0ResponseRequestByUin requests = 1;\n  uint64 field2 = 2;\n  uint64 newLatestSeq = 3;\n  uint32 field4 = 4;\n  uint64 field5 = 5;\n  uint32 field6 = 6;\n}\nmessage FriendRequestAction {\n  uint32 accept = 1;\n  string targetUid = 2;\n}\nmessage Empty {\n}\nmessage OidbKickMemberResult {\n  uint32 result = 1;\n  string uid = 2;\n}\nmessage OidbMuteMemberBody {\n  string targetUid = 1;\n  uint32 duration = 2;\n}\nmessage OidbMuteAllState {\n  optional uint32 state = 17;\n}\nmessage OidbRenameMemberBody {\n  string targetUid = 1;\n  optional string targetName = 8;\n}\nmessage OidbRenameGroupBody {\n  string targetName = 3;\n}\nmessage OidbSpecialTitleBody {\n  string targetUid = 1;\n  optional string specialTitle = 5;\n  uint32 expireTime = 6;\n  optional string uinName = 7;\n}\nmessage OidbGroupRequestBody {\n  uint64 sequence = 1;\n  uint32 eventType = 2;\n  uint32 groupUin = 3;\n  string message = 4;\n  bytes operateTransInfo = 7;\n}\nmessage OidbSvcTrpcTcp0x10C0ResponseRequestByUin {\n  uint64 sequence = 1;\n  uint32 eventType = 2;\n  uint32 state = 3;\n  OidbSvcTrpcTcp0x10C0ResponseGroup group = 4;\n  OidbSvcTrpcTcp0x10C0ResponseUserByUin target = 5;\n  OidbSvcTrpcTcp0x10C0ResponseUserByUin invitor = 6;\n  OidbSvcTrpcTcp0x10C0ResponseUserByUin operatorUser = 7;\n  string field9 = 9;\n  string comment = 10;\n  bytes operateTransInfo = 14;\n}\nmessage OidbSvcTrpcTcp0x10C0ResponseGroup {\n  uint32 groupUin = 1;\n  string groupName = 2;\n}\nmessage OidbSvcTrpcTcp0x10C0ResponseUserByUin {\n  uint32 uin = 1;\n  string name = 2;\n}\n', "group_history.proto": 'syntax = "proto3";\npackage neronet.wire.grouphistory;\nmessage GroupHistoryRequest {\n  GroupHistoryRange info = 1;\n  int32 direction = 2;\n}\nmessage GroupHistoryResponse {\n  GroupHistoryBody body = 3;\n}\nmessage GroupHistoryRange {\n  uint32 groupUin = 1;\n  uint32 startSequence = 2;\n  uint32 endSequence = 3;\n}\nmessage GroupHistoryBody {\n  uint32 groupUin = 3;\n  uint32 startSequence = 4;\n  uint32 endSequence = 5;\n  repeated PushMsgBody messages = 6;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "group_list.proto": 'syntax = "proto3";\npackage neronet.wire.grouplist;\nmessage GroupListRequest {\n  GroupListConfig config = 1;\n}\nmessage GroupListResponse {\n  repeated GroupListEntry groups = 2;\n}\nmessage GroupListConfig {\n  GroupListConfig1 config1 = 1;\n  GroupListConfig2 config2 = 2;\n  GroupListConfig3 config3 = 3;\n}\nmessage GroupListEntry {\n  uint32 groupUin = 3;\n  GroupListInfo info = 4;\n  GroupListCustomInfo customInfo = 5;\n}\nmessage GroupListConfig1 {\n  int32 groupOwner = 1;\n  int32 field2 = 2;\n  int32 memberMax = 3;\n  int32 memberCount = 4;\n  int32 groupName = 5;\n  int32 field8 = 8;\n  int32 field9 = 9;\n  int32 field10 = 10;\n  int32 field11 = 11;\n  int32 field12 = 12;\n  int32 field13 = 13;\n  int32 field14 = 14;\n  int32 field15 = 15;\n  int32 field16 = 16;\n  int32 field17 = 17;\n  int32 field18 = 18;\n  int32 question = 19;\n  int32 field20 = 20;\n  int32 field22 = 22;\n  int32 field23 = 23;\n  int32 field24 = 24;\n  int32 field25 = 25;\n  int32 field26 = 26;\n  int32 field27 = 27;\n  int32 field28 = 28;\n  int32 field29 = 29;\n  int32 field30 = 30;\n  int32 field31 = 31;\n  int32 field32 = 32;\n  int32 field5001 = 5001;\n  int32 field5002 = 5002;\n  int32 field5003 = 5003;\n}\nmessage GroupListConfig2 {\n  int32 field1 = 1;\n  int32 field2 = 2;\n  int32 remark = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n  int32 field8 = 8;\n}\nmessage GroupListConfig3 {\n  int32 field5 = 5;\n  int32 field6 = 6;\n}\nmessage GroupListInfo {\n  GroupListOwner groupOwner = 1;\n  uint32 createdTime = 2;\n  uint32 memberMax = 3;\n  uint32 memberCount = 4;\n  string groupName = 5;\n  uint32 shutUpAllTimestamp = 10;\n  string description = 18;\n  string question = 19;\n  string announcement = 30;\n}\nmessage GroupListCustomInfo {\n  string remark = 3;\n}\nmessage GroupListOwner {\n  string uid = 2;\n}\n', "group_members.proto": 'syntax = "proto3";\npackage neronet.wire.groupmembers;\nmessage GroupMemberListRequest {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  GroupMemberListFields body = 4;\n  string token = 15;\n}\nmessage GroupMemberListResponse {\n  uint32 groupUin = 1;\n  repeated GroupMember members = 2;\n  uint32 field3 = 3;\n  uint32 memberChangeSeq = 5;\n  uint32 memberCardChangeSeq = 6;\n  string token = 15;\n}\nmessage GroupMemberListFields {\n  int32 memberName = 10;\n  int32 memberCard = 11;\n  int32 level = 12;\n  int32 field13 = 13;\n  int32 field16 = 16;\n  int32 specialTitle = 17;\n  int32 field18 = 18;\n  int32 field20 = 20;\n  int32 field21 = 21;\n  int32 joinTimestamp = 100;\n  int32 lastMsgTimestamp = 101;\n  int32 shutUpTimestamp = 102;\n  int32 field103 = 103;\n  int32 field104 = 104;\n  int32 field105 = 105;\n  int32 field106 = 106;\n  int32 permission = 107;\n  int32 field200 = 200;\n  int32 field201 = 201;\n}\nmessage GroupMember {\n  GroupMemberId uin = 1;\n  string memberName = 10;\n  GroupMemberCard memberCard = 11;\n  GroupMemberLevel level = 12;\n  string specialTitle = 17;\n  uint32 joinTimestamp = 100;\n  uint32 lastMsgTimestamp = 101;\n  uint32 shutUpTimestamp = 102;\n  uint32 permission = 107;\n}\nmessage GroupMemberId {\n  string uid = 2;\n  uint32 uin = 4;\n}\nmessage GroupMemberCard {\n  string memberCard = 2;\n}\nmessage GroupMemberLevel {\n  repeated uint32 infos = 1 [packed = false];\n  uint32 level = 2;\n}\n', "highway.proto": 'syntax = "proto3";\npackage neronet.wire.highway;\nmessage SessionRequest {\n  HttpConn httpConn = 1281;\n}\nmessage SessionResponse {\n  HttpConnResponse httpConn = 1281;\n}\nmessage ReqDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  bytes bytesReqExtendInfo = 3;\n  uint64 timestamp = 4;\n  LoginSigHead msgLoginSigHead = 5;\n}\nmessage RespDataHighwayHead {\n  DataHighwayHead msgBaseHead = 1;\n  SegHead msgSegHead = 2;\n  uint32 errorCode = 3;\n}\nmessage NTV2RichMediaHighwayExt {\n  string fileUuid = 1;\n  string uKey = 2;\n  HighwayNetwork network = 5;\n  repeated HighwayMsgInfoBody msgInfoBody = 6;\n  uint32 blockSize = 10;\n  HighwayHash hash = 11;\n}\nmessage HttpConn {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  repeated uint32 serviceTypes = 7 [packed = false];\n  uint32 field9 = 9;\n  uint32 field10 = 10;\n  uint32 field11 = 11;\n  string ver = 15;\n}\nmessage HttpConnResponse {\n  bytes sigSession = 1;\n  bytes sessionKey = 2;\n  repeated ServerInfo serverInfos = 3;\n}\nmessage DataHighwayHead {\n  uint32 version = 1;\n  string uin = 2;\n  string command = 3;\n  uint32 seq = 4;\n  uint32 retryTimes = 5;\n  uint32 appId = 6;\n  uint32 dataFlag = 7;\n  uint32 commandId = 8;\n}\nmessage SegHead {\n  uint32 serviceId = 1;\n  uint64 filesize = 2;\n  uint64 dataOffset = 3;\n  uint32 dataLength = 4;\n  uint32 retCode = 5;\n  bytes serviceTicket = 6;\n  uint32 flag = 7;\n  bytes md5 = 8;\n  bytes fileMd5 = 9;\n  uint32 cacheAddr = 10;\n  uint32 cachePort = 13;\n}\nmessage LoginSigHead {\n  uint32 loginSigType = 1;\n  uint32 appId = 3;\n}\nmessage HighwayNetwork {\n  repeated HighwayIPv4 ipv4s = 1;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  int32 fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage HighwayHash {\n  repeated bytes fileSha1 = 1;\n}\nmessage ServerInfo {\n  uint32 serviceType = 1;\n  repeated ServerAddr serverAddrs = 2;\n}\nmessage HighwayIPv4 {\n  HighwayDomain domain = 1;\n  uint32 port = 2;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage ServerAddr {\n  uint32 type = 1;\n  sfixed32 ip = 2;\n  uint32 port = 3;\n  uint32 area = 4;\n}\nmessage HighwayDomain {\n  int32 isEnable = 1;\n  string ip = 2;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "interaction.proto": 'syntax = "proto3";\npackage neronet.wire.interaction;\nmessage PokeRequest {\n  uint32 uin = 1;\n  uint32 groupUin = 2;\n  uint32 friendUin = 5;\n  uint32 ext = 6;\n}\nmessage GroupReactionRequest {\n  uint32 groupUin = 2;\n  uint32 sequence = 3;\n  string code = 4;\n  uint32 type = 5;\n  int32 field6 = 6;\n  int32 field7 = 7;\n}\nmessage Empty {\n}\n', "media_download.proto": 'syntax = "proto3";\npackage neronet.wire.mediadown;\nmessage RichMediaRequest {\n  NTV2ReqHead reqHead = 1;\n  NTV2DownloadReq download = 3;\n  NTV2DownloadRKeyReq downloadRkey = 4;\n}\nmessage RichMediaResponse {\n  NTV2RespHead respHead = 1;\n  NTV2MediaDownloadResp download = 3;\n  NTV2DownloadRKeyResp downloadRkey = 4;\n}\nmessage NTV2ReqHead {\n  NTV2CommonHead common = 1;\n  NTV2SceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2DownloadReq {\n  NTV2IndexNode node = 1;\n  NTV2DownloadExt download = 2;\n}\nmessage NTV2DownloadRKeyReq {\n  repeated uint32 types = 1 [packed = false];\n}\nmessage NTV2RespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2MediaDownloadResp {\n  string rKeyParam = 1;\n  uint32 rKeyTtlSecond = 2;\n  NTV2MediaDownloadInfo info = 3;\n  uint32 rKeyCreateTime = 4;\n}\nmessage NTV2DownloadRKeyResp {\n  repeated NTV2RKeyInfo rkeys = 1;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2SceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2IndexNode {\n  NTV2FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage NTV2DownloadExt {\n  NTV2VideoDownloadExt video = 2;\n}\nmessage NTV2MediaDownloadInfo {\n  string domain = 1;\n  string urlPath = 2;\n  uint32 httpsPort = 3;\n}\nmessage NTV2RKeyInfo {\n  string rkey = 1;\n  uint64 rkeyTtlSec = 2;\n  uint32 storeId = 3;\n  uint32 rkeyCreateTime = 4;\n  uint32 type = 5;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage NTV2VideoDownloadExt {\n  uint32 busiType = 1;\n  uint32 sceneType = 2;\n  uint32 subBusiType = 3;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "media_upload.proto": 'syntax = "proto3";\npackage neronet.wire.mediaup;\nmessage UploadRequest {\n  NTV2UploadReqHead reqHead = 1;\n  NTV2UploadReq upload = 2;\n}\nmessage UploadResponse {\n  NTV2UploadRespHead respHead = 1;\n  NTV2UploadRespBody upload = 2;\n}\nmessage MediaMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  EncodableMediaExtBizInfo extBizInfo = 2;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage PttWaveform {\n  uint32 size = 1;\n  bytes amplitudes = 2;\n}\nmessage NTV2UploadReqHead {\n  NTV2CommonHead common = 1;\n  NTV2UploadSceneInfo scene = 2;\n  NTV2ClientMeta client = 3;\n}\nmessage NTV2UploadReq {\n  repeated NTV2UploadInfo uploadInfo = 1;\n  int32 tryFastUploadCompleted = 2;\n  int32 srvSendMsg = 3;\n  uint64 clientRandomId = 4;\n  uint32 compatQmsgSceneType = 5;\n  NTV2ExtBizInfo extBizInfo = 6;\n  uint32 clientSeq = 7;\n  int32 noNeedCompatMsg = 8;\n}\nmessage NTV2UploadRespHead {\n  NTV2CommonHead common = 1;\n  uint32 retCode = 2;\n  string message = 3;\n}\nmessage NTV2UploadRespBody {\n  string uKey = 1;\n  uint32 uKeyTtl = 2;\n  repeated NTV2IPv4 ipv4s = 3;\n  uint64 msgSeq = 5;\n  NTV2UploadRespMsgInfo msgInfo = 6;\n  repeated NTV2SubFileInfoResp subFileInfos = 10;\n}\nmessage HighwayMsgInfoBody {\n  IndexNode index = 1;\n  PictureInfo picture = 2;\n  bool fileExist = 5;\n  HashSum hashSum = 6;\n}\nmessage EncodableMediaExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\nmessage NTV2CommonHead {\n  uint32 requestId = 1;\n  uint32 command = 2;\n}\nmessage NTV2UploadSceneInfo {\n  uint32 requestType = 101;\n  uint32 businessType = 102;\n  uint32 sceneType = 200;\n  NTV2C2CUserInfo c2c = 201;\n  NTV2GroupInfo group = 202;\n}\nmessage NTV2ClientMeta {\n  uint32 agentType = 1;\n}\nmessage NTV2UploadInfo {\n  NTV2FileInfo fileInfo = 1;\n  uint32 subFileType = 2;\n}\nmessage NTV2ExtBizInfo {\n  PicExtBizInfo pic = 1;\n  VideoExtBizInfo video = 2;\n  PttExtBizInfo ptt = 3;\n  uint32 busiType = 10;\n}\nmessage NTV2IPv4 {\n  uint32 outIp = 1;\n  uint32 outPort = 2;\n}\nmessage NTV2UploadRespMsgInfo {\n  repeated HighwayMsgInfoBody msgInfoBody = 1;\n  NTV2ExtBizInfo extBizInfo = 2;\n}\nmessage NTV2SubFileInfoResp {\n  uint32 subType = 1;\n  string uKey = 2;\n  uint32 uKeyTtl = 3;\n  repeated NTV2IPv4 ipv4s = 4;\n}\nmessage IndexNode {\n  FileInfo info = 1;\n  string fileUuid = 2;\n  uint32 storeId = 3;\n  uint32 uploadTime = 4;\n  uint32 ttl = 5;\n  uint32 subType = 6;\n}\nmessage PictureInfo {\n  string urlPath = 1;\n  PicUrlExtInfo ext = 2;\n  string domain = 3;\n}\nmessage HashSum {\n  C2cSource bytesPbReserveC2c = 201;\n  TroopSource troopSource = 202;\n}\nmessage PicExtBizInfo {\n  uint32 bizType = 1;\n  string textSummary = 2;\n  bytes bytesPbReserveC2c = 11;\n  PicExtData extData = 12;\n  uint32 fromScene = 1001;\n  uint32 toScene = 1002;\n  uint32 oldFileId = 1003;\n}\nmessage VideoExtBizInfo {\n  uint32 fromScene = 1;\n  uint32 toScene = 2;\n  bytes bytesPbReserve = 3;\n}\nmessage PttExtBizInfo {\n  uint64 srcUin = 1;\n  uint32 pttScene = 2;\n  uint32 pttType = 3;\n  uint32 changeVoice = 4;\n  bytes waveform = 5;\n  uint32 autoConvertText = 6;\n  bytes bytesReserve = 11;\n  bytes bytesPbReserve = 12;\n  bytes bytesGeneralFlags = 13;\n}\nmessage NTV2C2CUserInfo {\n  uint32 accountType = 1;\n  string targetUid = 2;\n  bytes routingHead = 3;\n}\nmessage NTV2GroupInfo {\n  uint32 groupUin = 1;\n}\nmessage NTV2FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  NTV2FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage FileInfo {\n  uint32 fileSize = 1;\n  string fileHash = 2;\n  string fileSha1 = 3;\n  string fileName = 4;\n  FileType type = 5;\n  uint32 width = 6;\n  uint32 height = 7;\n  uint32 time = 8;\n  uint32 original = 9;\n}\nmessage PicUrlExtInfo {\n  string originalParameter = 1;\n  string bigParameter = 2;\n  string thumbParameter = 3;\n}\nmessage C2cSource {\n  string friendUid = 2;\n}\nmessage TroopSource {\n  uint32 groupUin = 1;\n}\nmessage PicExtData {\n  uint32 subType = 1;\n  string textSummary = 9;\n}\nmessage NTV2FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\nmessage FileType {\n  uint32 type = 1;\n  uint32 picFormat = 2;\n  uint32 videoFormat = 3;\n  uint32 voiceFormat = 4;\n}\n', "msg_push.proto": 'syntax = "proto3";\npackage neronet.wire.push;\nmessage PushMsg {\n  PushMsgBody message = 1;\n  int32 status = 3;\n}\nmessage PushMsgBody {\n  ResponseHead responseHead = 1;\n  ContentHead contentHead = 2;\n  MessageBody body = 3;\n}\nmessage ResponseHead {\n  uint32 fromUin = 1;\n  string fromUid = 2;\n  uint32 type = 3;\n  uint32 sigMap = 4;\n  uint32 toUin = 5;\n  string toUid = 6;\n  ResponseForward forward = 7;\n  ResponseGrp grp = 8;\n}\nmessage ContentHead {\n  uint32 msgType = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n  uint32 msgId = 4;\n  uint32 sequence = 5;\n  uint32 timestamp = 6;\n  uint64 field7 = 7;\n  uint32 ntMsgSeq = 11;\n  uint64 newId = 12;\n}\nmessage MessageBody {\n  RichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage ResponseForward {\n  uint32 tempGroupUin = 5;\n  string friendName = 6;\n}\nmessage ResponseGrp {\n  uint32 groupUin = 1;\n  string memberName = 2;\n  string memberCard = 4;\n  string groupName = 7;\n}\nmessage RichText {\n  repeated Elem elems = 2;\n  NotOnlineFile notOnlineFile = 3;\n  Ptt ptt = 4;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage NotOnlineFile {\n  uint32 fileType = 1;\n  string fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint64 fileSize = 6;\n  uint32 subcmd = 9;\n  uint32 downloadFlag = 12;\n  uint32 dangerEvel = 50;\n  uint32 expireTime = 55;\n  bytes pbReserve = 56;\n  string fileHash = 57;\n}\nmessage Ptt {\n  uint32 fileType = 1;\n  uint64 fileId = 2;\n  bytes fileUuid = 3;\n  bytes fileMd5 = 4;\n  string fileName = 5;\n  uint32 fileSize = 6;\n  string groupFileKey = 10;\n  bytes fileKey = 14;\n  uint32 time = 19;\n  uint32 format = 29;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  int32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  int32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  int32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  int32 bizType = 16;\n  int32 result = 17;\n  int32 index = 18;\n  bytes opFaceBuf = 19;\n  bool oldPicMd5 = 20;\n  int32 thumbWidth = 21;\n  int32 thumbHeight = 22;\n  int32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  int32 x400Width = 27;\n  int32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  int32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  int32 serverIp = 8;\n  int32 serverPort = 9;\n  int32 fileType = 10;\n  bytes signature = 11;\n  int32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  int32 bizType = 17;\n  int32 repeatIndex = 18;\n  int32 repeatImage = 19;\n  int32 imageType = 20;\n  int32 index = 21;\n  int32 width = 22;\n  int32 height = 23;\n  int32 source = 24;\n  uint32 size = 25;\n  int32 origin = 26;\n  int32 thumbWidth = 27;\n  int32 thumbHeight = 28;\n  int32 showLen = 29;\n  int32 downloadLen = 30;\n  string x400Url = 31;\n  int32 x400Width = 32;\n  int32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  int32 serviceId = 2;\n  bytes msgResId = 3;\n  int32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  int32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  int32 level = 3;\n  int32 flags = 4;\n  int32 groupMask = 5;\n  int32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  int32 msgStateFlag = 10;\n  int32 apnsSoundType = 11;\n  int32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  int32 fileFormat = 4;\n  int32 fileTime = 5;\n  int32 fileSize = 6;\n  int32 thumbWidth = 7;\n  int32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  int32 thumbFileSize = 11;\n  int32 busiType = 12;\n  int32 fromChatType = 13;\n  int32 toChatType = 14;\n  bool supportProgressive = 15;\n  int32 fileWidth = 16;\n  int32 fileHeight = 17;\n  int32 subBusiType = 18;\n  int32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  int32 bubbleDiyTextId = 1;\n  int32 groupFlagNew = 2;\n  uint64 uin = 3;\n  int32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  int32 time = 3;\n  int32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  int32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  int32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  int32 subType = 1;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  string summary = 8;\n  int32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  int32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  int32 field1 = 1;\n  string field2 = 2;\n  int32 field3 = 3;\n  int32 field4 = 4;\n  int32 field5 = 5;\n  string field7 = 7;\n}\n', "notices.proto": 'syntax = "proto3";\npackage neronet.wire.notices;\nmessage GroupMute {\n  uint32 groupUin = 1;\n  uint32 subType = 2;\n  uint32 field3 = 3;\n  string operatorUid = 4;\n  GroupMuteData data = 5;\n}\nmessage NotifyMessageBody {\n  uint32 type = 1;\n  uint32 groupUin = 4;\n  bytes eventParam = 5;\n  GroupRecall recall = 11;\n  uint32 field13 = 13;\n  string operatorUid = 21;\n  GeneralGrayTipInfo generalGrayTip = 26;\n  EssenceMessage essenceMessage = 33;\n  uint32 msgSequence = 37;\n  uint32 field39 = 39;\n}\nmessage GroupReactNotify {\n  uint64 groupUin = 4;\n  uint32 field13 = 13;\n  GroupReactionData groupReactionData = 44;\n}\nmessage FriendRecall {\n  FriendRecallInfo info = 1;\n  uint32 instId = 2;\n  uint32 appId = 3;\n  uint32 longMessageFlag = 4;\n  bytes reserved = 5;\n}\nmessage GeneralGrayTipInfo {\n  uint64 busiType = 1;\n  uint64 busiId = 2;\n  uint32 ctrlFlag = 3;\n  uint32 c2cType = 4;\n  uint32 serviceType = 5;\n  uint64 templId = 6;\n  repeated TemplParam msgTemplParam = 7;\n  string content = 8;\n}\nmessage NewFriend {\n  uint32 field1 = 1;\n  NewFriendInfo info = 2;\n}\nmessage GroupChange {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  string memberUid = 3;\n  uint32 decreaseType = 4;\n  bytes operatorBytes = 5;\n  uint32 increaseType = 6;\n  bytes field7 = 7;\n}\nmessage SelfJoinInGroup {\n  uint64 groupUin = 1;\n  uint32 field2 = 2;\n  string operatorUid = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  string field7 = 7;\n}\nmessage GroupAdmin {\n  uint32 groupUin = 1;\n  uint32 flag = 2;\n  bool isPromote = 3;\n  GroupAdminBody body = 4;\n}\nmessage OperatorInfo {\n  OperatorField1 operatorField = 1;\n}\nmessage GroupSpecialTitleChange {\n  string tipText = 2;\n  uint32 memberUin = 5;\n}\nmessage GroupNameChange {\n  string name = 2;\n}\nmessage GroupMuteData {\n  uint32 timestamp = 1;\n  uint32 type = 2;\n  GroupMuteState state = 3;\n}\nmessage GroupRecall {\n  string operatorUid = 1;\n  repeated RecallMessage recallMessages = 3;\n  bytes userDef = 5;\n  int32 groupType = 6;\n  int32 opType = 7;\n  GroupRecallTipInfo tipInfo = 9;\n}\nmessage EssenceMessage {\n  uint32 groupUin = 1;\n  uint32 msgSequence = 2;\n  uint32 random = 3;\n  uint32 setFlag = 4;\n  uint32 memberUin = 5;\n  uint32 operatorUin = 6;\n  uint32 timestamp = 7;\n  uint32 msgSequence2 = 8;\n  string operatorNickname = 9;\n  string memberNickname = 10;\n  uint32 setFlag2 = 11;\n}\nmessage GroupReactionData {\n  GroupReactionDataInner data = 1;\n}\nmessage FriendRecallInfo {\n  string fromUid = 1;\n  string toUid = 2;\n  uint32 clientSequence = 3;\n  uint64 newId = 4;\n  uint32 time = 5;\n  uint32 random = 6;\n  uint32 pkgNum = 7;\n  uint32 pkgIndex = 8;\n  uint32 divSeq = 9;\n  FriendRecallTipInfo tipInfo = 13;\n}\nmessage TemplParam {\n  string name = 1;\n  string value = 2;\n}\nmessage NewFriendInfo {\n  string uid = 1;\n  uint32 field2 = 2;\n  uint32 time = 3;\n  string message = 4;\n  string nickName = 5;\n  uint32 field6 = 6;\n  uint32 field7 = 7;\n  string toUid = 9;\n}\nmessage GroupAdminBody {\n  GroupAdminExtra extraDisable = 1;\n  GroupAdminExtra extraEnable = 2;\n}\nmessage OperatorField1 {\n  string uid = 1;\n  uint32 field2 = 2;\n  bytes field3 = 3;\n  uint32 field4 = 4;\n  bytes field5 = 5;\n}\nmessage GroupMuteState {\n  string targetUid = 1;\n  uint32 duration = 2;\n}\nmessage RecallMessage {\n  uint32 sequence = 1;\n  uint32 time = 2;\n  uint32 random = 3;\n  uint32 type = 4;\n  uint32 flag = 5;\n  string authorUid = 6;\n}\nmessage GroupRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupReactionDataInner {\n  GroupReactionDataInnerData data = 1;\n}\nmessage FriendRecallTipInfo {\n  string tip = 2;\n}\nmessage GroupAdminExtra {\n  string adminUid = 1;\n  bool isPromote = 2;\n}\nmessage GroupReactionDataInnerData {\n  GroupReactionDataInnerDataTarget groupReactionTarget = 2;\n  GroupReactionDataContent groupReactionDataContent = 3;\n}\nmessage GroupReactionDataInnerDataTarget {\n  uint64 seq = 1;\n}\nmessage GroupReactionDataContent {\n  string code = 1;\n  uint32 count = 3;\n  string operatorUid = 4;\n  uint32 type = 5;\n}\n', "oidb.proto": 'syntax = "proto3";\npackage neronet.wire.oidb;\nmessage OidbEnvelope {\n  uint32 command = 1;\n  uint32 subCommand = 2;\n  uint32 errorCode = 3;\n  bytes body = 4;\n  string errorMsg = 5;\n  repeated OidbProperty properties = 11;\n  uint32 reserved = 12;\n}\nmessage OidbProperty {\n  string key = 1;\n  bytes value = 2;\n}\n', "read_state.proto": 'syntax = "proto3";\nmessage GroupReadTarget { uint64 groupUin = 1; uint64 lastReadSeq = 2; }\nmessage PrivateReadTarget { string uid = 2; uint64 lastReadTime = 3; uint64 lastReadSeq = 4; }\nmessage ReadStateRequest { repeated GroupReadTarget groupList = 1; repeated PrivateReadTarget c2cList = 2; }\nmessage GroupReadState { uint32 resultCode = 1; string errorMessage = 2; uint64 groupUin = 3; uint64 readSeq = 4; uint64 latestSeq = 5; }\nmessage PrivateReadState { uint32 resultCode = 1; string errorMessage = 2; uint64 targetUin = 3; string uid = 4; uint64 readSeq = 5; uint64 latestSeq = 6; uint64 lastMsgTime = 7; }\nmessage ReadStateResponse { uint32 resultCode = 1; string errorMessage = 2; repeated GroupReadState groupList = 3; repeated PrivateReadState c2cList = 4; }\n', "recall.proto": 'syntax = "proto3";\npackage neronet.wire.recall;\nmessage GroupRecallRequest {\n  uint32 type = 1;\n  uint32 groupUin = 2;\n  GroupRecallInfo info = 3;\n  GroupRecallSettings settings = 4;\n}\nmessage C2CRecallRequest {\n  uint32 type = 1;\n  string targetUid = 3;\n  C2CRecallInfo info = 4;\n  C2CRecallSettings settings = 5;\n  int32 field6 = 6;\n}\nmessage GroupRecallInfo {\n  uint32 sequence = 1;\n  uint32 random = 2;\n  uint32 field3 = 3;\n}\nmessage GroupRecallSettings {\n  uint32 field1 = 1;\n}\nmessage C2CRecallInfo {\n  uint32 clientSequence = 1;\n  uint32 random = 2;\n  uint64 messageId = 3;\n  uint32 timestamp = 4;\n  uint32 field5 = 5;\n  uint32 messageSequence = 6;\n}\nmessage C2CRecallSettings {\n  int32 field1 = 1;\n  int32 field2 = 2;\n}\n', "requests.proto": 'syntax = "proto3";\npackage neronet.wire.requests;\nmessage GroupJoin {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  string targetUid = 3;\n  uint32 field4 = 4;\n  uint32 field6 = 6;\n  string field7 = 7;\n  uint32 field8 = 8;\n  bytes field9 = 9;\n}\nmessage GroupInvitation {\n  int32 cmd = 1;\n  InvitationInfo info = 2;\n}\nmessage GroupInvite {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string invitorUid = 5;\n  bytes hashes = 6;\n}\nmessage FriendRequest {\n  FriendRequestInfo info = 1;\n  FriendRequestInfo infoV2 = 2;\n}\nmessage InvitationInfo {\n  InvitationInner inner = 1;\n}\nmessage FriendRequestInfo {\n  string targetUid = 1;\n  string sourceUid = 2;\n  string newSource = 5;\n  string message = 10;\n  string source = 11;\n}\nmessage InvitationInner {\n  uint32 groupUin = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string targetUid = 5;\n  string invitorUid = 6;\n  uint32 field7 = 7;\n  uint32 field9 = 9;\n  bytes field10 = 10;\n  uint32 field11 = 11;\n  string field12 = 12;\n}\n', "send_msg.proto": 'syntax = "proto3";\npackage neronet.wire.send;\nmessage SendMessageRequest {\n  RoutingHead routingHead = 1;\n  SendContentHead contentHead = 2;\n  SendMessageBody messageBody = 3;\n  uint32 clientSequence = 4;\n  uint32 random = 5;\n  bytes syncCookie = 6;\n  uint32 via = 8;\n  uint32 dataStatist = 9;\n  MessageControl ctrl = 12;\n  uint32 multiSendSeq = 14;\n}\nmessage SendMessageResponse {\n  int32 result = 1;\n  string errMsg = 2;\n  uint32 timestamp1 = 3;\n  int32 reviewResult = 6;\n  SendMessageServerResult serverResult = 7;\n  uint32 field10 = 10;\n  uint32 groupSequence = 11;\n  uint32 timestamp2 = 12;\n  uint32 privateSequence = 14;\n}\nmessage RoutingHead {\n  RoutingC2C c2c = 1;\n  RoutingGroup grp = 2;\n  RoutingGrpTmp grpTmp = 3;\n  RoutingTrans0x211 trans0x211 = 15;\n}\nmessage SendContentHead {\n  uint32 type = 1;\n  uint32 subType = 2;\n  uint32 c2cCmd = 3;\n}\nmessage SendMessageBody {\n  SendRichText richText = 1;\n  bytes msgContent = 2;\n}\nmessage MessageControl {\n  uint32 msgFlag = 1;\n}\nmessage SendMessageServerResult {\n  int32 type = 1;\n  int32 code = 2;\n  string message = 3;\n}\nmessage RoutingC2C {\n  uint32 uin = 1;\n  string uid = 2;\n}\nmessage RoutingGroup {\n  uint64 groupCode = 1;\n}\nmessage RoutingGrpTmp {\n  uint64 groupUin = 3;\n  string toUid = 4;\n}\nmessage RoutingTrans0x211 {\n  uint64 toUin = 1;\n  uint32 ccCmd = 2;\n  string uid = 8;\n}\nmessage SendRichText {\n  repeated Elem elems = 2;\n}\nmessage Elem {\n  TextElem text = 1;\n  FaceElem face = 2;\n  OnlineImage onlineImage = 3;\n  NotOnlineImage notOnlineImage = 4;\n  TransElem transElem = 5;\n  MarketFace marketFace = 6;\n  CustomFace customFace = 8;\n  RichMsg richMsg = 12;\n  GroupFileElem groupFile = 13;\n  ExtraInfo extraInfo = 16;\n  VideoFile videoFile = 19;\n  GeneralFlags generalFlags = 37;\n  SrcMsg srcMsg = 45;\n  LightAppElem lightApp = 51;\n  CommonElem commonElem = 53;\n}\nmessage TextElem {\n  string str = 1;\n  string link = 2;\n  bytes attr6Buf = 3;\n  bytes attr7Buf = 4;\n  bytes buf = 11;\n  bytes pbReserve = 12;\n}\nmessage FaceElem {\n  uint32 index = 1;\n  bytes oldData = 2;\n  bytes buf = 11;\n}\nmessage OnlineImage {\n  bytes guid = 1;\n  bytes filePath = 2;\n  bytes oldVerSendFile = 3;\n}\nmessage NotOnlineImage {\n  string filePath = 1;\n  uint32 fileLen = 2;\n  string downloadPath = 3;\n  bytes oldVerSendFile = 4;\n  uint32 imgType = 5;\n  bytes previewsImage = 6;\n  bytes picMd5 = 7;\n  uint32 picHeight = 8;\n  uint32 picWidth = 9;\n  string resId = 10;\n  bytes flag = 11;\n  string thumbUrl = 12;\n  uint32 original = 13;\n  string bigUrl = 14;\n  string origUrl = 15;\n  uint32 bizType = 16;\n  uint32 result = 17;\n  uint32 index = 18;\n  bytes opFaceBuf = 19;\n  int32 oldPicMd5 = 20;\n  uint32 thumbWidth = 21;\n  uint32 thumbHeight = 22;\n  uint32 fileId = 23;\n  uint32 showLen = 24;\n  uint32 downloadLen = 25;\n  string x400Url = 26;\n  uint32 x400Width = 27;\n  uint32 x400Height = 28;\n  NotOnlineImagePbReserve pbRes = 29;\n}\nmessage TransElem {\n  uint32 elemType = 1;\n  bytes elemValue = 2;\n}\nmessage MarketFace {\n  string faceName = 1;\n  uint32 itemType = 2;\n  uint32 faceInfo = 3;\n  bytes faceId = 4;\n  uint32 tabId = 5;\n  uint32 subType = 6;\n  string key = 7;\n  bytes param = 8;\n  uint32 mediaType = 9;\n  uint32 imageWidth = 10;\n  uint32 imageHeight = 11;\n  bytes mobileParam = 12;\n  bytes pbReserve = 13;\n}\nmessage CustomFace {\n  bytes guid = 1;\n  string filePath = 2;\n  string shortcut = 3;\n  bytes buffer = 4;\n  bytes flag = 5;\n  bytes oldData = 6;\n  uint32 fileId = 7;\n  uint32 serverIp = 8;\n  uint32 serverPort = 9;\n  uint32 fileType = 10;\n  bytes signature = 11;\n  uint32 useful = 12;\n  bytes md5 = 13;\n  string thumbUrl = 14;\n  string bigUrl = 15;\n  string origUrl = 16;\n  uint32 bizType = 17;\n  uint32 repeatIndex = 18;\n  uint32 repeatImage = 19;\n  uint32 imageType = 20;\n  uint32 index = 21;\n  uint32 width = 22;\n  uint32 height = 23;\n  uint32 source = 24;\n  uint32 size = 25;\n  uint32 origin = 26;\n  uint32 thumbWidth = 27;\n  uint32 thumbHeight = 28;\n  uint32 showLen = 29;\n  uint32 downloadLen = 30;\n  string x400Url = 31;\n  uint32 x400Width = 32;\n  uint32 x400Height = 33;\n  CustomFacePbReserve pbRes = 34;\n}\nmessage RichMsg {\n  bytes template1 = 1;\n  uint32 serviceId = 2;\n  bytes msgResId = 3;\n  uint32 rand = 4;\n  uint32 seq = 5;\n}\nmessage GroupFileElem {\n  string filename = 1;\n  uint64 fileSize = 2;\n  string fileId = 3;\n  string batchId = 4;\n  string fileKey = 5;\n  bytes mark = 6;\n  uint64 sequence = 7;\n  bytes batchItemId = 8;\n  uint32 feedMsgTime = 9;\n  bytes pbReserve = 10;\n}\nmessage ExtraInfo {\n  bytes nick = 1;\n  bytes groupCard = 2;\n  uint32 level = 3;\n  uint32 flags = 4;\n  uint32 groupMask = 5;\n  uint32 msgTailId = 6;\n  bytes senderTitle = 7;\n  bytes apnsTips = 8;\n  uint64 uin = 9;\n  uint32 msgStateFlag = 10;\n  uint32 apnsSoundType = 11;\n  uint32 newGroupFlag = 12;\n}\nmessage VideoFile {\n  string fileUuid = 1;\n  bytes fileMd5 = 2;\n  string fileName = 3;\n  uint32 fileFormat = 4;\n  uint32 fileTime = 5;\n  uint32 fileSize = 6;\n  uint32 thumbWidth = 7;\n  uint32 thumbHeight = 8;\n  bytes thumbFileMd5 = 9;\n  bytes source = 10;\n  uint32 thumbFileSize = 11;\n  uint32 busiType = 12;\n  uint32 fromChatType = 13;\n  uint32 toChatType = 14;\n  int32 supportProgressive = 15;\n  uint32 fileWidth = 16;\n  uint32 fileHeight = 17;\n  uint32 subBusiType = 18;\n  uint32 videoAttr = 19;\n  bytes pbReserve = 24;\n}\nmessage GeneralFlags {\n  uint32 bubbleDiyTextId = 1;\n  uint32 groupFlagNew = 2;\n  uint64 uin = 3;\n  uint32 longTextFlag = 6;\n  string longTextResId = 7;\n}\nmessage SrcMsg {\n  repeated uint32 origSeqs = 1 [packed = false];\n  uint64 senderUin = 2;\n  uint32 time = 3;\n  uint32 flag = 4;\n  repeated bytes elemsRaw = 5;\n  uint32 type = 6;\n  bytes richMsg = 7;\n  bytes pbReserve = 8;\n  bytes sourceMsg = 9;\n  uint64 toUin = 10;\n  bytes troopName = 11;\n}\nmessage LightAppElem {\n  bytes data = 1;\n  bytes msgResid = 2;\n}\nmessage CommonElem {\n  uint32 serviceType = 1;\n  bytes pbElem = 2;\n  uint32 businessType = 3;\n}\nmessage NotOnlineImagePbReserve {\n  uint32 subType = 1;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  string summary = 8;\n  uint32 field10 = 10;\n  NotOnlineImagePbReserve2 field20 = 20;\n  string url = 30;\n  string md5Str = 31;\n}\nmessage CustomFacePbReserve {\n  uint32 subType = 1;\n  string summary = 9;\n}\nmessage NotOnlineImagePbReserve2 {\n  uint32 field1 = 1;\n  string field2 = 2;\n  uint32 field3 = 3;\n  uint32 field4 = 4;\n  uint32 field5 = 5;\n  string field7 = 7;\n}\n', "sys_faces.proto": 'syntax = "proto3";\npackage neronet.wire.sysfaces;\nmessage CatalogRequest {\n  uint32 field1 = 1;\n  uint32 field2 = 2;\n  uint32 field3 = 3;\n  OidbFetchSysFacesExpInfo field4 = 4;\n}\nmessage CatalogResponse {\n  int32 field1 = 1;\n  OidbFaceContent commonFace = 2;\n  OidbFaceContent specialBigFace = 3;\n  OidbFaceContent specialMagicFace = 4;\n}\nmessage FaceRequest {\n  string qSid = 1;\n}\nmessage FaceResponse {\n  OidbFaceEmoji emoji = 1;\n  bool field2 = 2;\n}\nmessage OidbFetchSysFacesExpInfo {\n  string field1 = 1;\n}\nmessage OidbFaceContent {\n  repeated OidbFaceEmojiList emojiList = 1;\n  OidbFaceResourceUrl resourceUrl = 2;\n}\nmessage OidbFaceEmoji {\n  string qSid = 1;\n  string qDes = 2;\n  string emCode = 3;\n  int32 qCid = 4;\n  int32 aniStickerType = 5;\n  int32 aniStickerPackId = 6;\n  int32 aniStickerId = 7;\n  OidbFaceResourceUrl url = 8;\n  repeated string emojiNameAlias = 9;\n  int32 unknown10 = 10;\n  int32 aniStickerWidth = 13;\n  int32 aniStickerHeight = 14;\n}\nmessage OidbFaceEmojiList {\n  string emojiPackName = 1;\n  repeated OidbFaceEmoji emojiDetail = 2;\n}\nmessage OidbFaceResourceUrl {\n  string baseUrl = 1;\n  string advUrl = 2;\n}\n', "user_profile.proto": 'syntax = "proto3";\npackage neronet.wire.profile;\nmessage UserInfoRequest {\n  uint32 uin = 1;\n  repeated OidbUserInfoKey keys = 3;\n}\nmessage UserInfoByUidRequest {\n  string uid = 1;\n  repeated OidbUserInfoKey keys = 3;\n}\nmessage UserInfoResponse {\n  OidbUserInfoResponseBody body = 1;\n}\nmessage AvatarInfo {\n  string url = 5;\n}\nmessage OidbUserInfoKey {\n  uint32 key = 1;\n}\nmessage OidbUserInfoResponseBody {\n  string uid = 1;\n  OidbUserInfoProperty properties = 2;\n  uint32 uin = 3;\n}\nmessage OidbUserInfoProperty {\n  repeated OidbTwoNumber numberProperties = 1;\n  repeated OidbByteProperty bytesProperties = 2;\n}\nmessage OidbTwoNumber {\n  uint32 number1 = 1;\n  uint32 number2 = 2;\n}\nmessage OidbByteProperty {\n  uint32 code = 1;\n  bytes value = 2;\n}\n', "web_auth.proto": 'syntax = "proto3";\nmessage ClientKeyRequest {}\nmessage ClientKeyResponse { uint32 keyIndex = 2; string clientKey = 3; uint32 expireTime = 4; }\nmessage PskeyRequest { repeated string domainList = 1; }\nmessage PskeyItem { string domain = 1; string pskey = 2; uint64 expireTime = 3; }\nmessage PskeyResponse { repeated PskeyItem pskeyItems = 1; }\n' };
     }
 });
 function loadRoot(file) {
@@ -8949,7 +9473,7 @@ function prepare(type, value) {
             throw new Error(`NERONET_WIRE_UNKNOWN_FIELD: ${type.name}.${key}`);
         if (v == null)
             continue;
-        if (!field.repeated && !(field.resolvedType instanceof import_protobuf.default.Type) && isZero(v))
+        if (!field.repeated && !field.partOf && !(field.resolvedType instanceof import_protobuf.default.Type) && isZero(v))
             continue;
         const conv = (x) => {
             if (field.resolvedType instanceof import_protobuf.default.Type)
@@ -8989,7 +9513,7 @@ function sanitize(type, bytes, stats) {
     const chunks = [];
     let changed = false;
     while (reader.pos < reader.len) {
-        const start = reader.pos;
+        const start2 = reader.pos;
         const tag = reader.uint32();
         const number = tag >>> 3, wire = tag & 7;
         const field = type.fieldsById[number];
@@ -8997,7 +9521,7 @@ function sanitize(type, bytes, stats) {
         reader.skipType(wire);
         const end = reader.pos;
         if (!field) {
-            chunks.push(bytes.subarray(start, end));
+            chunks.push(bytes.subarray(start2, end));
             continue;
         }
         const expected = expectedWire(field);
@@ -9027,7 +9551,7 @@ function sanitize(type, bytes, stats) {
                 continue;
             }
         }
-        chunks.push(bytes.subarray(start, end));
+        chunks.push(bytes.subarray(start2, end));
     }
     return changed ? Buffer.concat(chunks) : bytes;
 }
@@ -9041,7 +9565,16 @@ function varint(n2) {
     return Buffer.from(out);
 }
 function wireType(file, name) {
-    const type = loadRoot(file).lookupType(name);
+    return accessor(loadRoot(file).lookupType(name), name);
+}
+function compileSchema(text2) {
+    if (typeof text2 !== "string" || text2.length > 256 * 1024)
+        throw new Error("NERONET_WIRE_INVALID: schema text must be a string of at most 256 KiB");
+    const root = import_protobuf.default.parse(text2, { keepCase: true }).root;
+    root.resolveAll();
+    return (name) => accessor(root.lookupType(name), name);
+}
+function accessor(type, name) {
     return {
         name,
         encode(value) {
@@ -9100,8 +9633,1329 @@ var init_schema = __esm({
         WIRE = { double: 1, fixed64: 1, sfixed64: 1, float: 5, fixed32: 5, sfixed32: 5 };
     }
 });
+async function invokeOidb(transport, service, body) {
+    const { command: command2, subCommand } = service;
+    const inner = service.request.encode(body), reserved = service.reserved ?? 0;
+    const bytes = inner.length ? Envelope.encode({ command: command2, subCommand, errorCode: 0, body: inner, errorMsg: "", reserved }) : Buffer.concat([Envelope.encode({ command: command2, subCommand }), EMPTY_BODY_FIELD, Envelope.encode({ reserved })]);
+    const reply = await transport.send(oidbCommandName(command2, subCommand), bytes);
+    const accepted = (code) => code === 0 || (service.acceptedCodes ?? []).includes(code);
+    if (reply.error && !accepted(reply.error))
+        throw new OidbError(reply.error, reply.message ?? "", command2, subCommand);
+    if (!reply.body?.length)
+        return {};
+    const env = Envelope.decode(reply.body);
+    if (env.errorCode && !accepted(env.errorCode))
+        throw new OidbError(env.errorCode, env.errorMsg ?? "", command2, subCommand);
+    return env.body?.length ? service.response.decode(env.body) : {};
+}
+var Envelope, EMPTY_BODY_FIELD, OidbError, oidbCommandName;
+var init_oidb = __esm({
+    "upper/qq/oidb.mjs"() {
+        init_schema();
+        Envelope = wireType("oidb.proto", "OidbEnvelope");
+        EMPTY_BODY_FIELD = Buffer.from([34, 0]);
+        OidbError = class extends Error {
+            constructor(code, serverMessage, command2, subCommand) {
+                super(`NERONET_OIDB_FAILED: 0x${command2.toString(16)}_${subCommand} code ${code}${serverMessage ? `: ${serverMessage}` : ""}`);
+                this.code = "NERONET_OIDB_FAILED";
+                this.oidbCode = code;
+                this.serverMessage = serverMessage;
+            }
+        };
+        oidbCommandName = (command2, subCommand) => `OidbSvcTrpcTcp.0x${command2.toString(16)}_${subCommand}`;
+    }
+});
+function toCqString(segments) {
+    return segments.map((seg) => {
+        if (seg.type === "text")
+            return escapeText(String(seg.data?.text ?? ""));
+        const keys = CQ_PARAMS[seg.type];
+        const params = (keys ? keys.map((k) => [k, seg.data?.[k] ?? ""]) : Object.entries(seg.data ?? {})).filter(([, v]) => v !== void 0 && v !== null).map(([k, v]) => `,${k}=${escapeParam(String(v))}`).join("");
+        return `[CQ:${seg.type}${params}]`;
+    }).join("");
+}
+function parseCqString(text2) {
+    const segments = [];
+    const re = /\[CQ:([a-zA-Z0-9_.-]+)((?:,[^,\]]*)*)\]/g;
+    let last = 0;
+    for (const m of text2.matchAll(re)) {
+        if (m.index > last)
+            segments.push({ type: "text", data: { text: unescape(text2.slice(last, m.index)) } });
+        const data = {};
+        for (const part of m[2].split(",").slice(1)) {
+            const eq = part.indexOf("=");
+            if (eq < 0)
+                continue;
+            data[part.slice(0, eq)] = unescape(part.slice(eq + 1));
+        }
+        segments.push({ type: m[1], data });
+        last = m.index + m[0].length;
+    }
+    if (last < text2.length)
+        segments.push({ type: "text", data: { text: unescape(text2.slice(last)) } });
+    return segments;
+}
+function normalizeMessage(message2, autoEscape = false) {
+    if (typeof message2 === "string")
+        return autoEscape ? [{ type: "text", data: { text: message2 } }] : parseCqString(message2);
+    const list = Array.isArray(message2) ? message2 : message2 && typeof message2 === "object" ? [message2] : null;
+    if (!list)
+        throw new MessageFormatError("message must be a string, a segment or an array of segments");
+    return list.map((seg, i) => {
+        if (!seg || typeof seg !== "object" || typeof seg.type !== "string" || !seg.type)
+            throw new MessageFormatError(`segment ${i} has no type`);
+        const data = seg.data == null ? {} : seg.data;
+        if (typeof data !== "object" || Array.isArray(data))
+            throw new MessageFormatError(`segment ${i} data must be an object`);
+        return { type: seg.type, data: { ...data } };
+    });
+}
+var escapeText, escapeParam, unescape, CQ_PARAMS, MessageFormatError;
+var init_message_format = __esm({
+    "upper/onebot/message-format.mjs"() {
+        escapeText = (s) => s.replace(/&/g, "&amp;").replace(/\[/g, "&#91;").replace(/\]/g, "&#93;");
+        escapeParam = (s) => escapeText(s).replace(/,/g, "&#44;");
+        unescape = (s) => s.replace(/&#44;/g, ",").replace(/&#91;/g, "[").replace(/&#93;/g, "]").replace(/&amp;/g, "&");
+        CQ_PARAMS = { image: ["file", "url"], record: ["file", "url"], video: ["file", "url"] };
+        MessageFormatError = class extends Error {
+            constructor(detail) {
+                super(`NERONET_MESSAGE_INVALID: ${detail}`);
+                this.code = "NERONET_MESSAGE_INVALID";
+            }
+        };
+    }
+});
+var RateLimitedLog;
+var init_log = __esm({
+    "upper/log.mjs"() {
+        RateLimitedLog = class {
+            constructor(sink, { intervalMs = 10 * 6e4, now: now2 = Date.now } = {}) {
+                this.sink = sink;
+                this.intervalMs = intervalMs;
+                this.now = now2;
+                this.state = new Map();
+            }
+            write(entry) {
+                try {
+                    this.sink(entry);
+                }
+                catch {
+                }
+            }
+            limited(key, entry) {
+                const t = this.now();
+                const s = this.state.get(key) ?? { last: -Infinity, suppressed: 0 };
+                if (t - s.last >= this.intervalMs) {
+                    this.write({ ...entry, ...s.suppressed ? { suppressedSinceLast: s.suppressed } : {} });
+                    this.state.set(key, { last: t, suppressed: 0 });
+                }
+                else {
+                    s.suppressed++;
+                    this.state.set(key, s);
+                }
+            }
+        };
+    }
+});
+function messageEvent(ev, selfId, { format: format2 = "array" } = {}) {
+    const message2 = format2 === "string" ? toCqString(ev.segments) : ev.segments;
+    const common = {
+        time: ev.time,
+        self_id: Number(selfId),
+        post_type: ev.self ? "message_sent" : "message",
+        message_id: ev.messageId,
+        user_id: Number(ev.sender.uin),
+        message: message2,
+        raw_message: toCqString(ev.segments),
+        font: 0
+    };
+    if (ev.kind === "group") {
+        return {
+            ...common,
+            message_type: "group",
+            sub_type: "normal",
+            group_id: Number(ev.groupId),
+            anonymous: null,
+            sender: { user_id: Number(ev.sender.uin), nickname: ev.sender.nickname || ev.sender.card || "", card: ev.sender.card ?? "", sex: "unknown", age: 0, role: ev.sender.role ?? "member", title: ev.sender.title ?? "" }
+        };
+    }
+    return {
+        ...common,
+        message_type: "private",
+        sub_type: "friend",
+        ...ev.self ? { target_id: Number(ev.peer) } : {},
+        sender: { user_id: Number(ev.sender.uin), nickname: ev.sender.nickname ?? "", sex: "unknown", age: 0 }
+    };
+}
+function lifecycleEvent(selfId, subType = "connect") {
+    return { time: now(), self_id: Number(selfId), post_type: "meta_event", meta_event_type: "lifecycle", sub_type: subType };
+}
+function heartbeatEvent(selfId, online, intervalMs) {
+    return { time: now(), self_id: Number(selfId), post_type: "meta_event", meta_event_type: "heartbeat", status: { online, good: online }, interval: intervalMs };
+}
+function noticeEvent(n2, selfId) {
+    const request = REQUESTS[n2.kind];
+    if (request)
+        return { time: n2.time, self_id: Number(selfId), post_type: "request", ...request(n2) };
+    const build = NOTICES[n2.kind];
+    return build ? { time: n2.time, self_id: Number(selfId), post_type: "notice", ...build(n2, selfId) } : null;
+}
+var now, n32, NOTICES, REQUESTS;
+var init_events = __esm({
+    "upper/onebot/events.mjs"() {
+        init_message_format();
+        now = () => Math.floor(Date.now() / 1e3);
+        n32 = (v) => Number(v ?? 0);
+        NOTICES = {
+            group_member_join: (n2) => ({ notice_type: "group_increase", sub_type: n2.joinType, group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.userUin) }),
+            group_member_leave: (n2, self2) => ({ notice_type: "group_decrease", sub_type: n2.leaveType === "kick" && String(n2.userUin) === String(self2) ? "kick_me" : n2.leaveType, group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.userUin) }),
+            group_mute: (n2) => ({ notice_type: "group_ban", sub_type: n2.duration > 0 ? "ban" : "lift_ban", group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.userUin), duration: n2.duration }),
+            group_admin: (n2) => ({ notice_type: "group_admin", sub_type: n2.set ? "set" : "unset", group_id: n32(n2.groupId), user_id: n32(n2.userUin) }),
+            friend_recall: (n2) => ({ notice_type: "friend_recall", user_id: n32(n2.userUin), message_id: n2.messageId ?? 0 }),
+            group_recall: (n2) => ({ notice_type: "group_recall", group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.authorUin), message_id: n2.messageId ?? 0 }),
+            friend_poke: (n2) => ({ notice_type: "notify", sub_type: "poke", user_id: n32(n2.peerUin), sender_id: n32(n2.senderUin), target_id: n32(n2.targetUin), action: n2.action, suffix: n2.suffix, action_img_url: n2.actionImgUrl }),
+            group_poke: (n2) => ({ notice_type: "notify", sub_type: "poke", group_id: n32(n2.groupId), user_id: n32(n2.userUin), target_id: n32(n2.targetUin), action: n2.action, suffix: n2.suffix, action_img_url: n2.actionImgUrl }),
+            group_essence: (n2) => ({ notice_type: "essence", sub_type: n2.set ? "add" : "delete", group_id: n32(n2.groupId), user_id: n32(n2.senderUin), sender_id: n32(n2.senderUin), operator_id: n32(n2.operatorUin), message_id: n2.messageId ?? 0, message_seq: n2.sequence, random: n2.random }),
+            friend_add: (n2) => ({ notice_type: "friend_add", user_id: n32(n2.userUin) }),
+            group_title_change: (n2) => ({ notice_type: "notify", sub_type: "title", group_id: n32(n2.groupId), user_id: n32(n2.userUin), title: n2.title }),
+            group_name_change: (n2) => ({ notice_type: "notify", sub_type: "group_name", group_id: n32(n2.groupId), user_id: n32(n2.operatorUin), name_new: n2.name }),
+            group_msg_emoji_like: (n2) => ({ notice_type: "group_msg_emoji_like", sub_type: n2.isAdd ? "add" : "remove", group_id: n32(n2.groupId), user_id: n32(n2.operatorUin), operator_id: n32(n2.operatorUin), message_id: n2.messageId ?? 0, message_seq: n2.sequence, likes: [{ emoji_id: n2.emojiId, count: n2.count }] })
+        };
+        REQUESTS = {
+            friend_request: (n2) => ({ request_type: "friend", user_id: n32(n2.userUin), comment: n2.comment ?? "", flag: n2.flag }),
+            group_request: (n2) => ({ request_type: "group", sub_type: n2.subType, group_id: n32(n2.groupId), user_id: n32(n2.userUin), ...n32(n2.invitorUin) ? { invitor_id: n32(n2.invitorUin) } : {}, comment: n2.comment ?? "", flag: n2.flag })
+        };
+    }
+});
+function isWavFile(fileData) {
+    try {
+        let chunks = unpackWavFileChunks(fileData), fmt = decodeFormatChunk(chunks.get("fmt")), data = chunks.get("data");
+        return getWavFileType(fmt), verifyDataChunkLength(data, fmt), true;
+    }
+    catch {
+        return false;
+    }
+}
+function decodeWavFile(fileData) {
+    let chunks = unpackWavFileChunks(fileData), fmt = decodeFormatChunk(chunks.get("fmt")), data = chunks.get("data"), wavFileType = getWavFileType(fmt), audioEncoding = wavFileTypeAudioEncodings[wavFileType], wavFileTypeName = audioEncodingNames[audioEncoding] + fmt.bitsPerSample;
+    return verifyDataChunkLength(data, fmt), { channelData: decodeDataChunk(data, fmt, wavFileType), sampleRate: fmt.sampleRate, numberOfChannels: fmt.numberOfChannels, audioEncoding, bitsPerSample: fmt.bitsPerSample, wavFileTypeName };
+}
+function unpackWavFileChunks(fileData) {
+    let dataView;
+    fileData instanceof ArrayBuffer ? dataView = new DataView(fileData) : dataView = new DataView(fileData.buffer, fileData.byteOffset, fileData.byteLength);
+    let fileLength = dataView.byteLength;
+    if (fileLength < 20)
+        throw new Error("WAV file is too short.");
+    if (getString(dataView, 0, 4) != "RIFF")
+        throw new Error("Not a valid WAV file (no RIFF header).");
+    let mainChunkLength = dataView.getUint32(4, true);
+    if (8 + mainChunkLength != fileLength)
+        throw new Error(`Main chunk length of WAV file (${8 + mainChunkLength}) does not match file size (${fileLength}).`);
+    if (getString(dataView, 8, 4) != "WAVE")
+        throw new Error("RIFF file is not a WAV file.");
+    let chunks = new Map(), fileOffset = 12;
+    for (; fileOffset < fileLength;) {
+        if (fileOffset + 8 > fileLength)
+            throw new Error(`Incomplete chunk prefix in WAV file at offset ${fileOffset}.`);
+        let chunkId = getString(dataView, fileOffset, 4).trim(), chunkLength = dataView.getUint32(fileOffset + 4, true);
+        if (fileOffset + 8 + chunkLength > fileLength)
+            throw new Error(`Incomplete chunk data in WAV file at offset ${fileOffset}.`);
+        let chunkData = new DataView(dataView.buffer, dataView.byteOffset + fileOffset + 8, chunkLength);
+        chunks.set(chunkId, chunkData);
+        let padLength = chunkLength % 2;
+        fileOffset += 8 + chunkLength + padLength;
+    }
+    return chunks;
+}
+function getString(dataView, offset, length) {
+    let a = new Uint8Array(dataView.buffer, dataView.byteOffset + offset, length);
+    return String.fromCharCode.apply(null, a);
+}
+function getInt24(dataView, offset) {
+    let b0 = dataView.getInt8(offset + 2) * 65536, b12 = dataView.getUint16(offset, true);
+    return b0 + b12;
+}
+function decodeFormatChunk(dataView) {
+    if (!dataView)
+        throw new Error("No format chunk found in WAV file.");
+    if (dataView.byteLength < 16)
+        throw new Error("Format chunk of WAV file is too short.");
+    let fmt = {};
+    return fmt.formatCode = dataView.getUint16(0, true), fmt.numberOfChannels = dataView.getUint16(2, true), fmt.sampleRate = dataView.getUint32(4, true), fmt.bytesPerSec = dataView.getUint32(8, true), fmt.bytesPerFrame = dataView.getUint16(12, true), fmt.bitsPerSample = dataView.getUint16(14, true), fmt;
+}
+function getWavFileType(fmt) {
+    if (fmt.numberOfChannels < 1 || fmt.numberOfChannels > 999)
+        throw new Error("Invalid number of channels in WAV file.");
+    let bytesPerSample = Math.ceil(fmt.bitsPerSample / 8), expectedBytesPerFrame = fmt.numberOfChannels * bytesPerSample;
+    if (fmt.formatCode == 1 && fmt.bitsPerSample >= 1 && fmt.bitsPerSample <= 8 && fmt.bytesPerFrame == expectedBytesPerFrame)
+        return 0;
+    if (fmt.formatCode == 1 && fmt.bitsPerSample >= 9 && fmt.bitsPerSample <= 16 && fmt.bytesPerFrame == expectedBytesPerFrame)
+        return 1;
+    if (fmt.formatCode == 1 && fmt.bitsPerSample >= 17 && fmt.bitsPerSample <= 24 && fmt.bytesPerFrame == expectedBytesPerFrame)
+        return 2;
+    if (fmt.formatCode == 3 && fmt.bitsPerSample == 32 && fmt.bytesPerFrame == expectedBytesPerFrame)
+        return 3;
+    throw new Error(`Unsupported WAV file type, formatCode=${fmt.formatCode}, bitsPerSample=${fmt.bitsPerSample}, bytesPerFrame=${fmt.bytesPerFrame}, numberOfChannels=${fmt.numberOfChannels}.`);
+}
+function decodeDataChunk(data, fmt, wavFileType) {
+    switch (wavFileType) {
+        case 0:
+            return decodeDataChunk_uint8(data, fmt);
+        case 1:
+            return decodeDataChunk_int16(data, fmt);
+        case 2:
+            return decodeDataChunk_int24(data, fmt);
+        case 3:
+            return decodeDataChunk_float32(data, fmt);
+        default:
+            throw new Error("No decoder.");
+    }
+}
+function decodeDataChunk_int16(data, fmt) {
+    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
+    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
+        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
+            let sampleValueFloat = data.getInt16(offs, true) / 32768;
+            channelData[channelNo][frameNo] = sampleValueFloat, offs += 2;
+        }
+    return channelData;
+}
+function decodeDataChunk_uint8(data, fmt) {
+    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
+    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
+        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
+            let sampleValueFloat = (data.getUint8(offs) - 128) / 128;
+            channelData[channelNo][frameNo] = sampleValueFloat, offs += 1;
+        }
+    return channelData;
+}
+function decodeDataChunk_int24(data, fmt) {
+    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
+    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
+        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
+            let sampleValueFloat = getInt24(data, offs) / 8388608;
+            channelData[channelNo][frameNo] = sampleValueFloat, offs += 3;
+        }
+    return channelData;
+}
+function decodeDataChunk_float32(data, fmt) {
+    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
+    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
+        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
+            let sampleValueFloat = data.getFloat32(offs, true);
+            channelData[channelNo][frameNo] = sampleValueFloat, offs += 4;
+        }
+    return channelData;
+}
+function allocateChannelDataArrays(dataLength, fmt) {
+    let numberOfFrames = Math.floor(dataLength / fmt.bytesPerFrame), channelData = new Array(fmt.numberOfChannels);
+    for (let channelNo = 0; channelNo < fmt.numberOfChannels; channelNo++)
+        channelData[channelNo] = new Float32Array(numberOfFrames);
+    return channelData;
+}
+function verifyDataChunkLength(data, fmt) {
+    if (!data)
+        throw new Error("No data chunk found in WAV file.");
+    if (data.byteLength % fmt.bytesPerFrame != 0)
+        throw new Error("WAV file data chunk length is not a multiple of frame size.");
+}
+function ensureMonoPcm(channelData) {
+    let { length: numberOfChannels } = channelData;
+    if (numberOfChannels === 1)
+        return channelData[0];
+    let monoData = new Float32Array(channelData[0].length);
+    for (let i = 0; i < monoData.length; i++) {
+        let sum = 0;
+        for (let j = 0; j < numberOfChannels; j++)
+            sum += channelData[j][i];
+        monoData[i] = sum / numberOfChannels;
+    }
+    return monoData;
+}
+function ensureS16lePcm(input) {
+    let int16Array = new Int16Array(input.length);
+    for (let offset = 0; offset < input.length; offset++) {
+        let x = ~~(input[offset] * 32768);
+        int16Array[offset] = x > 32767 ? 32767 : x;
+    }
+    return int16Array.buffer;
+}
+function binaryFromSource(source) {
+    return ArrayBuffer.isView(source) ? source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength) : source;
+}
+async function encode2(input, sampleRate) {
+    let instance = await silk_default(), buffer = binaryFromSource(input);
+    if (!buffer?.byteLength)
+        throw new Error("input data length is 0");
+    if (isWavFile(input)) {
+        let { channelData, sampleRate: wavSampleRate } = decodeWavFile(input);
+        sampleRate ||= wavSampleRate, buffer = ensureS16lePcm(ensureMonoPcm(channelData));
+    }
+    let data = new Uint8Array(), duration = instance.silk_encode(buffer, sampleRate, (output) => {
+        data = output.slice();
+    });
+    if (duration === 0)
+        throw new Error("silk encoding failure");
+    return { data, duration };
+}
+async function decode2(input, sampleRate) {
+    let instance = await silk_default(), buffer = binaryFromSource(input);
+    if (!buffer?.byteLength)
+        throw new Error("input data length is 0");
+    let data = new Uint8Array(), duration = instance.silk_decode(buffer, sampleRate, (output) => {
+        output.length > 0 && (data = output.slice());
+    });
+    if (duration === 0)
+        throw new Error("silk decoding failure");
+    return { data, duration };
+}
+function getDuration(data, frameMs = 20) {
+    let buffer = binaryFromSource(data), view = new DataView(buffer), byteLength = view.byteLength, offset = view.getUint8(0) === 2 ? 10 : 9, blocks = 0;
+    for (; offset < byteLength;) {
+        let size = view.getUint16(offset, true);
+        blocks += 1, offset += size + 2;
+    }
+    return blocks * frameMs;
+}
+var Module, silk_default, audioEncodingNames, wavFileTypeAudioEncodings;
+var init_lib = __esm({
+    "vendor/silk-wasm/lib/index.mjs"() {
+        Module = async function (moduleArg = {}) {
+            var moduleRtn, g = moduleArg, aa, q, ba = new Promise((a, b) => {
+                aa = a, q = b;
+            }), ca = typeof window == "object", da = typeof WorkerGlobalScope < "u", t = typeof process == "object" && typeof process.versions == "object" && typeof process.versions.node == "string" && process.type != "renderer";
+            if (t) {
+                let { createRequire: a } = await import("module");
+                var require2 = a(import.meta.url);
+            }
+            var u = (a, b) => {
+                throw b;
+            }, ea = import.meta.url, v = "", fa, w;
+            if (t) {
+                var fs42 = require2("fs"), ha = require2("path");
+                ea.startsWith("file:") && (v = ha.dirname(require2("url").fileURLToPath(ea)) + "/"), w = (a) => (a = y(a) ? new URL(a) : a, fs42.readFileSync(a)), fa = async (a) => (a = y(a) ? new URL(a) : a, fs42.readFileSync(a, void 0)), process.argv.slice(2), u = (a, b) => {
+                    throw process.exitCode = a, b;
+                };
+            }
+            else if (ca || da) {
+                try {
+                    v = new URL(".", ea).href;
+                }
+                catch {
+                }
+                da && (w = (a) => {
+                    var b = new XMLHttpRequest();
+                    return b.open("GET", a, false), b.responseType = "arraybuffer", b.send(null), new Uint8Array(b.response);
+                }), fa = async (a) => {
+                    if (y(a))
+                        return new Promise((d, c) => {
+                            var e = new XMLHttpRequest();
+                            e.open("GET", a, true), e.responseType = "arraybuffer", e.onload = () => {
+                                e.status == 200 || e.status == 0 && e.response ? d(e.response) : c(e.status);
+                            }, e.onerror = c, e.send(null);
+                        });
+                    var b = await fetch(a, { credentials: "same-origin" });
+                    if (b.ok)
+                        return b.arrayBuffer();
+                    throw Error(b.status + " : " + b.url);
+                };
+            }
+            console.log.bind(console);
+            var A = console.error.bind(console), C, D2, E = false, ia, ja, F, G, H, I, J, ka, la, ma, na, y = (a) => a.startsWith("file://");
+            function pa() {
+                var a = D2.buffer;
+                ja = new Int8Array(a), G = new Int16Array(a), F = new Uint8Array(a), H = new Uint16Array(a), I = new Int32Array(a), J = new Uint32Array(a), ka = new Float32Array(a), na = new Float64Array(a), la = new BigInt64Array(a), ma = new BigUint64Array(a);
+            }
+            var K = 0, L = null;
+            function qa(a) {
+                throw g.onAbort?.(a), a = "Aborted(" + a + ")", A(a), E = true, a = new WebAssembly.RuntimeError(a + ". Build with -sASSERTIONS for more info."), q(a), a;
+            }
+            var ra;
+            async function sa(a) {
+                if (!C)
+                    try {
+                        var b = await fa(a);
+                        return new Uint8Array(b);
+                    }
+                    catch {
+                    }
+                if (a == ra && C)
+                    a = new Uint8Array(C);
+                else if (w)
+                    a = w(a);
+                else
+                    throw "both async and sync fetching of the wasm failed";
+                return a;
+            }
+            async function ta(a, b) {
+                try {
+                    var d = await sa(a);
+                    return await WebAssembly.instantiate(d, b);
+                }
+                catch (c) {
+                    A(`failed to asynchronously prepare wasm: ${c}`), qa(c);
+                }
+            }
+            async function ua(a) {
+                var b = ra;
+                if (!C && typeof WebAssembly.instantiateStreaming == "function" && !y(b) && !t)
+                    try {
+                        var d = fetch(b, { credentials: "same-origin" });
+                        return await WebAssembly.instantiateStreaming(d, a);
+                    }
+                    catch (c) {
+                        A(`wasm streaming compile failed: ${c}`), A("falling back to ArrayBuffer instantiation");
+                    }
+                return ta(b, a);
+            }
+            class va {
+                name = "ExitStatus";
+                constructor(a) {
+                    this.message = `Program terminated with exit(${a})`, this.status = a;
+                }
+            }
+            var wa = (a) => {
+                for (; 0 < a.length;)
+                    a.shift()(g);
+            }, xa = [], ya = [], za = () => {
+                var a = g.preRun.shift();
+                ya.push(a);
+            }, O = true;
+            class Aa {
+                constructor(a) {
+                    this.I = a - 24;
+                }
+            }
+            var Ba = 0, Ca = 0, Da, P = (a) => {
+                for (var b = ""; F[a];)
+                    b += Da[F[a++]];
+                return b;
+            }, Q = {}, R = {}, S2 = {}, T6 = g.BindingError = class extends Error {
+                constructor(a) {
+                    super(a), this.name = "BindingError";
+                }
+            }, Ea = (a) => {
+                throw new T6(a);
+            };
+            function Fa(a, b, d = {}) {
+                var c = b.name;
+                if (!a)
+                    throw new T6(`type "${c}" must have a positive integer typeid pointer`);
+                if (R.hasOwnProperty(a)) {
+                    if (d.K)
+                        return;
+                    throw new T6(`Cannot register type '${c}' twice`);
+                }
+                R[a] = b, delete S2[a], Q.hasOwnProperty(a) && (b = Q[a], delete Q[a], b.forEach((e) => e()));
+            }
+            function U2(a, b, d = {}) {
+                return Fa(a, b, d);
+            }
+            var Ga = (a, b, d) => {
+                switch (b) {
+                    case 1:
+                        return d ? (c) => ja[c] : (c) => F[c];
+                    case 2:
+                        return d ? (c) => G[c >> 1] : (c) => H[c >> 1];
+                    case 4:
+                        return d ? (c) => I[c >> 2] : (c) => J[c >> 2];
+                    case 8:
+                        return d ? (c) => la[c >> 3] : (c) => ma[c >> 3];
+                    default:
+                        throw new TypeError(`invalid integer width (${b}): ${a}`);
+                }
+            }, Ha = [], V = [], Ia = (a) => {
+                9 < a && --V[a + 1] === 0 && (V[a] = void 0, Ha.push(a));
+            }, Ja = (a) => {
+                if (!a)
+                    throw new T6(`Cannot use deleted val. handle = ${a}`);
+                return V[a];
+            }, Ka = (a) => {
+                switch (a) {
+                    case void 0:
+                        return 2;
+                    case null:
+                        return 4;
+                    case true:
+                        return 6;
+                    case false:
+                        return 8;
+                    default:
+                        let b = Ha.pop() || V.length;
+                        return V[b] = a, V[b + 1] = 1, b;
+                }
+            };
+            function La(a) {
+                return this.fromWireType(J[a >> 2]);
+            }
+            var Ma = { name: "emscripten::val", fromWireType: (a) => {
+                    var b = Ja(a);
+                    return Ia(a), b;
+                }, toWireType: (a, b) => Ka(b), H: 8, readValueFromPointer: La, G: null }, Na = (a, b) => {
+                switch (b) {
+                    case 4:
+                        return function (d) {
+                            return this.fromWireType(ka[d >> 2]);
+                        };
+                    case 8:
+                        return function (d) {
+                            return this.fromWireType(na[d >> 3]);
+                        };
+                    default:
+                        throw new TypeError(`invalid float width (${b}): ${a}`);
+                }
+            }, Oa = (a) => {
+                for (; a.length;) {
+                    var b = a.pop();
+                    a.pop()(b);
+                }
+            };
+            function Pa(a) {
+                for (var b = 1; b < a.length; ++b)
+                    if (a[b] !== null && a[b].G === void 0)
+                        return true;
+                return false;
+            }
+            var Sa = (a, b) => {
+                if (g[a].F === void 0) {
+                    var d = g[a];
+                    g[a] = function (...c) {
+                        if (!g[a].F.hasOwnProperty(c.length))
+                            throw new T6(`Function '${b}' called with an invalid number of arguments (${c.length}) - expects one of (${g[a].F})!`);
+                        return g[a].F[c.length].apply(this, c);
+                    }, g[a].F = [], g[a].F[d.J] = d;
+                }
+            }, Ta = (a, b, d) => {
+                if (g.hasOwnProperty(a)) {
+                    if (d === void 0 || g[a].F !== void 0 && g[a].F[d] !== void 0)
+                        throw new T6(`Cannot register public name '${a}' twice`);
+                    if (Sa(a, a), g[a].F.hasOwnProperty(d))
+                        throw new T6(`Cannot register multiple overloads of a function with the same number of arguments (${d})!`);
+                    g[a].F[d] = b;
+                }
+                else
+                    g[a] = b, g[a].J = d;
+            }, Ua = (a, b) => {
+                for (var d = [], c = 0; c < a; c++)
+                    d.push(J[b + 4 * c >> 2]);
+                return d;
+            }, Va = g.InternalError = class extends Error {
+                constructor(a) {
+                    super(a), this.name = "InternalError";
+                }
+            }, Wa = [], Xa, Ya = (a, b) => {
+                a = P(a);
+                var d;
+                if ((d = Wa[b]) || (Wa[b] = d = Xa.get(b)), typeof d != "function")
+                    throw new T6(`unknown function pointer with signature ${a}: ${b}`);
+                return d;
+            };
+            class Za extends Error {
+            }
+            for (var ab = (a) => {
+                a = $a(a);
+                var b = P(a);
+                return W(a), b;
+            }, bb = (a, b) => {
+                function d(f) {
+                    e[f] || R[f] || (S2[f] ? S2[f].forEach(d) : (c.push(f), e[f] = true));
+                }
+                var c = [], e = {};
+                throw b.forEach(d), new Za(`${a}: ` + c.map(ab).join([", "]));
+            }, cb = (a, b) => {
+                function d(h) {
+                    if (h = b(h), h.length !== c.length)
+                        throw new Va("Mismatched type converter count");
+                    for (var l = 0; l < c.length; ++l)
+                        U2(c[l], h[l]);
+                }
+                var c = [];
+                c.forEach((h) => S2[h] = a);
+                var e = Array(a.length), f = [], m = 0;
+                a.forEach((h, l) => {
+                    R.hasOwnProperty(h) ? e[l] = R[h] : (f.push(h), Q.hasOwnProperty(h) || (Q[h] = []), Q[h].push(() => {
+                        e[l] = R[h], ++m, m === f.length && d(e);
+                    }));
+                }), f.length === 0 && d(e);
+            }, db = (a) => {
+                a = a.trim();
+                let b = a.indexOf("(");
+                return b === -1 ? a : a.slice(0, b);
+            }, eb = typeof TextDecoder < "u" ? new TextDecoder() : void 0, fb = (a = 0, b = NaN) => {
+                var d = F, c = a + b;
+                for (b = a; d[b] && !(b >= c);)
+                    ++b;
+                if (16 < b - a && d.buffer && eb)
+                    return eb.decode(d.subarray(a, b));
+                for (c = ""; a < b;) {
+                    var e = d[a++];
+                    if (e & 128) {
+                        var f = d[a++] & 63;
+                        if ((e & 224) == 192)
+                            c += String.fromCharCode((e & 31) << 6 | f);
+                        else {
+                            var m = d[a++] & 63;
+                            e = (e & 240) == 224 ? (e & 15) << 12 | f << 6 | m : (e & 7) << 18 | f << 12 | m << 6 | d[a++] & 63, 65536 > e ? c += String.fromCharCode(e) : (e -= 65536, c += String.fromCharCode(55296 | e >> 10, 56320 | e & 1023));
+                        }
+                    }
+                    else
+                        c += String.fromCharCode(e);
+                }
+                return c;
+            }, gb = typeof TextDecoder < "u" ? new TextDecoder("utf-16le") : void 0, hb = (a, b) => {
+                for (var d = a >> 1, c = d + b / 2; !(d >= c) && H[d];)
+                    ++d;
+                if (d <<= 1, 32 < d - a && gb)
+                    return gb.decode(F.subarray(a, d));
+                for (d = "", c = 0; !(c >= b / 2); ++c) {
+                    var e = G[a + 2 * c >> 1];
+                    if (e == 0)
+                        break;
+                    d += String.fromCharCode(e);
+                }
+                return d;
+            }, ib = (a, b, d) => {
+                if (d ??= 2147483647, 2 > d)
+                    return 0;
+                d -= 2;
+                var c = b;
+                d = d < 2 * a.length ? d / 2 : a.length;
+                for (var e = 0; e < d; ++e)
+                    G[b >> 1] = a.charCodeAt(e), b += 2;
+                return G[b >> 1] = 0, b - c;
+            }, jb = (a) => 2 * a.length, kb = (a, b) => {
+                for (var d = 0, c = ""; !(d >= b / 4);) {
+                    var e = I[a + 4 * d >> 2];
+                    if (e == 0)
+                        break;
+                    ++d, 65536 <= e ? (e -= 65536, c += String.fromCharCode(55296 | e >> 10, 56320 | e & 1023)) : c += String.fromCharCode(e);
+                }
+                return c;
+            }, lb = (a, b, d) => {
+                if (d ??= 2147483647, 4 > d)
+                    return 0;
+                var c = b;
+                d = c + d - 4;
+                for (var e = 0; e < a.length; ++e) {
+                    var f = a.charCodeAt(e);
+                    if (55296 <= f && 57343 >= f) {
+                        var m = a.charCodeAt(++e);
+                        f = 65536 + ((f & 1023) << 10) | m & 1023;
+                    }
+                    if (I[b >> 2] = f, b += 4, b + 4 > d)
+                        break;
+                }
+                return I[b >> 2] = 0, b - c;
+            }, mb = (a) => {
+                for (var b = 0, d = 0; d < a.length; ++d) {
+                    var c = a.charCodeAt(d);
+                    55296 <= c && 57343 >= c && ++d, b += 4;
+                }
+                return b;
+            }, nb = 0, ob = [], pb = (a) => {
+                var b = ob.length;
+                return ob.push(a), b;
+            }, qb = (a, b) => {
+                var d = R[a];
+                if (d === void 0)
+                    throw a = `${b} has unknown type ${ab(a)}`, new T6(a);
+                return d;
+            }, rb = (a, b) => {
+                for (var d = Array(a), c = 0; c < a; ++c)
+                    d[c] = qb(J[b + 4 * c >> 2], `parameter ${c}`);
+                return d;
+            }, sb = (a, b, d) => {
+                var c = [];
+                return a = a.toWireType(c, d), c.length && (J[b >> 2] = Ka(c)), a;
+            }, X = {}, tb = (a) => {
+                ia = a, O || 0 < nb || (g.onExit?.(a), E = true), u(a, new va(a));
+            }, ub = (a) => {
+                if (!E)
+                    try {
+                        if (a(), !(O || 0 < nb))
+                            try {
+                                ia = a = ia, tb(a);
+                            }
+                            catch (b) {
+                                b instanceof va || b == "unwind" || u(1, b);
+                            }
+                    }
+                    catch (b) {
+                        b instanceof va || b == "unwind" || u(1, b);
+                    }
+            }, vb = Array(256), Y = 0; 256 > Y; ++Y)
+                vb[Y] = String.fromCharCode(Y);
+            Da = vb, V.push(0, 1, void 0, 1, null, 1, true, 1, false, 1), g.count_emval_handles = () => V.length / 2 - 5 - Ha.length, g.noExitRuntime && (O = g.noExitRuntime), g.printErr && (A = g.printErr), g.wasmBinary && (C = g.wasmBinary);
+            var Ab = { u: (a, b, d) => {
+                    var c = new Aa(a);
+                    throw J[c.I + 16 >> 2] = 0, J[c.I + 4 >> 2] = b, J[c.I + 8 >> 2] = d, Ba = a, Ca++, Ba;
+                }, v: () => qa(""), l: (a, b, d) => {
+                    b = P(b), U2(a, { name: b, fromWireType: (c) => c, toWireType: function (c, e) {
+                            if (typeof e != "bigint" && typeof e != "number")
+                                throw e === null ? e = "null" : (c = typeof e, e = c === "object" || c === "array" || c === "function" ? e.toString() : "" + e), new TypeError(`Cannot convert "${e}" to ${this.name}`);
+                            return typeof e == "number" && (e = BigInt(e)), e;
+                        }, H: 8, readValueFromPointer: Ga(b, d, b.indexOf("u") == -1), G: null });
+                }, o: (a, b, d, c) => {
+                    b = P(b), U2(a, { name: b, fromWireType: function (e) {
+                            return !!e;
+                        }, toWireType: function (e, f) {
+                            return f ? d : c;
+                        }, H: 8, readValueFromPointer: function (e) {
+                            return this.fromWireType(F[e]);
+                        }, G: null });
+                }, m: (a) => U2(a, Ma), k: (a, b, d) => {
+                    b = P(b), U2(a, { name: b, fromWireType: (c) => c, toWireType: (c, e) => e, H: 8, readValueFromPointer: Na(b, d), G: null });
+                }, c: (a, b, d, c, e, f, m) => {
+                    var h = Ua(b, d);
+                    a = P(a), a = db(a), e = Ya(c, e), Ta(a, function () {
+                        bb(`Cannot call ${a} due to unbound types`, h);
+                    }, b - 1), cb(h, (l) => {
+                        var k = [l[0], null].concat(l.slice(1));
+                        l = a;
+                        var p2 = a, z = e, n2 = k.length;
+                        if (2 > n2)
+                            throw new T6("argTypes array size mismatch! Must at least get return value and 'this' types!");
+                        var B = k[1] !== null && false, M = Pa(k), Qa = k[0].name !== "void";
+                        z = [p2, Ea, z, f, Oa, k[0], k[1]];
+                        for (var x = 0; x < n2 - 2; ++x)
+                            z.push(k[x + 2]);
+                        if (!M)
+                            for (x = B ? 1 : 2; x < k.length; ++x)
+                                k[x].G !== null && z.push(k[x].G);
+                        M = Pa(k), x = k.length - 2;
+                        var r = [], N = ["fn"];
+                        for (B && N.push("thisWired"), n2 = 0; n2 < x; ++n2)
+                            r.push(`arg${n2}`), N.push(`arg${n2}Wired`);
+                        r = r.join(","), N = N.join(","), r = `return function (${r}) {
+`, M && (r += `var destructors = [];
+`);
+                        var Ra = M ? "destructors" : "null", oa = "humanName throwBindingError invoker fn runDestructors retType classParam".split(" ");
+                        for (B && (r += `var thisWired = classParam['toWireType'](${Ra}, this);
+`), n2 = 0; n2 < x; ++n2)
+                            r += `var arg${n2}Wired = argType${n2}['toWireType'](${Ra}, arg${n2});
+`, oa.push(`argType${n2}`);
+                        if (r += (Qa || m ? "var rv = " : "") + `invoker(${N});
+`, M)
+                            r += `runDestructors(destructors);
+`;
+                        else
+                            for (n2 = B ? 1 : 2; n2 < k.length; ++n2)
+                                B = n2 === 1 ? "thisWired" : "arg" + (n2 - 2) + "Wired", k[n2].G !== null && (r += `${B}_dtor(${B});
+`, oa.push(`${B}_dtor`));
+                        Qa && (r += `var ret = retType['fromWireType'](rv);
+return ret;
+`);
+                        let [yb, zb] = [oa, r + `}
+`];
+                        if (k = new Function(...yb, zb)(...z), p2 = Object.defineProperty(k, "name", { value: p2 }), k = b - 1, !g.hasOwnProperty(l))
+                            throw new Va("Replacing nonexistent public symbol");
+                        return g[l].F !== void 0 && k !== void 0 ? g[l].F[k] = p2 : (g[l] = p2, g[l].J = k), [];
+                    });
+                }, b: (a, b, d, c, e) => {
+                    if (b = P(b), e === -1 && (e = 4294967295), e = (h) => h, c === 0) {
+                        var f = 32 - 8 * d;
+                        e = (h) => h << f >>> f;
+                    }
+                    var m = b.includes("unsigned") ? function (h, l) {
+                        return l >>> 0;
+                    } : function (h, l) {
+                        return l;
+                    };
+                    U2(a, { name: b, fromWireType: e, toWireType: m, H: 8, readValueFromPointer: Ga(b, d, c !== 0), G: null });
+                }, a: (a, b, d) => {
+                    function c(f) {
+                        return new e(ja.buffer, J[f + 4 >> 2], J[f >> 2]);
+                    }
+                    var e = [Int8Array, Uint8Array, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array][b];
+                    d = P(d), U2(a, { name: d, fromWireType: c, H: 8, readValueFromPointer: c }, { K: true });
+                }, n: (a, b) => {
+                    b = P(b), U2(a, { name: b, fromWireType: function (d) {
+                            for (var c = J[d >> 2], e = d + 4, f, m = e, h = 0; h <= c; ++h) {
+                                var l = e + h;
+                                (h == c || F[l] == 0) && (m = m ? fb(m, l - m) : "", f === void 0 ? f = m : (f += "\0", f += m), m = l + 1);
+                            }
+                            return W(d), f;
+                        }, toWireType: function (d, c) {
+                            c instanceof ArrayBuffer && (c = new Uint8Array(c));
+                            var e, f = typeof c == "string";
+                            if (!(f || ArrayBuffer.isView(c) && c.BYTES_PER_ELEMENT == 1))
+                                throw new T6("Cannot pass non-string to std::string");
+                            var m;
+                            if (f)
+                                for (e = m = 0; e < c.length; ++e) {
+                                    var h = c.charCodeAt(e);
+                                    127 >= h ? m++ : 2047 >= h ? m += 2 : 55296 <= h && 57343 >= h ? (m += 4, ++e) : m += 3;
+                                }
+                            else
+                                m = c.length;
+                            if (e = m, m = wb(4 + e + 1), h = m + 4, J[m >> 2] = e, f) {
+                                if (f = h, h = e + 1, e = F, 0 < h) {
+                                    h = f + h - 1;
+                                    for (var l = 0; l < c.length; ++l) {
+                                        var k = c.charCodeAt(l);
+                                        if (55296 <= k && 57343 >= k) {
+                                            var p2 = c.charCodeAt(++l);
+                                            k = 65536 + ((k & 1023) << 10) | p2 & 1023;
+                                        }
+                                        if (127 >= k) {
+                                            if (f >= h)
+                                                break;
+                                            e[f++] = k;
+                                        }
+                                        else {
+                                            if (2047 >= k) {
+                                                if (f + 1 >= h)
+                                                    break;
+                                                e[f++] = 192 | k >> 6;
+                                            }
+                                            else {
+                                                if (65535 >= k) {
+                                                    if (f + 2 >= h)
+                                                        break;
+                                                    e[f++] = 224 | k >> 12;
+                                                }
+                                                else {
+                                                    if (f + 3 >= h)
+                                                        break;
+                                                    e[f++] = 240 | k >> 18, e[f++] = 128 | k >> 12 & 63;
+                                                }
+                                                e[f++] = 128 | k >> 6 & 63;
+                                            }
+                                            e[f++] = 128 | k & 63;
+                                        }
+                                    }
+                                    e[f] = 0;
+                                }
+                            }
+                            else
+                                F.set(c, h);
+                            return d !== null && d.push(W, m), m;
+                        }, H: 8, readValueFromPointer: La, G(d) {
+                            W(d);
+                        } });
+                }, e: (a, b, d) => {
+                    if (d = P(d), b === 2)
+                        var c = hb, e = ib, f = jb, m = (h) => H[h >> 1];
+                    else
+                        b === 4 && (c = kb, e = lb, f = mb, m = (h) => J[h >> 2]);
+                    U2(a, { name: d, fromWireType: (h) => {
+                            for (var l = J[h >> 2], k, p2 = h + 4, z = 0; z <= l; ++z) {
+                                var n2 = h + 4 + z * b;
+                                (z == l || m(n2) == 0) && (p2 = c(p2, n2 - p2), k === void 0 ? k = p2 : (k += "\0", k += p2), p2 = n2 + b);
+                            }
+                            return W(h), k;
+                        }, toWireType: (h, l) => {
+                            if (typeof l != "string")
+                                throw new T6(`Cannot pass non-string to C++ string type ${d}`);
+                            var k = f(l), p2 = wb(4 + k + b);
+                            return J[p2 >> 2] = k / b, e(l, p2 + 4, k + b), h !== null && h.push(W, p2), p2;
+                        }, H: 8, readValueFromPointer: La, G(h) {
+                            W(h);
+                        } });
+                }, f: (a) => {
+                    U2(a, Ma);
+                }, p: (a, b) => {
+                    b = P(b), U2(a, { L: true, name: b, H: 0, fromWireType: () => {
+                        }, toWireType: () => {
+                        } });
+                }, s: () => {
+                    O = false, nb = 0;
+                }, i: (a, b, d, c) => (a = ob[a], b = Ja(b), a(null, b, d, c)), d: Ia, h: (a, b, d) => {
+                    b = rb(a, b);
+                    var c = b.shift();
+                    a--;
+                    var e = `return function (obj, func, destructorsRef, args) {
+`, f = 0, m = [];
+                    d === 0 && m.push("obj");
+                    for (var h = ["retType"], l = [c], k = 0; k < a; ++k)
+                        m.push(`arg${k}`), h.push(`argType${k}`), l.push(b[k]), e += `  var arg${k} = argType${k}.readValueFromPointer(args${f ? "+" + f : ""});
+`, f += b[k].H;
+                    return e += `  var rv = ${d === 1 ? "new func" : "func.call"}(${m.join(", ")});
+`, c.L || (h.push("emval_returnValue"), l.push(sb), e += `  return emval_returnValue(retType, destructorsRef, rv);
+`), a = new Function(...h, e + `};
+`)(...l), d = `methodCaller<(${b.map((p2) => p2.name).join(", ")}) => ${c.name}>`, pb(Object.defineProperty(a, "name", { value: d }));
+                }, q: (a) => {
+                    9 < a && (V[a + 1] += 1);
+                }, g: (a) => {
+                    var b = Ja(a);
+                    Oa(b), Ia(a);
+                }, j: (a, b) => (a = qb(a, "_emval_take_value"), a = a.readValueFromPointer(b), Ka(a)), t: (a, b) => {
+                    if (X[a] && (clearTimeout(X[a].id), delete X[a]), !b)
+                        return 0;
+                    var d = setTimeout(() => {
+                        delete X[a], ub(() => xb(a, performance.now()));
+                    }, b);
+                    return X[a] = { id: d, M: b }, 0;
+                }, w: (a) => {
+                    var b = F.length;
+                    if (a >>>= 0, 2147483648 < a)
+                        return false;
+                    for (var d = 1; 4 >= d; d *= 2) {
+                        var c = b * (1 + 0.2 / d);
+                        c = Math.min(c, a + 100663296);
+                        a: {
+                            c = (Math.min(2147483648, 65536 * Math.ceil(Math.max(a, c) / 65536)) - D2.buffer.byteLength + 65535) / 65536 | 0;
+                            try {
+                                D2.grow(c), pa();
+                                var e = 1;
+                                break a;
+                            }
+                            catch {
+                            }
+                            e = void 0;
+                        }
+                        if (e)
+                            return true;
+                    }
+                    return false;
+                }, r: tb }, Z = await (async function () {
+                function a(c) {
+                    return Z = c.exports, D2 = Z.x, pa(), Xa = Z.D, K--, g.monitorRunDependencies?.(K), K == 0 && L && (c = L, L = null, c()), Z;
+                }
+                K++, g.monitorRunDependencies?.(K);
+                var b = { a: Ab };
+                if (g.instantiateWasm)
+                    return new Promise((c) => {
+                        g.instantiateWasm(b, (e, f) => {
+                            c(a(e, f));
+                        });
+                    });
+                ra ??= g.locateFile ? g.locateFile ? g.locateFile("silk.wasm", v) : v + "silk.wasm" : new URL("silk.wasm", import.meta.url).href;
+                try {
+                    var d = await ua(b);
+                    return a(d.instance);
+                }
+                catch (c) {
+                    return q(c), Promise.reject(c);
+                }
+            })(), $a = Z.z, wb = Z.A, W = Z.B, xb = Z.C;
+            function Bb() {
+                function a() {
+                    if (g.calledRun = true, !E) {
+                        if (Z.y(), aa(g), g.onRuntimeInitialized?.(), g.postRun)
+                            for (typeof g.postRun == "function" && (g.postRun = [g.postRun]); g.postRun.length;) {
+                                var b = g.postRun.shift();
+                                xa.push(b);
+                            }
+                        wa(xa);
+                    }
+                }
+                if (0 < K)
+                    L = Bb;
+                else {
+                    if (g.preRun)
+                        for (typeof g.preRun == "function" && (g.preRun = [g.preRun]); g.preRun.length;)
+                            za();
+                    wa(ya), 0 < K ? L = Bb : g.setStatus ? (g.setStatus("Running..."), setTimeout(() => {
+                        setTimeout(() => g.setStatus(""), 1), a();
+                    }, 1)) : a();
+                }
+            }
+            if (g.preInit)
+                for (typeof g.preInit == "function" && (g.preInit = [g.preInit]); 0 < g.preInit.length;)
+                    g.preInit.shift()();
+            return Bb(), moduleRtn = ba, moduleRtn;
+        };
+        silk_default = Module;
+        audioEncodingNames = ["int", "float"];
+        wavFileTypeAudioEncodings = [0, 0, 0, 1];
+    }
+});
+import fs12 from "node:fs";
+import { spawn as spawn5, spawnSync } from "node:child_process";
+function findFfmpeg(env = process.env) {
+    if (ffmpegChecked && env === process.env)
+        return ffmpegPath;
+    const candidate = env.NERONET_FFMPEG || "ffmpeg";
+    let found = null;
+    try {
+        const r = spawnSync(candidate, ["-hide_banner", "-version"], { windowsHide: true, timeout: 5e3, encoding: "utf8" });
+        if (r.status === 0 && /ffmpeg version/i.test(r.stdout))
+            found = candidate;
+    }
+    catch {
+    }
+    if (env === process.env) {
+        ffmpegChecked = true;
+        ffmpegPath = found;
+    }
+    return found;
+}
+function runFfmpeg(args, input) {
+    const exe = findFfmpeg();
+    if (!exe)
+        return Promise.reject(new Error("this audio/video format needs ffmpeg: " + FFMPEG_HINT));
+    return new Promise((resolve, reject) => {
+        const p2 = spawn5(exe, ["-hide_banner", "-loglevel", "error", ...args], { windowsHide: true });
+        const out = [], err2 = [];
+        p2.stdout.on("data", (d) => out.push(d));
+        p2.stderr.on("data", (d) => err2.push(d));
+        p2.on("error", reject);
+        p2.on("close", (code) => code === 0 ? resolve(Buffer.concat(out)) : reject(new Error("ffmpeg failed: " + Buffer.concat(err2).toString().slice(-300))));
+        if (input)
+            p2.stdin.end(input);
+        else
+            p2.stdin.end();
+    });
+}
+function ffmpegInfo(file) {
+    const exe = findFfmpeg();
+    if (!exe)
+        return null;
+    const r = spawnSync(exe, ["-hide_banner", "-i", file], { windowsHide: true, timeout: 15e3, encoding: "utf8" });
+    const text2 = r.stderr || "";
+    const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(text2);
+    const v = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(text2);
+    return { duration: d ? +d[1] * 3600 + +d[2] * 60 + parseFloat(d[3]) : 0, width: v ? +v[1] : 0, height: v ? +v[2] : 0 };
+}
+function normalizeSilk(bytes) {
+    const b = Buffer.from(bytes);
+    if (b.subarray(0, 9).toString("latin1") === "#!SILK_V3")
+        return Buffer.concat([Buffer.from([2]), b]);
+    if (b[0] !== 2 && b.subarray(1, 10).toString("latin1") === "#!SILK_V3") {
+        const c = Buffer.from(b);
+        c[0] = 2;
+        return c;
+    }
+    return b;
+}
+function isSilkBytes(bytes) {
+    return normalizeSilk(bytes).subarray(1, 10).toString("latin1") === "#!SILK_V3";
+}
+function wavToMonoS16(bytes) {
+    const b = Buffer.from(bytes);
+    if (b.toString("latin1", 0, 4) !== "RIFF" || b.toString("latin1", 8, 12) !== "WAVE")
+        throw new Error("not a WAV file");
+    let off = 12, fmt = null, data = null;
+    while (off + 8 <= b.length) {
+        const id = b.toString("latin1", off, off + 4), size = b.readUInt32LE(off + 4), body = off + 8;
+        if (id === "fmt ") {
+            fmt = { code: b.readUInt16LE(body), channels: b.readUInt16LE(body + 2), rate: b.readUInt32LE(body + 4), bits: b.readUInt16LE(body + 14) };
+            if (fmt.code === 65534 && size >= 26)
+                fmt.code = b.readUInt16LE(body + 24);
+        }
+        else if (id === "data") {
+            data = b.subarray(body, Math.min(b.length, body + size));
+            break;
+        }
+        off = body + size + (size & 1);
+    }
+    if (!fmt || !data)
+        throw new Error("WAV without fmt/data chunk");
+    const code = fmt.code;
+    const bytesPer = fmt.bits / 8, frame2 = bytesPer * fmt.channels;
+    if (![1, 3].includes(code) || ![16, 24, 32].includes(fmt.bits) || code === 3 && fmt.bits !== 32)
+        throw new Error(`unsupported WAV encoding (format ${fmt.code}, ${fmt.bits}-bit)`);
+    const frames = Math.floor(data.length / frame2), out = new Int16Array(frames);
+    for (let i = 0; i < frames; i++) {
+        let sum = 0;
+        for (let c = 0; c < fmt.channels; c++) {
+            const p2 = i * frame2 + c * bytesPer;
+            let s;
+            if (code === 3)
+                s = data.readFloatLE(p2);
+            else if (fmt.bits === 16)
+                s = data.readInt16LE(p2) / 32768;
+            else if (fmt.bits === 24)
+                s = data.readIntLE(p2, 3) / 8388608;
+            else
+                s = data.readInt32LE(p2) / 2147483648;
+            sum += s;
+        }
+        out[i] = Math.max(-32768, Math.min(32767, Math.round(sum / fmt.channels * 32767)));
+    }
+    return { pcm: out, rate: fmt.rate };
+}
+function resampleS16(pcm, from, to) {
+    if (from === to)
+        return pcm;
+    const n2 = Math.max(1, Math.round(pcm.length * to / from)), out = new Int16Array(n2), step = from / to;
+    for (let i = 0; i < n2; i++) {
+        const x = i * step, i0 = Math.floor(x), i1 = Math.min(pcm.length - 1, i0 + 1), f = x - i0;
+        out[i] = Math.round((pcm[Math.min(i0, pcm.length - 1)] ?? 0) * (1 - f) + (pcm[i1] ?? 0) * f);
+    }
+    return out;
+}
+function s16ToWav(pcm, rate) {
+    const data = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), h = Buffer.alloc(44);
+    h.write("RIFF", 0);
+    h.writeUInt32LE(36 + data.length, 4);
+    h.write("WAVE", 8);
+    h.write("fmt ", 12);
+    h.writeUInt32LE(16, 16);
+    h.writeUInt16LE(1, 20);
+    h.writeUInt16LE(1, 22);
+    h.writeUInt32LE(rate, 24);
+    h.writeUInt32LE(rate * 2, 28);
+    h.writeUInt16LE(2, 32);
+    h.writeUInt16LE(16, 34);
+    h.write("data", 36);
+    h.writeUInt32LE(data.length, 40);
+    return Buffer.concat([h, data]);
+}
+async function toPcm(bytes) {
+    const b = Buffer.from(bytes);
+    if (isSilkBytes(b)) {
+        const d = await decode2(normalizeSilk(b), SILK_RATE);
+        return { pcm: new Int16Array(d.data.buffer, d.data.byteOffset, d.data.byteLength / 2), rate: SILK_RATE };
+    }
+    if (isWav(b)) {
+        try {
+            const w = wavToMonoS16(b);
+            return SILK_RATES.has(w.rate) ? w : { pcm: resampleS16(w.pcm, w.rate, SILK_RATE), rate: SILK_RATE };
+        }
+        catch (error) {
+            if (!findFfmpeg())
+                throw error;
+        }
+    }
+    const raw = await runFfmpeg(["-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", String(SILK_RATE), "pipe:1"], b);
+    return { pcm: new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.byteLength / 2)), rate: SILK_RATE };
+}
+var SILK_RATE, SILK_RATES, FFMPEG_HINT, ffmpegChecked, ffmpegPath, isWav, audioAddon;
+var init_audio_addon = __esm({
+    "audio-addon.mjs"() {
+        init_lib();
+        SILK_RATE = 24e3;
+        SILK_RATES = new Set([8e3, 12e3, 16e3, 24e3, 32e3, 44100, 48e3]);
+        FFMPEG_HINT = "install ffmpeg and put it on PATH, or set NERONET_FFMPEG to ffmpeg.exe";
+        ffmpegChecked = false;
+        ffmpegPath = null;
+        isWav = (b) => b.length >= 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WAVE";
+        audioAddon = Object.freeze({
+            neronet: true,
+            async getDuration(file) {
+                const b = fs12.readFileSync(file);
+                if (isSilkBytes(b))
+                    return getDuration(normalizeSilk(b)) / 1e3;
+                if (isWav(b)) {
+                    try {
+                        const w = wavToMonoS16(b);
+                        return w.pcm.length / w.rate;
+                    }
+                    catch {
+                    }
+                }
+                return ffmpegInfo(file)?.duration || 1;
+            },
+            async convertToNTSilkTct(input, output) {
+                const b = fs12.readFileSync(input);
+                if (isSilkBytes(b)) {
+                    fs12.writeFileSync(output, normalizeSilk(b));
+                    return;
+                }
+                const { pcm, rate } = await toPcm(b);
+                if (!pcm.length)
+                    throw new Error("audio has no samples");
+                const e = await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate);
+                fs12.writeFileSync(output, Buffer.from(e.data));
+            },
+            async decodeAudioToFmt(input, output, format2) {
+                const { pcm, rate } = await toPcm(fs12.readFileSync(input));
+                const fmt = String(format2).toLowerCase();
+                if (fmt === "wav")
+                    fs12.writeFileSync(output, s16ToWav(pcm, rate));
+                else if (fmt === "pcm")
+                    fs12.writeFileSync(output, Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+                else if (fmt === "silk")
+                    fs12.writeFileSync(output, Buffer.from((await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate)).data));
+                else {
+                    const out = await runFfmpeg(["-f", "s16le", "-ar", String(rate), "-ac", "1", "-i", "pipe:0", "-f", fmt === "m4a" ? "ipod" : fmt, "pipe:1"], Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+                    fs12.writeFileSync(output, out);
+                }
+                return { result: true };
+            },
+            async getVideoInfo(file) {
+                const info = ffmpegInfo(file);
+                if (!info)
+                    throw new Error("video thumbnail needs ffmpeg: " + FFMPEG_HINT);
+                let image = null;
+                try {
+                    image = await runFfmpeg(["-ss", "0", "-i", file, "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1"]);
+                }
+                catch {
+                    image = null;
+                }
+                return { ...info, image };
+            }
+        });
+    }
+});
+function hasSignature(fmt, b) {
+    if (!b || b.length < 12)
+        return false;
+    const s = (from, to) => b.toString("latin1", from, to);
+    switch (fmt) {
+        case "wav":
+            return s(0, 4) === "RIFF" && s(8, 12) === "WAVE";
+        case "mp3":
+            return s(0, 3) === "ID3" || b[0] === 255 && (b[1] & 224) === 224;
+        case "ogg":
+            return s(0, 4) === "OggS" && b.includes(Buffer.from("vorbis"));
+        case "spx":
+            return s(0, 4) === "OggS" && b.includes(Buffer.from("Speex   "));
+        case "flac":
+            return s(0, 4) === "fLaC";
+        case "m4a":
+            return s(4, 8) === "ftyp";
+        case "amr":
+            return s(0, 6) === "#!AMR\n";
+        case "wma":
+            return b.subarray(0, 16).equals(ASF_GUID);
+        default:
+            return false;
+    }
+}
+async function convertRecord(bytes, fmt, { find = findFfmpeg, run = runFfmpeg, decode: decode3 = toPcm } = {}) {
+    fmt = String(fmt ?? "").toLowerCase();
+    if (!RECORD_FORMATS.includes(fmt))
+        throw err("NERONET_RECORD_FORMAT_UNSUPPORTED", `out_format must be one of ${RECORD_FORMATS.join(", ")}`);
+    if (fmt !== "wav" && !find())
+        throw err("NERONET_RECORD_CONVERTER_MISSING", `out_format ${fmt} needs ffmpeg (optional, not bundled): ${FFMPEG_HINT}; wav works without it`);
+    let pcm, rate;
+    try {
+        ({ pcm, rate } = await decode3(Buffer.from(bytes)));
+    }
+    catch (e) {
+        throw err("NERONET_RECORD_CONVERT_FAILED", `cannot decode the voice (${String(e?.message ?? e).slice(0, 160)})`);
+    }
+    if (!pcm?.length)
+        throw err("NERONET_RECORD_CONVERT_FAILED", "the voice has no samples");
+    let out;
+    if (fmt === "wav")
+        out = s16ToWav(pcm, rate);
+    else {
+        try {
+            out = await run(["-f", "s16le", "-ar", String(rate), "-ac", "1", "-i", "pipe:0", ...ENCODERS[fmt], "pipe:1"], Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+        }
+        catch (e) {
+            throw err("NERONET_RECORD_CONVERT_FAILED", `ffmpeg could not produce ${fmt} (the installed ffmpeg may lack the ${ENCODERS[fmt][1]} encoder): ${String(e?.message ?? e).slice(-200)}`);
+        }
+    }
+    if (!hasSignature(fmt, out))
+        throw err("NERONET_RECORD_CONVERT_FAILED", `the converter output is not a ${fmt} file`);
+    return out;
+}
+var RECORD_FORMATS, ENCODERS, ASF_GUID, err;
+var init_record_convert = __esm({
+    "upper/media/record-convert.mjs"() {
+        init_audio_addon();
+        RECORD_FORMATS = Object.freeze(["mp3", "amr", "wma", "m4a", "spx", "ogg", "wav", "flac"]);
+        ENCODERS = {
+            mp3: ["-c:a", "libmp3lame", "-f", "mp3"],
+            ogg: ["-c:a", "libvorbis", "-f", "ogg"],
+            flac: ["-c:a", "flac", "-f", "flac"],
+            m4a: ["-c:a", "aac", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod"],
+            wma: ["-c:a", "wmav2", "-f", "asf"],
+            amr: ["-ar", "8000", "-c:a", "libopencore_amrnb", "-b:a", "12.2k", "-f", "amr"],
+            spx: ["-c:a", "libspeex", "-f", "ogg"]
+        };
+        ASF_GUID = Buffer.from("3026b2758e66cf11a6d900aa0062ce6c", "hex");
+        err = (code, detail) => Object.assign(new Error(`${code}: ${detail}`), { code });
+    }
+});
 import zlib from "node:zlib";
-import crypto2 from "node:crypto";
+import crypto from "node:crypto";
 function unpackCard(data, maxBytes = CARD_LIMITS.cardBytes) {
     if (!data?.length)
         return { ok: false, reason: "empty" };
@@ -9153,16 +11007,16 @@ function decodeCardUnchecked(e, budget) {
         if (!r.ok)
             return { unsupported: `richMsg:${r.reason}` };
         budget.left -= Buffer.byteLength(r.text);
-        const svc = rich.serviceId ?? 0;
+        const svc2 = rich.serviceId ?? 0;
         const isXml = r.text.trim().startsWith("<") && r.text.trim().endsWith(">");
-        if (svc !== 1 && !isXml)
+        if (svc2 !== 1 && !isXml)
             return { unsupported: "richMsg:invalid xml" };
-        if (svc === 35 || svc === 0 && xmlAttribute(r.text, "serviceID") === "35") {
+        if (svc2 === 35 || svc2 === 0 && xmlAttribute(r.text, "serviceID") === "35") {
             const resId = xmlAttribute(r.text, "m_resid");
             if (resId)
                 return { segment: { type: "forward", data: { id: resId } }, uuid: xmlAttribute(r.text, "m_fileName") || "" };
         }
-        if (svc === 1) {
+        if (svc2 === 1) {
             try {
                 const j = JSON.parse(r.text);
                 if (!j || typeof j !== "object" || Array.isArray(j))
@@ -9173,7 +11027,7 @@ function decodeCardUnchecked(e, budget) {
             }
             return { segment: { type: "json", data: { data: r.text } } };
         }
-        return { segment: { type: "xml", data: { data: r.text, resid: svc } } };
+        return { segment: { type: "xml", data: { data: r.text, resid: svc2 } } };
     }
     if (light?.data?.length) {
         const r = unpackCard(light.data, Math.min(CARD_LIMITS.cardBytes, budget.left));
@@ -9210,7 +11064,7 @@ function forwardCardElement(p2) {
     if (!p2.uuid) {
         if (previewText(resId) !== resId)
             throw Object.assign(new Error("NERONET_SEGMENT_INVALID: forward id contains invalid characters"), { code: "NERONET_SEGMENT_INVALID" });
-        const uuid = p2.fileName || crypto2.randomUUID();
+        const uuid = p2.fileName || crypto.randomUUID();
         const src = escapeXml(source);
         const titles = news.map((n2) => '<title color="#777777" size="26">' + escapeXml(n2.text ?? "") + "</title>").join("");
         const xml = `<?xml version='1.0' encoding='UTF-8' standalone='yes'?> <msg serviceID="35" templateID="1" action="viewMultiMsg" brief="` + escapeXml(prompt) + '" m_fileName="' + escapeXml(uuid) + '" m_resid="' + escapeXml(resId) + '" tSum="' + tSum + '" flag="3"><item layout="1"> <title color="#000000" size="34">' + src + "</title>" + titles + ' <hr></hr> <summary color="#808080">' + escapeXml(summary) + '</summary></item> <source name="' + src + '"></source> </msg>';
@@ -9261,14 +11115,14 @@ function mentionOf(t) {
     }
     return { pb, mention: pb };
 }
-function legacyImageUrl(path35) {
-    if (!path35)
+function legacyImageUrl(path42) {
+    if (!path42)
         return "";
-    if (/^https?:\/\//i.test(path35))
-        return path35;
-    if (!path35.startsWith("/"))
+    if (/^https?:\/\//i.test(path42))
+        return path42;
+    if (!path42.startsWith("/"))
         return "";
-    return (path35.includes("rkey") || path35.includes("fileid") ? "https://multimedia.nt.qq.com.cn" : "http://gchat.qpic.cn") + path35;
+    return (path42.includes("rkey") || path42.includes("fileid") ? "https://multimedia.nt.qq.com.cn" : "http://gchat.qpic.cn") + path42;
 }
 function usableUrl(url) {
     try {
@@ -9290,7 +11144,7 @@ function ntImage(pbElem, isGroup) {
         url = "https://" + (body.picture.domain || "multimedia.nt.qq.com.cn") + body.picture.urlPath + (body.picture.ext?.originalParameter ?? "");
     if (!url && idx.fileUuid)
         url = ntImageUrlFromFileId(idx.fileUuid, isGroup);
-    const md5Hex = isMd52(fi.fileHash) ? fi.fileHash : "";
+    const md5Hex = isMd5(fi.fileHash) ? fi.fileHash : "";
     if (!url && md5Hex)
         url = imageUrlFromMd5(md5Hex);
     const file = fi.fileName || idx.fileUuid || (md5Hex ? `${md5Hex.toLowerCase()}.png` : "");
@@ -9304,9 +11158,9 @@ function legacyImage(img, group) {
     if (md52?.length !== 16)
         return null;
     const md5Hex = hexOf(md52).toUpperCase();
-    const path35 = group ? img.origUrl ?? "" : img.origUrl || img.bigUrl || "";
+    const path42 = group ? img.origUrl ?? "" : img.origUrl || img.bigUrl || "";
     const subType = img.pbRes?.subType ?? 0;
-    return { nt: false, file: img.filePath || md5Hex, url: legacyImageUrl(path35) || (!path35 ? imageUrlFromMd5(md5Hex) : ""), fileSize: (group ? img.size : img.fileLen) ?? 0, md5Hex, subType, summary: summaryOf(subType, img.pbRes?.summary) };
+    return { nt: false, file: img.filePath || md5Hex, url: legacyImageUrl(path42) || (!path42 ? imageUrlFromMd5(md5Hex) : ""), fileSize: (group ? img.size : img.fileLen) ?? 0, md5Hex, subType, summary: summaryOf(subType, img.pbRes?.summary) };
 }
 function ntMedia(pbElem, kind) {
     const info = tryDecode(MsgInfoIn, pbElem);
@@ -9321,7 +11175,7 @@ function ntMedia(pbElem, kind) {
         subType: idx.subType ?? 0,
         info: { fileSize: fi.fileSize ?? 0, fileHash: fi.fileHash ?? "", fileSha1: fi.fileSha1 ?? "", fileName: fi.fileName ?? "", width: fi.width ?? 0, height: fi.height ?? 0, time: fi.time ?? 0, original: fi.original ?? 0, type: fi.type ?? {} }
     };
-    return { type: kind, file: fi.fileName || idx.fileUuid, fileId: idx.fileUuid, fileSize: fi.fileSize ?? 0, md5Hex: isMd52(fi.fileHash) ? fi.fileHash : "", duration: fi.time ?? 0, node };
+    return { type: kind, file: fi.fileName || idx.fileUuid, fileId: idx.fileUuid, fileSize: fi.fileSize ?? 0, md5Hex: isMd5(fi.fileHash) ? fi.fileHash : "", duration: fi.time ?? 0, node };
 }
 function fileSegment(f) {
     return { type: "file", data: { file: f.fileName, file_id: f.fileId, file_size: f.fileSize, name: f.fileName, size: f.fileSize, id: f.fileId, url: "", file_hash: f.fileHash ?? "" } };
@@ -9557,10 +11411,10 @@ function segmentsToElements(segments, resolved2 = {}) {
                 const text2 = String(seg.data?.data ?? "");
                 if (!text2.trim())
                     throw invalid2("xml data is empty");
-                const svc = Number(seg.data?.resid ?? seg.data?.id ?? 0) || 0;
-                if (!Number.isInteger(svc) || svc < 0 || svc > 2147483647)
+                const svc2 = Number(seg.data?.resid ?? seg.data?.id ?? 0) || 0;
+                if (!Number.isInteger(svc2) || svc2 < 0 || svc2 > 2147483647)
                     throw invalid2("xml resid must be a non-negative 32-bit integer");
-                elems.push({ richMsg: { serviceId: svc === 0 ? 35 : svc, template1: packCard(text2) } });
+                elems.push({ richMsg: { serviceId: svc2 === 0 ? 35 : svc2, template1: packCard(text2) } });
                 break;
             }
             default:
@@ -9569,7 +11423,7 @@ function segmentsToElements(segments, resolved2 = {}) {
     }
     return elems;
 }
-var MentionIn, SmallFace, BigFace, MentionOut, ElemOut, MsgInfoIn, GroupFileExtra, BIG_FACE_COMPAT_SUFFIX, hexOf, isMd52, imageUrlFromMd5, ntImageUrlFromFileId, summaryOf, sameFile, UnsupportedSegmentError, invalid2;
+var MentionIn, SmallFace, BigFace, MentionOut, ElemOut, MsgInfoIn, GroupFileExtra, BIG_FACE_COMPAT_SUFFIX, hexOf, isMd5, imageUrlFromMd5, ntImageUrlFromFileId, summaryOf, sameFile, UnsupportedSegmentError, invalid2;
 var init_elements = __esm({
     "upper/qq/elements.mjs"() {
         init_schema();
@@ -9583,8 +11437,8 @@ var init_elements = __esm({
         GroupFileExtra = wireType("elements_in.proto", "GroupFileExtra");
         BIG_FACE_COMPAT_SUFFIX = "]请使用最新版手机QQ体验新功能";
         hexOf = (b) => Buffer.from(b).toString("hex");
-        isMd52 = (h) => /^[0-9a-fA-F]{32}$/.test(h ?? "");
-        imageUrlFromMd5 = (md5Hex) => isMd52(md5Hex) ? `http://gchat.qpic.cn/gchatpic_new/0/0-0-${md5Hex.toUpperCase()}/0` : "";
+        isMd5 = (h) => /^[0-9a-fA-F]{32}$/.test(h ?? "");
+        imageUrlFromMd5 = (md5Hex) => isMd5(md5Hex) ? `http://gchat.qpic.cn/gchatpic_new/0/0-0-${md5Hex.toUpperCase()}/0` : "";
         ntImageUrlFromFileId = (fileId, isGroup) => fileId ? `https://multimedia.nt.qq.com.cn/download?appid=${isGroup ? 1407 : 1406}&fileid=${encodeURIComponent(fileId)}` : "";
         summaryOf = (subType, summary) => summary || (subType === 1 ? "[动画表情]" : "[图片]");
         sameFile = (a, b) => a.file && a.file === b.file || a.md5Hex && b.md5Hex && a.md5Hex.toLowerCase() === b.md5Hex.toLowerCase();
@@ -9700,7 +11554,1603 @@ var init_inbound = __esm({
         isFileReceipt = (f) => f?.downloadFlag === 2 || f?.fileType === 1 && f?.subcmd === 2;
     }
 });
+import zlib2 from "node:zlib";
+import crypto2 from "node:crypto";
+function parseInnerForwardId(id) {
+    const at = typeof id === "string" ? id.indexOf(FORWARD.innerSeparator) : -1;
+    if (at <= 0 || at === id.length - 1)
+        return null;
+    const uuid = id.slice(at + 1);
+    return UNISEQ.test(uuid) ? { outer: id.slice(0, at), uuid } : null;
+}
+function buildNodeBody(node, selfUid, { now: now2 = Math.floor(Date.now() / 1e3), random = crypto2.randomInt(1, 2147483647), sequence = crypto2.randomInt(1e6, 1e7) } = {}) {
+    return {
+        responseHead: { fromUin: Number(node.userUin), toUid: selfUid, forward: { friendName: node.nickname } },
+        contentHead: { msgType: 9, subType: 4, msgId: random, sequence, timestamp: node.time > 0 ? node.time : now2, c2cCmd: 0 },
+        body: { richText: { elems: node.elems } }
+    };
+}
+function buildSendRequest({ groupId, selfUid, bodies, inner = [] }) {
+    const payload = zlib2.gzipSync(Buffer.from(LongMsgResult.encode({ action: [{ actionCommand: "MultiMsg", actionData: { msgBody: bodies } }, ...inner.map((a) => ({ actionCommand: a.uuid, actionData: { msgBody: a.bodies } }))] })));
+    return SendReq.encode({
+        info: { type: groupId ? 3 : 1, uid: { uid: groupId ? String(groupId) : selfUid }, ...groupId ? { groupUin: Number(groupId) } : {}, payload },
+        settings: { field1: 4, field2: 1, field3: 7, field4: 0 }
+    });
+}
+function buildRecvRequest(resId, selfUid) {
+    return RecvReq.encode({ info: { uid: { uid: selfUid }, resId, acquire: 1 }, settings: { field1: 2, field2: 0, field3: 0, field4: 0 } });
+}
+function previewOf(segments) {
+    for (const s of segments) {
+        if (s.type === "text" && s.data.text)
+            return s.data.text.slice(0, 30);
+        const label = { image: "[图片]", record: "[语音]", video: "[视频]", file: "[文件]", forward: "[聊天记录]", face: "[表情]" }[s.type];
+        if (label)
+            return label;
+    }
+    return "";
+}
+function innerSource(nodes, isGroup) {
+    const names = [...new Set(nodes.map((n2) => String(n2.nickname ?? "").trim()).filter(Boolean))].slice(0, 4);
+    return names.length ? `${names.join("和")}的聊天记录` : isGroup ? "群聊的聊天记录" : "聊天记录";
+}
+var FORWARD, SendReq, SendResp, RecvReq, RecvResp, LongMsgResult, ForwardError, invalidForward, UNISEQ, innerForwardId, newsOf, clone, ForwardCache, ForwardService;
+var init_forward = __esm({
+    "upper/qq/forward.mjs"() {
+        init_schema();
+        init_cards();
+        init_inbound();
+        FORWARD = Object.freeze({
+            sendCommand: "trpc.group.long_msg_interface.MsgService.SsoSendLongMsg",
+            recvCommand: "trpc.group.long_msg_interface.MsgService.SsoRecvLongMsg",
+            maxDepth: 3,
+            maxOutputBytes: 32 * 1024 * 1024,
+            cacheEntries: 512,
+            innerSeparator: "@",
+            maxCardBytes: 32 * 1024 * 1024,
+            maxNodes: 5e3,
+            maxCacheEntryBytes: 16 * 1024 * 1024
+        });
+        SendReq = wireType("forward.proto", "SendLongMsgReq");
+        SendResp = wireType("forward.proto", "SendLongMsgResp");
+        RecvReq = wireType("forward.proto", "RecvLongMsgReq");
+        RecvResp = wireType("forward.proto", "RecvLongMsgResp");
+        LongMsgResult = wireType("forward.proto", "LongMsgResult");
+        ForwardError = class extends Error {
+            constructor(detail, cause2) {
+                super(`NERONET_FORWARD_FAILED: ${detail}`, cause2 ? { cause: cause2 } : void 0);
+                this.code = "NERONET_FORWARD_FAILED";
+            }
+        };
+        invalidForward = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
+        UNISEQ = /^[0-9A-Za-z-]{1,64}$/;
+        innerForwardId = (outer, uuid) => `${outer}${FORWARD.innerSeparator}${uuid}`;
+        newsOf = (nodes) => nodes.slice(0, 4).map((n2) => {
+            const name = String(n2.nickname ?? "").trim() || String(n2.userUin || "QQ用户");
+            const p2 = previewOf(n2.segments ?? []);
+            return { text: p2 ? `${name}: ${p2}` : name };
+        });
+        clone = (nodes) => structuredClone(nodes);
+        ForwardCache = class {
+            constructor(max = FORWARD.cacheEntries) {
+                this.max = max;
+                this.entries = new Map();
+            }
+            get(resId) {
+                for (const [root, layers] of this.entries) {
+                    const nodes = layers.get(resId);
+                    if (nodes) {
+                        this.entries.delete(root);
+                        this.entries.set(root, layers);
+                        return clone(nodes);
+                    }
+                }
+                return null;
+            }
+            set(root, layers) {
+                if (!layers.has(root))
+                    throw new Error("forward cache entry is missing its outer level");
+                let bytes = 0;
+                for (const v of layers.values())
+                    bytes += JSON.stringify(v).length;
+                if (bytes > FORWARD.maxCacheEntryBytes)
+                    return false;
+                this.entries.delete(root);
+                this.entries.set(root, new Map([...layers].map(([k, v]) => [k, clone(v)])));
+                while (this.entries.size > this.max)
+                    this.entries.delete(this.entries.keys().next().value);
+                return true;
+            }
+        };
+        ForwardService = class {
+            constructor(transport, { selfUid, selfUin, cache = new ForwardCache() }) {
+                this.transport = transport;
+                this.selfUid = selfUid;
+                this.selfUin = selfUin;
+                this.cache = cache;
+            }
+            async upload(nodes, target, build) {
+                const selfUid = await this.selfUid();
+                if (!selfUid)
+                    throw new ForwardError("own uid unavailable");
+                const top = await this.#uploadLevel(nodes, target, build, selfUid, 0);
+                this.cache.set(top.resId, top.layers);
+                return { resId: top.resId, layers: top.layers };
+            }
+            async #uploadLevel(nodes, target, build, selfUid, depth) {
+                if (depth >= FORWARD.maxDepth)
+                    throw invalidForward(`forward nesting depth exceeds ${FORWARD.maxDepth}`);
+                if (!Array.isArray(nodes) || !nodes.length)
+                    throw invalidForward("forward needs at least one node");
+                const isGroup = !!target.groupId;
+                const inner = [], layers = new Map(), bodies = [], views = [];
+                for (const node of nodes) {
+                    let elems, segments, media = [];
+                    if (node.innerForward) {
+                        const sub = await this.#uploadLevel(node.innerForward, target, build, selfUid, depth + 1);
+                        inner.push({ uuid: sub.uuid, bodies: sub.bodies }, ...sub.inner);
+                        for (const [k, v] of sub.layers)
+                            layers.set(k, v);
+                        const innerViews = sub.layers.get(sub.resId);
+                        elems = [forwardCardElement({
+                                resId: sub.resId,
+                                uuid: sub.uuid,
+                                source: node.source || innerSource(innerViews, isGroup),
+                                summary: node.summary || `查看${node.innerForward.length}条转发消息`,
+                                prompt: node.prompt || "[聊天记录]",
+                                news: node.news?.length ? node.news : newsOf(innerViews),
+                                tSum: node.innerForward.length
+                            })];
+                        segments = [{ type: "forward", data: { id: sub.resId } }];
+                    }
+                    else
+                        ({ elems, segments, media = [] } = await build(node));
+                    const random = crypto2.randomInt(1, 2147483647), sequence = crypto2.randomInt(1e6, 1e7);
+                    const time = node.time > 0 ? node.time : Math.floor(Date.now() / 1e3);
+                    bodies.push(buildNodeBody({ ...node, elems, time }, selfUid, { random, sequence }));
+                    views.push({ userUin: String(node.userUin), nickname: node.nickname, time, msgId: random, msgSeq: sequence, segments, media, scene: "private" });
+                }
+                const reply = await this.transport.send(FORWARD.sendCommand, buildSendRequest({ groupId: target.groupId, selfUid, bodies, inner }));
+                if (reply.error)
+                    throw new ForwardError(`upload failed (${reply.error} ${reply.message ?? ""})`.trim());
+                let resId = "";
+                try {
+                    resId = SendResp.decode(reply.body ?? Buffer.alloc(0)).result?.resId ?? "";
+                }
+                catch (e) {
+                    throw new ForwardError("upload response undecodable", e);
+                }
+                if (!resId)
+                    throw new ForwardError("upload response has no res id");
+                layers.set(resId, views);
+                return { resId, uuid: crypto2.randomUUID(), bodies, inner, layers };
+            }
+            async fetch(resId) {
+                resId = String(resId ?? "").trim();
+                if (!resId || resId.length > 512 || /[\s<>"]/.test(resId))
+                    throw invalidForward("forward id is invalid");
+                const hit = this.cache.get(resId);
+                if (hit)
+                    return hit;
+                const innerId = parseInnerForwardId(resId);
+                if (innerId) {
+                    await this.fetch(innerId.outer);
+                    const layer = this.cache.get(resId);
+                    if (!layer)
+                        throw new ForwardError(`inner forward ${innerId.uuid} not found in its outer message`);
+                    return layer;
+                }
+                const selfUid = await this.selfUid();
+                if (!selfUid)
+                    throw new ForwardError("own uid unavailable");
+                const reply = await this.transport.send(FORWARD.recvCommand, buildRecvRequest(resId, selfUid));
+                if (reply.error)
+                    throw new ForwardError(`download failed (${reply.error} ${reply.message ?? ""})`.trim());
+                let payload;
+                try {
+                    payload = RecvResp.decode(reply.body ?? Buffer.alloc(0)).result?.payload;
+                }
+                catch (e) {
+                    throw new ForwardError("download response undecodable", e);
+                }
+                if (!payload?.length)
+                    throw new ForwardError(`forward ${resId} not found or empty`);
+                let result2;
+                try {
+                    result2 = LongMsgResult.decode(zlib2.gunzipSync(Buffer.from(payload), { maxOutputLength: FORWARD.maxOutputBytes }));
+                }
+                catch (e) {
+                    throw new ForwardError(`forward payload unreadable (${payload.length} bytes compressed, limit ${FORWARD.maxOutputBytes})`, e);
+                }
+                const actions = result2.action ?? [];
+                const piggyback = new Map(actions.filter((a) => a.actionCommand && a.actionCommand !== "MultiMsg").map((a) => [a.actionCommand, a.actionData?.msgBody ?? []]));
+                const main7 = actions.find((a) => a.actionCommand === "MultiMsg")?.actionData?.msgBody ?? [];
+                const limits = { cardBudget: { left: FORWARD.maxCardBytes }, nodesLeft: FORWARD.maxNodes };
+                const nodes = this.decodeBodies(main7, resId, piggyback, limits);
+                const layers = this.#collectLayers(resId, nodes, piggyback, limits);
+                if (nodes.length)
+                    this.cache.set(resId, layers);
+                return clone(nodes);
+            }
+            decodeBodies(bodies, rootId, piggyback = new Map(), limits = { cardBudget: { left: FORWARD.maxCardBytes }, nodesLeft: FORWARD.maxNodes }) {
+                const root = parseInnerForwardId(rootId)?.outer ?? rootId;
+                const out = [];
+                for (const body of bodies) {
+                    if (--limits.nodesLeft < 0)
+                        throw new ForwardError(`forward has more than ${FORWARD.maxNodes} nodes`);
+                    const ev = decodeMessageBody(body, this.selfUin(), 0, { forward: true, cardBudget: limits.cardBudget });
+                    if (!ev || ev.kind === "unhandled")
+                        continue;
+                    const refs = new Map((ev.forwardRefs ?? []).map((r) => [r.segment, r.uuid]));
+                    const forwardUuids = [];
+                    const segments = ev.segments.map((seg) => {
+                        if (seg.type === "forward") {
+                            forwardUuids.push({ id: seg.data.id, uuid: refs.get(seg) ?? "" });
+                            return seg;
+                        }
+                        if (seg.type !== "xml" || Number(seg.data.resid) !== 35)
+                            return seg;
+                        const xml = String(seg.data.data ?? "");
+                        if (xmlAttribute(xml, "action") !== "viewMultiMsg" || xmlAttribute(xml, "m_resid"))
+                            return seg;
+                        const uuid = xmlAttribute(xml, "m_fileName");
+                        if (!uuid || !UNISEQ.test(uuid) || !piggyback.has(uuid))
+                            return seg;
+                        const id = innerForwardId(root, uuid);
+                        forwardUuids.push({ id, uuid });
+                        return { type: "forward", data: { id } };
+                    });
+                    out.push({
+                        userUin: ev.sender.uin,
+                        nickname: ev.kind === "group" ? ev.sender.card || ev.sender.nickname : ev.sender.nickname,
+                        time: ev.time,
+                        msgId: ev.random,
+                        msgSeq: ev.sequence,
+                        segments,
+                        media: ev.media ?? [],
+                        scene: ev.kind,
+                        ...ev.kind === "group" ? { groupId: ev.groupId, senderCard: ev.sender.card ?? "" } : {},
+                        ...ev.reply ? { reply: ev.reply } : {},
+                        forwardUuids
+                    });
+                }
+                return out;
+            }
+            #collectLayers(resId, nodes, piggyback, limits) {
+                const root = parseInnerForwardId(resId)?.outer ?? resId;
+                const layers = new Map([[resId, nodes]]);
+                for (const chain of layers.values()) {
+                    for (const node of chain) {
+                        for (const { uuid } of node.forwardUuids ?? []) {
+                            if (!uuid || !UNISEQ.test(uuid) || !piggyback.has(uuid))
+                                continue;
+                            const id = innerForwardId(root, uuid);
+                            if (layers.has(id))
+                                continue;
+                            layers.set(id, this.decodeBodies(piggyback.get(uuid), resId, piggyback, limits));
+                        }
+                    }
+                }
+                return layers;
+            }
+        };
+    }
+});
+function checkMeta(data, i) {
+    for (const [k, v] of Object.entries(data)) {
+        if (k === "content" || k === "message" || v === void 0)
+            continue;
+        if (k === "news") {
+            if (Array.isArray(v) && v.every((x) => typeof obj(x)?.text === "string"))
+                continue;
+            throw bad(`forward messages[${i}].news must be an array of {text}`);
+        }
+        if (["title", "source", "summary", "prompt"].includes(k)) {
+            if (typeof v === "string")
+                continue;
+            throw bad(`forward messages[${i}].${k} must be a string`);
+        }
+        if (v === null || ["string", "number", "boolean"].includes(typeof v))
+            continue;
+        throw bad(`forward messages[${i}].${k} must be a scalar value`);
+    }
+}
+function forwardMeta(p2) {
+    for (const k of ["source", "summary", "prompt"])
+        if (p2[k] != null && typeof p2[k] !== "string")
+            throw bad(`${k} must be a string`);
+    if (p2.news != null && !(Array.isArray(p2.news) && p2.news.every((x) => typeof x === "string" || typeof obj(x)?.text === "string")))
+        throw bad("news must be an array of strings or {text}");
+    const news = Array.isArray(p2.news) ? p2.news.map((x) => typeof x === "string" ? { text: x } : obj(x) && x.text != null ? { text: String(x.text) } : null).filter((x) => x?.text) : void 0;
+    return { source: p2.source || void 0, summary: p2.summary || void 0, prompt: p2.prompt || void 0, news: news?.length ? news : void 0 };
+}
+function parseForwardNodes(messages, ctx, depth = 0) {
+    if (depth >= FORWARD.maxDepth)
+        throw bad(`forward nesting depth exceeds ${FORWARD.maxDepth}`);
+    if (!Array.isArray(messages))
+        throw bad("forward messages must be an array of node segments");
+    if (!messages.length)
+        throw bad("forward messages must contain at least one node");
+    const nodes = [];
+    messages.forEach((item, i) => {
+        const seg = obj(item);
+        if (!seg)
+            throw bad(`forward messages[${i}] must be an object`);
+        if (seg.type !== void 0 && seg.type !== "node")
+            throw bad(`forward messages[${i}] has type ${String(seg.type)}; only node is allowed`);
+        const data = seg.type === "node" ? obj(seg.data) : seg;
+        if (!data)
+            throw bad(`forward messages[${i}].data must be an object`);
+        if (seg.type !== "node" && data.content === void 0 && data.message === void 0)
+            throw bad(`forward messages[${i}] needs type:"node" data or content`);
+        checkMeta(data, i);
+        const refId = posInt(data.id ?? data.message_id);
+        if (refId) {
+            const r = ctx.getMessage(refId);
+            if (!r)
+                throw bad(`forward node message_id not found: ${refId}`);
+            const userUin2 = String(r.sender?.uin ?? "");
+            if (!/^\d+$/.test(userUin2) || userUin2 === "0")
+                throw bad(`forward node message_id ${refId} has no sender`);
+            const segments = (r.segments ?? []).filter((s) => s.type !== "reply");
+            if (!segments.length)
+                throw bad(`forward node message_id ${refId} has no content besides a reply`);
+            nodes.push({
+                userUin: userUin2,
+                nickname: String(r.sender?.card || r.sender?.nickname || data.nickname || data.name || userUin2),
+                time: r.time,
+                segments,
+                scene: r.scene,
+                ...r.scene === "group" ? { groupId: r.peer, senderCard: r.sender?.card ?? "" } : {}
+            });
+            return;
+        }
+        const rawUin = data.user_id ?? data.uin;
+        const n2 = posInt(rawUin);
+        if (rawUin != null && rawUin !== "" && (n2 < 1 || n2 > 4294967295))
+            throw bad(`forward messages[${i}].user_id must be a QQ number`);
+        const userUin = String(n2 || ctx.selfUin);
+        const nickname = String(data.nickname ?? data.name ?? userUin);
+        const t = posInt(data.time);
+        const content = data.content ?? data.message ?? "";
+        const node = { userUin, nickname, ...t > 0 && t < 4294967295 ? { time: t } : {} };
+        if (data.news !== void 0)
+            node.news = data.news.map((x) => ({ text: x.text }));
+        for (const k of ["source", "summary", "prompt"])
+            if (data[k] !== void 0)
+                node[k] = data[k];
+        if (isNodeArray(content))
+            node.innerForward = parseForwardNodes(content, ctx, depth + 1);
+        else {
+            node.segments = normalizeMessage(content);
+            if (node.segments.some((s) => s.type === "node"))
+                throw bad(`forward messages[${i}] mixes node segments with other content`);
+            if (!node.segments.length || node.segments.every((s) => s.type === "text" && !String(s.data.text ?? "")))
+                throw bad(`forward node content is empty: ${userUin}`);
+        }
+        nodes.push(node);
+    });
+    if (!nodes.length)
+        throw bad("forward node list is empty");
+    return nodes;
+}
+function forwardNodeEvent(node, selfUin) {
+    const isGroup = node.scene === "group" || Number(node.groupId) > 0;
+    const sender = { user_id: Number(node.userUin), nickname: node.nickname ?? "", ...isGroup ? { card: node.senderCard ?? "" } : {} };
+    return {
+        self_id: Number(selfUin),
+        user_id: Number(node.userUin),
+        time: node.time ?? Math.floor(Date.now() / 1e3),
+        message_id: node.msgId ?? 0,
+        message_seq: node.msgSeq ?? node.msgId ?? 0,
+        real_id: node.msgId ?? 0,
+        message_type: isGroup ? "group" : "private",
+        sender,
+        raw_message: "",
+        font: 14,
+        sub_type: isGroup ? "normal" : "friend",
+        message: node.segments,
+        message_format: "array",
+        post_type: "message",
+        ...isGroup && Number(node.groupId) > 0 ? { group_id: Number(node.groupId) } : {}
+    };
+}
+var bad, obj, posInt, isNodeArray;
+var init_forward_nodes = __esm({
+    "upper/onebot/forward-nodes.mjs"() {
+        init_message_format();
+        init_forward();
+        bad = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
+        obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+        posInt = (v) => {
+            const n2 = typeof v === "string" && v.trim() ? Number(v) : v;
+            return typeof n2 === "number" && Number.isFinite(n2) ? Math.max(0, Math.trunc(n2)) : 0;
+        };
+        isNodeArray = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => obj(x)?.type === "node");
+    }
+});
+function projectSensitive(value, registry = secrets, depth = 0) {
+    if (typeof value === "string")
+        return maskUrlCredentials(registry.scrub(value));
+    if (value === null || typeof value !== "object")
+        return value;
+    if (depth > 12)
+        return "[omitted]";
+    if (Array.isArray(value))
+        return value.map((item) => projectSensitive(item, registry, depth + 1));
+    if (value instanceof Uint8Array)
+        return value;
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+        out[key] = SENSITIVE_KEY.test(key) && item !== null && item !== void 0 && item !== "" ? MASK : projectSensitive(item, registry, depth + 1);
+    }
+    return out;
+}
+var MASK, SENSITIVE_KEY, URL_PARAM, SecretRegistry, secrets, maskUrlCredentials;
+var init_sensitive_projection = __esm({
+    "upper/onebot/sensitive-projection.mjs"() {
+        MASK = "***";
+        SENSITIVE_KEY = /^(set-?cookie|cookies?|p_?skey|skey|pskey|client_?key|pt4_token|pt_?key|super_?key|bkn|g_tk|csrf_token|token|access_token|authorization|password|secret)$/i;
+        URL_PARAM = /([?&](?:clientkey|client_key|p_skey|pskey|skey|g_tk|bkn|pt4_token|access_token)=)[^&#\s"']*/gi;
+        SecretRegistry = class {
+            #values = new Set();
+            get size() {
+                return this.#values.size;
+            }
+            add(value) {
+                const text2 = typeof value === "number" ? String(value) : value;
+                if (typeof text2 !== "string" || text2.length < 6)
+                    return;
+                this.#values.add(text2);
+                const encoded = encodeURIComponent(text2);
+                if (encoded !== text2)
+                    this.#values.add(encoded);
+            }
+            remove(value) {
+                const text2 = String(value ?? "");
+                this.#values.delete(text2);
+                this.#values.delete(encodeURIComponent(text2));
+            }
+            clear() {
+                this.#values.clear();
+            }
+            scrub(text2) {
+                if (typeof text2 !== "string" || !this.#values.size)
+                    return text2;
+                let out = text2;
+                for (const value of this.#values)
+                    if (out.includes(value))
+                        out = out.split(value).join(MASK);
+                return out;
+            }
+        };
+        secrets = new SecretRegistry();
+        maskUrlCredentials = (text2) => text2.replace(URL_PARAM, `$1${MASK}`);
+    }
+});
+var WEB_ERRORS, clip, WebServiceError, webError;
+var init_errors = __esm({
+    "upper/web/errors.mjs"() {
+        init_sensitive_projection();
+        WEB_ERRORS = Object.freeze({
+            NERONET_QZONE_PARAM_INVALID: { retcode: 1400, meaning: "参数不正确", advice: "按动作说明修正参数后重试" },
+            NERONET_WEB_DOMAIN_NOT_ALLOWED: { retcode: 1400, meaning: "该域名的网页登录态没有开放", advice: "只使用文档列出的功能" },
+            NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE: { retcode: 100, meaning: "机器人 QQ 不在线或业务已暂停", advice: "等 QQ 恢复在线后重试" },
+            NERONET_WEB_CREDENTIALS_UNAVAILABLE: { retcode: 100, meaning: "没有取得网页登录态", advice: "确认机器人 QQ 在线后重试；持续出现时带上阶段和代码反馈" },
+            NERONET_QZONE_AUTH_EXPIRED: { retcode: 100, meaning: "QQ 空间不接受当前登录态", advice: "登录态已自动刷新过一次；确认机器人账号能正常打开 QQ 空间后重试" },
+            NERONET_QZONE_VERIFICATION_REQUIRED: { retcode: 100, meaning: "QQ 空间要求人工验证", advice: "用机器人账号在 QQ 或浏览器中打开空间完成验证后重试，NeroNet 不会绕过验证" },
+            NERONET_QZONE_PERMISSION_DENIED: { retcode: 100, meaning: "QQ 空间拒绝了这次操作（没有权限）", advice: "确认说说属于机器人账号、对方空间允许访问" },
+            NERONET_QZONE_RATE_LIMITED: { retcode: 100, meaning: "QQ 空间提示操作过于频繁", advice: "过一段时间再手动重试，不要连续调用" },
+            NERONET_QZONE_REMOTE_ERROR: { retcode: 100, meaning: "QQ 空间返回了错误", advice: "按返回的代码和提示处理" },
+            NERONET_QZONE_RESPONSE_INVALID: { retcode: 100, meaning: "QQ 空间的响应无法识别或缺少必要内容", advice: "写入类操作请先到空间核对是否已生效，再决定是否重试" },
+            NERONET_QZONE_POST_NOT_FOUND: { retcode: 100, meaning: "说说不存在或已经删除", advice: "用 get_qzone_msg_list 核对 tid" },
+            NERONET_QZONE_DELETE_NOT_CONFIRMED: { retcode: 100, meaning: "QQ 空间接受了删除请求，但说说仍然存在", advice: "过一会儿再调用一次 delete_qzone_msg，并用 get_qzone_msg_list 核对" },
+            NERONET_QZONE_UPLOAD_FAILED: { retcode: 100, meaning: "图片没有准备好或上传失败，说说没有发表", advice: "检查这张图片后重试" },
+            NERONET_QZONE_OUTCOME_UNKNOWN: { retcode: 100, meaning: "请求已经发出但没有收到结果，不确定是否生效", advice: "先到空间或用 get_qzone_msg_list 核对，确认没有生效再重新调用；NeroNet 不会自动重发" },
+            NERONET_QZONE_NETWORK_FAILED: { retcode: 100, meaning: "与 QQ 空间的连接失败", advice: "检查网络和代理设置后重试" },
+            NERONET_QZONE_BUSY: { retcode: 100, meaning: "等待处理的空间请求太多", advice: "等前面的请求结束后重试" },
+            NERONET_GROUP_NOTICE_PARAM_INVALID: { retcode: 1400, meaning: "群公告参数不正确", advice: "按动作说明修正参数后重试" },
+            NERONET_GROUP_NOTICE_AUTH_EXPIRED: { retcode: 100, meaning: "群公告页面不接受当前登录态", advice: "登录态已自动刷新过一次；确认机器人账号能正常打开群公告后重试" },
+            NERONET_GROUP_NOTICE_REMOTE_ERROR: { retcode: 100, meaning: "群公告接口返回了错误", advice: "按返回的代码和提示处理；发布和删除需要机器人是群主或管理员" },
+            NERONET_GROUP_NOTICE_OUTCOME_UNKNOWN: { retcode: 100, meaning: "群公告请求已经发出但没有收到结果，不确定是否生效", advice: "先用 _get_group_notice 核对，确认没有生效再重新调用；NeroNet 不会自动重发" },
+            NERONET_GROUP_NOTICE_NETWORK_FAILED: { retcode: 100, meaning: "与群公告接口的连接失败", advice: "检查网络和代理设置后重试" },
+            NERONET_SESSION_CHANGED: { retcode: 100, meaning: "账号会话已变化或程序正在停止，结果没有交付", advice: "程序恢复后重新调用；写入类操作请先核对是否已生效" }
+        });
+        clip = (text2, max) => {
+            const s = String(text2 ?? "").replace(/[\x00-\x1f\x7f]+/g, " ").trim();
+            return s.length > max ? s.slice(0, max) + "…" : s;
+        };
+        WebServiceError = class extends Error {
+            constructor(code, { stage, detail = "", image, http: http8, remoteCode, remoteSubcode, remoteMessage, cause: cause2, note = "" } = {}) {
+                const entry = WEB_ERRORS[code] ?? WEB_ERRORS.NERONET_QZONE_REMOTE_ERROR;
+                const facts = [`阶段 ${stage}`];
+                if (image !== void 0)
+                    facts.push(`第 ${image} 张图片`);
+                if (http8 !== void 0)
+                    facts.push(`HTTP ${http8}`);
+                if (remoteCode !== void 0)
+                    facts.push(`code ${remoteCode}`);
+                if (remoteSubcode !== void 0)
+                    facts.push(`subcode ${remoteSubcode}`);
+                if (remoteMessage)
+                    facts.push(`提示“${clip(remoteMessage, 80)}”`);
+                const text2 = `${code}: ${entry.meaning}（${facts.join("，")}）${detail ? `：${clip(detail, 160)}` : ""}。处理：${entry.advice}${note ? `；${note}` : ""}。`;
+                super(secrets.scrub(text2));
+                this.code = code;
+                this.retcode = entry.retcode;
+                this.stage = stage;
+                if (image !== void 0)
+                    this.image = image;
+                if (http8 !== void 0)
+                    this.http = http8;
+                if (remoteCode !== void 0)
+                    this.remoteCode = remoteCode;
+                if (remoteSubcode !== void 0)
+                    this.remoteSubcode = remoteSubcode;
+                if (cause2)
+                    this.cause = cause2;
+            }
+        };
+        webError = (code, info) => new WebServiceError(code, info);
+    }
+});
+function createQzoneActions(core2, fail3) {
+    const run = async (work) => {
+        try {
+            return await work();
+        }
+        catch (error) {
+            if (error instanceof WebServiceError)
+                throw fail3(error.retcode, error.message);
+            throw error;
+        }
+    };
+    const images = (p2) => typeof p2.images === "string" ? [p2.images] : p2.images;
+    return {
+        send_qzone_msg: (p2) => run(() => core2.qzone.publish({ content: p2.content, images: images(p2), ugcRight: p2.ugc_right ?? 1, targetUins: p2.target_uins })),
+        delete_qzone_msg: (p2) => run(() => core2.qzone.remove({ tid: p2.tid })),
+        get_qzone_msg_list: (p2) => run(() => core2.qzone.list({ targetUin: p2.target_uin, pos: p2.pos, num: p2.num })),
+        get_qzone_msg_detail: (p2) => run(() => core2.qzone.detail({ tid: p2.tid, targetUin: p2.target_uin, pos: p2.pos, num: p2.num })),
+        set_qzone_msg_right: (p2) => run(() => core2.qzone.setRight({ tid: p2.tid, ugcRight: p2.ugc_right, targetUins: p2.target_uins }))
+    };
+}
+var init_qzone_actions = __esm({
+    "upper/onebot/qzone-actions.mjs"() {
+        init_errors();
+    }
+});
+function decodeRequest(msg) {
+    const head = msg?.contentHead ?? {};
+    const time = head.timestamp ?? Math.floor(Date.now() / 1e3);
+    const content = msg?.body?.msgContent ?? Buffer.alloc(0);
+    switch (head.msgType) {
+        case 84: {
+            const j = GroupJoin.decode(content);
+            if (!j.targetUid)
+                return [];
+            return [{ kind: "group_request", time, groupId: groupNumber(j.groupUin), subType: "add", role: "add", uid: j.targetUid }];
+        }
+        case 525: {
+            const v = GroupInvitation.decode(content);
+            const inner = v.info?.inner;
+            if (v.cmd !== 87 || !inner?.targetUid)
+                return [];
+            return [{ kind: "group_request", time, groupId: groupNumber(inner.groupUin), subType: "add", role: "invite", uid: inner.targetUid, invitorUid: inner.invitorUid ?? "" }];
+        }
+        case 87: {
+            const i = GroupInvite.decode(content);
+            if (!i.invitorUid)
+                return [];
+            return [{ kind: "group_request", time, groupId: groupNumber(i.groupUin), subType: "invite", role: "self", uid: i.invitorUid }];
+        }
+        case 528: {
+            if (head.subType !== 35)
+                return [];
+            const decoded = FriendRequest.decode(content), self2 = msg?.responseHead?.toUid ?? "";
+            for (const info of [decoded.info, decoded.infoV2]) {
+                if (!info)
+                    continue;
+                const uids = [info.newSource, info.sourceUid, info.targetUid].filter(isUid);
+                const uid2 = self2 ? uids.find((u) => u !== self2) : isUid(info.newSource) ? info.newSource : isUid(info.sourceUid) ? info.sourceUid : "";
+                if (uid2)
+                    return [{ kind: "friend_request", time, uid: uid2, comment: info.message ?? "" }];
+            }
+            return [];
+        }
+        default:
+            return [];
+    }
+}
+function parseFriendFlag(flag) {
+    const s = String(flag ?? "").trim();
+    if (s.startsWith("nn1:f:")) {
+        const uid2 = s.slice(6);
+        if (UID.test(uid2))
+            return { uid: uid2 };
+        throw bad2("friend flag carries no valid uid");
+    }
+    if (DIGITS.test(s))
+        return { uin: String(Number(s)) };
+    if (UID.test(s))
+        return { uid: s };
+    throw bad2("not a friend request flag");
+}
+function parseGroupFlag(flag) {
+    const s = String(flag ?? "").trim();
+    const p2 = s.split(":");
+    if (p2[0] === "nn1" && p2[1] === "g" && p2.length === 6) {
+        const [, , sequence, groupId, eventType, filtered] = p2;
+        if (!DIGITS.test(sequence) || groupNumber(groupId) === "0" || !/^\d{1,5}$/.test(eventType) || !["0", "1"].includes(filtered))
+            throw bad2("malformed group request flag");
+        return { kind: "entry", sequence: String(BigInt(sequence)), groupId: groupNumber(groupId), eventType: Number(eventType), filtered: filtered === "1" };
+    }
+    if (p2[0] === "nn1" && p2[1] === "gq" && p2.length === 5) {
+        const [, , groupId, role, uin] = p2;
+        if (groupNumber(groupId) === "0" || !["add", "invite", "self"].includes(role) || !DIGITS.test(uin))
+            throw bad2("malformed group request flag");
+        return { kind: "pending", groupId: groupNumber(groupId), role, uin: String(Number(uin)) };
+    }
+    if (DIGITS.test(s) && BigInt(s) > 0n)
+        return { kind: "sequence", sequence: String(BigInt(s)) };
+    throw bad2("not a group request flag");
+}
+function matchInbox(entries, { groupId, role, uin, invitorUin }) {
+    return entries.find((e) => {
+        if (e.groupId !== String(groupId))
+            return false;
+        if (role === "add")
+            return e.targetUin === String(uin);
+        if (role === "invite")
+            return e.targetUin === String(uin) && (!invitorUin || e.invitorUin === String(invitorUin));
+        return e.invitorUin === String(uin);
+    }) ?? null;
+}
+var T, GroupJoin, GroupInvitation, GroupInvite, FriendRequest, REQUEST_MSG_TYPES, isRequestPush, isUid, bad2, groupNumber, friendFlag, groupFlag, pendingGroupFlag, UID, DIGITS;
+var init_requests = __esm({
+    "upper/qq/requests.mjs"() {
+        init_schema();
+        T = (name) => wireType("requests.proto", name);
+        GroupJoin = T("GroupJoin");
+        GroupInvitation = T("GroupInvitation");
+        GroupInvite = T("GroupInvite");
+        FriendRequest = T("FriendRequest");
+        REQUEST_MSG_TYPES = new Set([84, 525, 87]);
+        isRequestPush = (msgType, subType) => REQUEST_MSG_TYPES.has(msgType) || msgType === 528 && subType === 35;
+        isUid = (v) => typeof v === "string" && /^u_[A-Za-z0-9_-]{1,64}$/.test(v);
+        bad2 = (text2) => Object.assign(new Error(`NERONET_REQUEST_FLAG_INVALID: ${text2}`), { code: "NERONET_REQUEST_FLAG_INVALID" });
+        groupNumber = (v) => {
+            const n2 = Number(v ?? 0);
+            return Number.isSafeInteger(n2) && n2 > 0 && n2 <= 4294967295 ? String(n2) : "0";
+        };
+        friendFlag = (uid2) => `nn1:f:${uid2}`;
+        groupFlag = (entry) => `nn1:g:${entry.sequence}:${entry.groupId}:${entry.eventType}:${entry.filtered ? 1 : 0}`;
+        pendingGroupFlag = (groupId, role, uin) => `nn1:gq:${groupId}:${role}:${uin}`;
+        UID = /^[A-Za-z0-9_\-]{8,64}$/;
+        DIGITS = /^\d{1,20}$/;
+    }
+});
+function codeOf(e) {
+    if (typeof e?.code === "string" && NERONET_CODE.test(e.code))
+        return e.code;
+    const m = String(e?.message ?? "").match(NERONET_CODE);
+    return m ? m[0] : null;
+}
+function asActionError(e, fallback) {
+    if (e instanceof ActionError)
+        return e;
+    if (e instanceof MessageFormatError)
+        return bad3(e.message);
+    const code = codeOf(e);
+    if (code && BAD_REQUEST_CODES.has(code))
+        return bad3(e.message);
+    return new ActionError(RETCODE.FAILED, code ? String(e.message).slice(0, 200) : fallback);
+}
+function qqId(value, name) {
+    const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+    if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > MAX_UIN)
+        throw bad3(`${name} is required and must be a QQ number`);
+    return String(n2);
+}
+function messageIdParam(value) {
+    const n2 = typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : value;
+    if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > 2147483647)
+        throw bad3("message_id is required");
+    return n2;
+}
+async function wrap(fn) {
+    try {
+        return await fn();
+    }
+    catch (e) {
+        throw asActionError(e, "NERONET_ACTION_FAILED");
+    }
+}
+function textParam(value, name, max) {
+    if (value === void 0 || value === null)
+        return "";
+    if (typeof value !== "string" && typeof value !== "number")
+        throw bad3(`${name} must be text`);
+    const text2 = String(value);
+    if ([...text2].length > max)
+        throw bad3(`${name} is longer than ${max} characters`);
+    return text2;
+}
+function createActions(core2, { appVersion, fileUploads = () => true }) {
+    const webAction = async (work) => {
+        try {
+            return await work();
+        }
+        catch (error) {
+            if (error instanceof WebServiceError)
+                throw new ActionError(error.retcode, error.message);
+            throw asActionError(error, "NERONET_ACTION_FAILED");
+        }
+    };
+    const forward = async (target, p2) => {
+        const messages = p2.messages ?? p2.message;
+        if (messages === void 0)
+            throw bad3("message/messages is required");
+        const nodes = parseForwardNodes(messages, { selfUin: String(core2.selfUin), getMessage: (id) => core2.getMessage(id) });
+        const r = await core2.sendForward(target, nodes, forwardMeta(p2));
+        return { message_id: r.messageId, res_id: r.resId, forward_id: r.resId };
+    };
+    const send2 = async (kind, id, params) => {
+        if (params.message === void 0)
+            throw bad3("message is required");
+        let segments;
+        try {
+            segments = normalizeMessage(params.message, truthy(params.auto_escape));
+            if (segments.some((s) => s.type === "file") && !fileUploads(kind)) {
+                throw Object.assign(new Error(`NERONET_SEGMENT_UNSUPPORTED: file (enable ${kind === "group" ? "upload_group_file" : "upload_private_file"} in the action policy to send files)`), { code: "NERONET_SEGMENT_UNSUPPORTED" });
+            }
+            const r = await core2.sendMessage({ kind, id }, segments);
+            return { message_id: r.messageId };
+        }
+        catch (e) {
+            throw asActionError(e, "NERONET_SEND_FAILED");
+        }
+    };
+    const markRead = (p2, kind, target) => wrap(async () => {
+        await core2.markMessageRead(messageIdParam(p2.message_id), { kind, ...p2[target] !== void 0 ? { targetId: qqId(p2[target], target) } : {} });
+        return null;
+    });
+    return {
+        ...createQzoneActions(core2, (retcode, wording) => new ActionError(retcode, wording)),
+        mark_msg_as_read: async (p2) => markRead(p2, void 0, "target_id"),
+        mark_group_msg_as_read: async (p2) => markRead(p2, "group", "group_id"),
+        mark_private_msg_as_read: async (p2) => markRead(p2, "private", "user_id"),
+        get_login_info: async () => ({ user_id: Number(core2.selfUin), nickname: core2.nickname ?? "" }),
+        get_status: async () => ({ online: core2.online, good: core2.online }),
+        get_version_info: async () => ({ app_name: "NeroNet", app_version: appVersion, protocol_version: "v11" }),
+        send_private_msg: async (p2) => send2("private", qqId(p2.user_id, "user_id"), p2),
+        send_group_msg: async (p2) => send2("group", qqId(p2.group_id, "group_id"), p2),
+        send_msg: async (p2) => {
+            const type = p2.message_type ?? (p2.group_id != null ? "group" : p2.user_id != null ? "private" : null);
+            if (type === "group")
+                return send2("group", qqId(p2.group_id, "group_id"), p2);
+            if (type === "private")
+                return send2("private", qqId(p2.user_id, "user_id"), p2);
+            throw bad3("user_id or group_id is required");
+        },
+        get_msg: async (p2) => {
+            const r = core2.getMessage(messageIdParam(p2.message_id));
+            if (!r)
+                throw new ActionError(RETCODE.FAILED, "NERONET_MESSAGE_NOT_FOUND");
+            const nick = r.sender?.nickname || (String(r.sender?.uin ?? "") === String(core2.selfUin) ? core2.nickname ?? "" : "");
+            const sender = { user_id: Number(r.sender?.uin ?? 0), nickname: nick, ...r.scene === "group" ? { card: r.sender?.card ?? "" } : {} };
+            const message2 = core2.refreshMessageMedia ? await core2.refreshMessageMedia(r.segments, r.scene === "group", r.peer) : r.segments;
+            return {
+                time: r.time,
+                message_type: r.scene,
+                message_id: r.messageId,
+                real_id: r.sequence,
+                ...r.scene === "group" ? { group_id: Number(r.peer) } : {},
+                user_id: sender.user_id,
+                sender,
+                message: message2,
+                raw_message: toCqString(message2)
+            };
+        },
+        send_forward_msg: async (p2) => wrap(async () => {
+            const type = p2.message_type ?? (p2.group_id != null && Number(p2.group_id) > 0 ? "group" : p2.user_id != null && Number(p2.user_id) > 0 ? "private" : null);
+            const target = type === "group" ? { kind: "group", id: String(qqId(p2.group_id, "group_id")) } : type === "private" ? { kind: "private", id: String(qqId(p2.user_id, "user_id")) } : null;
+            return forward(target, p2);
+        }),
+        send_group_forward_msg: async (p2) => wrap(async () => forward({ kind: "group", id: String(qqId(p2.group_id, "group_id")) }, p2)),
+        send_private_forward_msg: async (p2) => wrap(async () => forward({ kind: "private", id: String(qqId(p2.user_id, "user_id")) }, p2)),
+        get_forward_msg: async (p2) => wrap(async () => {
+            let id = String(p2.id ?? "").trim();
+            if (!id && p2.message_id !== void 0 && p2.message_id !== null && p2.message_id !== "") {
+                const n2 = Number(p2.message_id);
+                const r = Number.isSafeInteger(n2) && n2 > 0 ? core2.getMessage(n2) : null;
+                const seg = r?.segments?.find((s) => s.type === "forward");
+                id = String(seg?.data?.id ?? seg?.data?.res_id ?? seg?.data?.forward_id ?? p2.message_id);
+            }
+            if (!id)
+                throw bad3("id or message_id is required");
+            const nodes = await core2.getForward(id);
+            return { messages: nodes.map((n2) => forwardNodeEvent(n2, core2.selfUin)) };
+        }),
+        get_image: async (p2) => wrap(async () => {
+            const file = String(p2.file || p2.file_id || "");
+            if (!file)
+                throw bad3("file is required");
+            let r;
+            try {
+                r = core2.imageContent ? await core2.imageContent(file) : { info: await core2.imageInfo(file), bytes: null };
+            }
+            catch (e) {
+                throw new ActionError(RETCODE.FAILED, /^NERONET_IMAGE_[A-Z0-9_]+$/.test(e?.code ?? "") ? e.code : "NERONET_IMAGE_DOWNLOAD_FAILED");
+            }
+            if (!r?.info)
+                throw new ActionError(RETCODE.FAILED, "NERONET_IMAGE_NOT_FOUND");
+            if (r.bytes)
+                return { file: "base64://" + r.bytes.toString("base64"), url: "", file_size: r.bytes.length, file_name: r.info.file };
+            return { file: r.info.url || r.info.file, url: r.info.url, file_size: String(r.info.fileSize ?? 0), file_name: r.info.file };
+        }),
+        get_record: async (p2) => wrap(async () => {
+            const file = String(p2.file || p2.file_id || "");
+            if (!file)
+                throw bad3("file is required");
+            if (p2.out_format !== void 0 && p2.out_format !== null && p2.out_format !== "") {
+                const fmt = String(p2.out_format).toLowerCase();
+                if (!RECORD_FORMATS.includes(fmt))
+                    throw bad3(`NERONET_RECORD_FORMAT_UNSUPPORTED: out_format must be one of ${RECORD_FORMATS.join(", ")}`);
+                const r = await core2.recordContent(file);
+                if (!r)
+                    throw new ActionError(RETCODE.FAILED, "NERONET_RECORD_NOT_FOUND");
+                let out;
+                try {
+                    out = await convertRecord(r.bytes, fmt);
+                }
+                catch (e) {
+                    throw new ActionError(RETCODE.FAILED, String(e?.message ?? e).slice(0, 300));
+                }
+                return { file: r.info.url, url: r.info.url, file_size: String(r.info.fileSize ?? 0), file_name: r.info.fileName, out_format: fmt, base64: out.toString("base64") };
+            }
+            const info = await core2.mediaInfo(file, "record");
+            if (!info)
+                throw new ActionError(RETCODE.FAILED, "NERONET_RECORD_NOT_FOUND");
+            return { file: info.url, url: info.url, file_size: String(info.fileSize ?? 0), file_name: info.fileName };
+        }),
+        get_group_file_url: async (p2) => wrap(async () => {
+            const fileId = String(p2.file_id ?? "").trim();
+            if (!fileId)
+                throw bad3("file_id is required");
+            const bus = Number(p2.busid ?? 102);
+            return { url: await core2.groupFileUrl(qqId(p2.group_id, "group_id"), fileId, Number.isInteger(bus) && bus > 0 ? bus : 102) };
+        }),
+        get_private_file_url: async (p2) => wrap(async () => {
+            const fileId = String(p2.file_id ?? "").trim();
+            if (!fileId)
+                throw bad3("file_id is required");
+            return { url: await core2.privateFileUrl(fileId, String(p2.file_hash ?? "")) };
+        }),
+        upload_group_file: async (p2) => wrap(async () => {
+            const gid2 = qqId(p2.group_id, "group_id");
+            const file = String(p2.file ?? "").trim();
+            if (!file)
+                throw bad3("file is required");
+            const folder = String(p2.folder || p2.folder_id || "/");
+            return { file_id: await core2.uploadGroupFile(gid2, file, { name: String(p2.name ?? ""), folder, upload: p2.upload_file === void 0 ? true : truthy(p2.upload_file) }) };
+        }),
+        upload_private_file: async (p2) => wrap(async () => {
+            const uid2 = qqId(p2.user_id, "user_id");
+            const file = String(p2.file ?? "").trim();
+            if (!file)
+                throw bad3("file is required");
+            return { file_id: await core2.uploadPrivateFile(uid2, file, { name: String(p2.name ?? ""), upload: p2.upload_file === void 0 ? true : truthy(p2.upload_file) }) };
+        }),
+        get_group_list: async (p2) => wrap(async () => (await core2.directory.groups({ fresh: truthy(p2.no_cache) })).map(groupInfo)),
+        get_group_info: async (p2) => wrap(async () => {
+            const g = await core2.directory.group(qqId(p2.group_id, "group_id"), { fresh: truthy(p2.no_cache) });
+            if (!g)
+                throw new ActionError(RETCODE.FAILED, "NERONET_GROUP_NOT_FOUND");
+            return groupInfo(g);
+        }),
+        get_group_member_list: async (p2) => wrap(async () => {
+            const gid2 = qqId(p2.group_id, "group_id");
+            return (await core2.directory.members(gid2, { fresh: truthy(p2.no_cache) })).map((m) => memberInfo(gid2, m));
+        }),
+        get_group_member_info: async (p2) => wrap(async () => {
+            const gid2 = qqId(p2.group_id, "group_id");
+            const m = await core2.directory.member(gid2, qqId(p2.user_id, "user_id"), { fresh: truthy(p2.no_cache) });
+            if (!m)
+                throw new ActionError(RETCODE.FAILED, "NERONET_MEMBER_NOT_FOUND");
+            return memberInfo(gid2, m);
+        }),
+        get_friend_list: async (p2) => wrap(async () => (await core2.directory.friends({ fresh: truthy(p2.no_cache) })).map((f) => ({ user_id: Number(f.uin), nickname: f.nickname, remark: f.remark }))),
+        get_stranger_info: async (p2) => wrap(async () => {
+            const u = await core2.directory.profile(qqId(p2.user_id, "user_id"), { fresh: truthy(p2.no_cache) });
+            return { user_id: Number(u.uin), uid: u.uid, nickname: u.nickname, remark: u.remark, sex: u.sex, age: u.age, qid: u.qid, level: u.level, qq_level: u.level, long_nick: u.sign };
+        }),
+        get_group_msg_history: async (p2) => wrap(async () => {
+            const gid2 = qqId(p2.group_id, "group_id");
+            const anchor = p2.message_id === void 0 || p2.message_id === null || Number(p2.message_id) === 0 ? 0 : messageIdParam(p2.message_id);
+            const events = await core2.groupHistory(gid2, anchor, p2.count);
+            return { messages: events.map((ev) => messageEvent(ev, core2.selfUin)) };
+        }),
+        get_friend_msg_history: async (p2) => wrap(async () => {
+            const uid2 = qqId(p2.user_id, "user_id");
+            const anchor = p2.message_id === void 0 || p2.message_id === null || Number(p2.message_id) === 0 ? 0 : messageIdParam(p2.message_id);
+            const events = await core2.friendHistoryOf(uid2, anchor, p2.count, p2.reverse_order === void 0 ? true : truthy(p2.reverse_order));
+            return { messages: events.map((ev) => messageEvent(ev, core2.selfUin)) };
+        }),
+        set_group_kick: async (p2) => wrap(async () => {
+            await core2.kickMember(qqId(p2.group_id, "group_id"), qqId(p2.user_id, "user_id"), { rejectAddRequest: truthy(p2.reject_add_request), reason: textParam(p2.reason, "reason", 200) });
+            return null;
+        }),
+        set_group_ban: async (p2) => wrap(async () => {
+            const seconds = p2.duration === void 0 || p2.duration === null || p2.duration === "" ? 30 * 60 : Number(p2.duration);
+            if (!Number.isInteger(seconds) || seconds < 0 || seconds > MAX_BAN_SECONDS)
+                throw bad3(`duration must be 0 to ${MAX_BAN_SECONDS} seconds (0 lifts the mute)`);
+            await core2.muteMember(qqId(p2.group_id, "group_id"), qqId(p2.user_id, "user_id"), seconds);
+            return null;
+        }),
+        set_group_whole_ban: async (p2) => wrap(async () => {
+            await core2.muteAll(qqId(p2.group_id, "group_id"), p2.enable === void 0 ? true : truthy(p2.enable));
+            return null;
+        }),
+        set_group_admin: async (p2) => wrap(async () => {
+            await core2.setGroupAdmin(qqId(p2.group_id, "group_id"), qqId(p2.user_id, "user_id"), p2.enable === void 0 ? true : truthy(p2.enable));
+            return null;
+        }),
+        set_group_card: async (p2) => wrap(async () => {
+            await core2.setMemberCard(qqId(p2.group_id, "group_id"), qqId(p2.user_id, "user_id"), textParam(p2.card, "card", 60));
+            return null;
+        }),
+        set_group_name: async (p2) => wrap(async () => {
+            const name = textParam(p2.group_name, "group_name", 60).trim();
+            if (!name)
+                throw bad3("group_name is required");
+            await core2.setGroupName(qqId(p2.group_id, "group_id"), name);
+            return null;
+        }),
+        set_group_special_title: async (p2) => wrap(async () => {
+            await core2.setSpecialTitle(qqId(p2.group_id, "group_id"), qqId(p2.user_id, "user_id"), textParam(p2.special_title, "special_title", 30));
+            return null;
+        }),
+        set_group_leave: async (p2) => wrap(async () => {
+            if (truthy(p2.is_dismiss))
+                throw bad3("is_dismiss is not supported: dissolving a group is not implemented");
+            await core2.leaveGroup(qqId(p2.group_id, "group_id"));
+            return null;
+        }),
+        set_friend_add_request: async (p2) => wrap(async () => {
+            if (p2.flag === void 0 || p2.flag === null || String(p2.flag).trim() === "")
+                throw bad3("flag is required");
+            await core2.answerFriendRequest(String(p2.flag), p2.approve === void 0 ? true : truthy(p2.approve));
+            return null;
+        }),
+        set_group_add_request: async (p2) => wrap(async () => {
+            if (p2.flag === void 0 || p2.flag === null || String(p2.flag).trim() === "")
+                throw bad3("flag is required");
+            await core2.answerGroupRequest(String(p2.flag), p2.approve === void 0 ? true : truthy(p2.approve), textParam(p2.reason, "reason", 200));
+            return null;
+        }),
+        get_group_system_msg: async () => wrap(async () => {
+            const entries = await core2.groupRequests();
+            const pending = entries.filter((e) => e.targetUin === String(core2.selfUin));
+            const join = entries.filter((e) => !pending.includes(e));
+            const common = (e) => ({ request_id: Number(e.sequence), group_id: Number(e.groupId), group_name: e.groupName, checked: e.state !== 1, actor: Number(e.operatorUin), flag: groupFlag(e) });
+            return {
+                invited_requests: pending.map((e) => ({ ...common(e), invitor_uin: Number(e.invitorUin), invitor_nick: e.invitorName })),
+                join_requests: join.map((e) => ({ ...common(e), requester_uin: Number(e.targetUin), requester_nick: e.targetName, message: e.comment, ...e.invitorUin !== "0" ? { invitor_uin: Number(e.invitorUin), invitor_nick: e.invitorName } : {} }))
+            };
+        }),
+        _get_group_notice: (p2) => webAction(() => core2.groupNotices.list({ groupId: p2.group_id, count: p2.count })),
+        _send_group_notice: (p2) => webAction(() => core2.groupNotices.publish({ groupId: p2.group_id, content: p2.content, image: p2.image, pinned: p2.pinned, type: p2.type, sendToNewMembers: p2.send_to_new_members, showEditCard: p2.is_show_edit_card, tipWindow: p2.tip_window_type, confirmRequired: p2.confirm_required })),
+        _del_group_notice: (p2) => webAction(async () => {
+            await core2.groupNotices.remove({ groupId: p2.group_id, noticeId: p2.notice_id ?? p2.fid });
+            return null;
+        }),
+        get_cookies: (p2) => webAction(async () => ({ cookies: (await core2.groupNotices.cookies(String(p2.domain ?? "").trim() || "qun.qq.com")).cookies })),
+        get_csrf_token: () => webAction(async () => ({ token: Number((await core2.groupNotices.cookies("qun.qq.com")).bkn) })),
+        get_credentials: (p2) => webAction(async () => {
+            const c = await core2.groupNotices.cookies(String(p2.domain ?? "").trim() || "qun.qq.com");
+            return { cookies: c.cookies, csrf_token: Number(c.bkn) };
+        }),
+        friend_poke: async (p2) => wrap(async () => {
+            await core2.poke({ group: false, peer: qqId(p2.user_id, "user_id"), target: p2.target_id != null && p2.target_id !== "" ? qqId(p2.target_id, "target_id") : void 0 });
+            return null;
+        }),
+        group_poke: async (p2) => wrap(async () => {
+            await core2.poke({ group: true, peer: qqId(p2.group_id, "group_id"), target: qqId(p2.user_id, "user_id") });
+            return null;
+        }),
+        send_poke: async (p2) => wrap(async () => {
+            const user = qqId(p2.user_id, "user_id");
+            if (p2.group_id != null && p2.group_id !== "" && Number(p2.group_id) !== 0)
+                await core2.poke({ group: true, peer: qqId(p2.group_id, "group_id"), target: user });
+            else
+                await core2.poke({ group: false, peer: user });
+            return null;
+        }),
+        set_msg_emoji_like: async (p2) => wrap(async () => {
+            const emoji = String(p2.emoji_id ?? "").trim();
+            if (!emoji)
+                throw bad3("emoji_id is required");
+            await core2.setEmojiLike(messageIdParam(p2.message_id), emoji, p2.set === void 0 ? true : truthy(p2.set));
+            return null;
+        }),
+        fetch_custom_face: async (p2) => wrap(async () => {
+            const count3 = p2.count === void 0 ? 10 : Number(p2.count);
+            if (!Number.isInteger(count3) || count3 < 0)
+                throw bad3("count must be a non-negative integer");
+            const ids = await core2.customFaceIds(count3);
+            return (p2.return_type ?? "url") === "id" ? ids : ids.map((id) => `https://p.qpic.cn/qq_expression/${core2.selfUin}/${id}/0`);
+        }),
+        fetch_custom_face_detail: async (p2) => wrap(async () => {
+            const count3 = p2.count === void 0 ? 48 : Number(p2.count);
+            if (!Number.isInteger(count3) || count3 < 0)
+                throw bad3("count must be a non-negative integer");
+            return (await core2.customFaceDetails(count3)).map((d) => ({ emoji_id: d.emojiId, resId: d.emojiId, url: d.url, md5: d.md5, desc: d.desc }));
+        }),
+        modify_custom_face: async (p2) => wrap(async () => {
+            const id = String(p2.emoji_id ?? "").trim();
+            if (!id)
+                throw bad3("emoji_id is required");
+            await core2.modifyCustomFace(id, String(p2.desc ?? ""));
+            return null;
+        }),
+        add_custom_face: async (p2) => wrap(async () => {
+            const file = String(p2.file ?? "").trim();
+            if (!file)
+                throw bad3("file is required");
+            return { emoji_id: await core2.addCustomFace(file) };
+        }),
+        fetch_face_entity: async (p2) => wrap(async () => {
+            const id = Number(p2.face_id);
+            if (!Number.isInteger(id) || id < 0 || id > 65535)
+                throw bad3("face_id must be a face number");
+            return core2.faceEntity(id, truthy(p2.refresh));
+        }),
+        can_send_image: async () => ({ yes: true }),
+        can_send_record: async () => ({ yes: true }),
+        delete_msg: async (p2) => {
+            const id = messageIdParam(p2.message_id);
+            try {
+                await core2.recall(id);
+                return null;
+            }
+            catch (e) {
+                throw asActionError(e, "NERONET_RECALL_FAILED");
+            }
+        }
+    };
+}
+function createDispatcher(actions, allowed, { log = () => {
+} } = {}) {
+    const logs = new RateLimitedLog(log);
+    return async function dispatch(action, params, echo) {
+        const withEcho = (r) => echo === void 0 ? r : { ...r, echo };
+        try {
+            if (typeof action !== "string" || !action)
+                return withEcho(failed(RETCODE.BAD_REQUEST, "action is required"));
+            const handler = Object.hasOwn(actions, action) ? actions[action] : null;
+            if (!handler || !allowed.has(action)) {
+                logs.limited(`actionRejected:${action}`, { actionRejected: action, implemented: !!handler });
+                return withEcho(failed(RETCODE.NOT_SUPPORTED, "NERONET_ACTION_NOT_SUPPORTED"));
+            }
+            if (params != null && (typeof params !== "object" || Array.isArray(params)))
+                return withEcho(failed(RETCODE.BAD_REQUEST, "params must be an object"));
+            return withEcho(ok(await handler(params ?? {})));
+        }
+        catch (e) {
+            if (e instanceof ActionError)
+                return withEcho(failed(e.retcode, e.wording));
+            logs.write({ actionInternalError: action, error: String(e?.message ?? e).slice(0, 160) });
+            return withEcho(failed(RETCODE.INTERNAL, "NERONET_INTERNAL_ERROR"));
+        }
+    };
+}
+var RETCODE, MAX_UIN, ActionError, bad3, ok, failed, BAD_REQUEST_CODES, NERONET_CODE, truthy, groupInfo, memberInfo, MAX_BAN_SECONDS;
+var init_actions = __esm({
+    "upper/onebot/actions.mjs"() {
+        init_message_format();
+        init_log();
+        init_events();
+        init_record_convert();
+        init_forward_nodes();
+        init_qzone_actions();
+        init_errors();
+        init_requests();
+        RETCODE = Object.freeze({ OK: 0, FAILED: 100, INTERNAL: 1200, BAD_REQUEST: 1400, NOT_SUPPORTED: 1404 });
+        MAX_UIN = 4294967295;
+        ActionError = class extends Error {
+            constructor(retcode, wording) {
+                super(wording);
+                this.retcode = retcode;
+                this.wording = wording;
+            }
+        };
+        bad3 = (w) => new ActionError(RETCODE.BAD_REQUEST, w);
+        ok = (data = null) => ({ status: "ok", retcode: 0, data });
+        failed = (retcode, wording) => ({ status: "failed", retcode, data: null, message: wording, wording });
+        BAD_REQUEST_CODES = new Set(["NERONET_TARGET_UNKNOWN", "NERONET_REQUEST_FLAG_INVALID", "NERONET_SEGMENT_UNSUPPORTED", "NERONET_SEGMENT_INVALID", "NERONET_MESSAGE_EMPTY", "NERONET_MESSAGE_INVALID", "NERONET_MEDIA_SOURCE_INVALID", "NERONET_MEDIA_TOO_LARGE", "NERONET_READ_TARGET_INVALID"]);
+        NERONET_CODE = /^NERONET_[A-Z0-9_]+/;
+        truthy = (v) => v === true || v === "true" || v === 1 || v === "1";
+        groupInfo = (g) => ({ group_id: Number(g.groupId), group_name: g.name, group_remark: g.remark ?? "", member_count: g.memberCount, max_member_count: g.maxMemberCount, group_all_shut: 0 });
+        memberInfo = (groupId, m) => ({
+            group_id: Number(groupId),
+            user_id: Number(m.uin),
+            nickname: m.nickname,
+            card: m.card,
+            sex: "unknown",
+            age: 0,
+            area: "",
+            join_time: m.joinTime,
+            last_sent_time: m.lastSentTime,
+            level: String(m.level),
+            qq_level: 0,
+            role: m.role,
+            unfriendly: false,
+            title: m.title,
+            title_expire_time: 0,
+            card_changeable: false,
+            shut_up_timestamp: m.shutUpUntil,
+            is_robot: false
+        });
+        MAX_BAN_SECONDS = 30 * 24 * 3600;
+    }
+});
+import fs13 from "node:fs";
+import path14 from "node:path";
+import { pathToFileURL } from "node:url";
+async function loadCustomActions(configDir, { builtIn, importModule = (url) => import(url) }) {
+    const dir = path14.join(configDir, CUSTOM_ACTION_DIR);
+    const definitions = [], problems = [];
+    let files = [];
+    try {
+        files = fs13.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".mjs")).map((e) => e.name).sort();
+    }
+    catch (error) {
+        if (error?.code !== "ENOENT")
+            problems.push({ file: CUSTOM_ACTION_DIR, reason: `cannot read the folder: ${error?.code ?? "error"}` });
+        return { definitions, problems };
+    }
+    if (files.length > CUSTOM_LIMITS.files) {
+        problems.push({ file: CUSTOM_ACTION_DIR, reason: `more than ${CUSTOM_LIMITS.files} files; only the first ${CUSTOM_LIMITS.files} are read` });
+        files = files.slice(0, CUSTOM_LIMITS.files);
+    }
+    const reserved = new Set(builtIn);
+    const commands = new Set();
+    for (const file of files) {
+        const full = path14.join(dir, file);
+        try {
+            if (fs13.statSync(full).size > CUSTOM_LIMITS.fileBytes)
+                throw new Error(`larger than ${CUSTOM_LIMITS.fileBytes} bytes`);
+            const mod2 = await importModule(pathToFileURL(full).href);
+            const list = Array.isArray(mod2?.default) ? mod2.default : [mod2?.default];
+            const accepted = [];
+            for (const d of list) {
+                if (!d || typeof d !== "object")
+                    throw new Error("the default export must be a definition or an array of definitions");
+                if (typeof d.name !== "string" || !NAME.test(d.name))
+                    throw new Error(`invalid action name ${JSON.stringify(String(d.name ?? "")).slice(0, 70)}`);
+                if (reserved.has(d.name))
+                    throw new Error(`action ${d.name} already exists`);
+                if (typeof d.run !== "function")
+                    throw new Error(`action ${d.name} has no run(params, api) function`);
+                if (!Array.isArray(d.commands) || !d.commands.length || d.commands.some((c) => typeof c !== "string" || !COMMAND_PATTERN.test(c)))
+                    throw new Error(`action ${d.name}: commands must list OIDB commands like OidbSvcTrpcTcp.0x8a0_1`);
+                accepted.push({ name: d.name, summary: typeof d.summary === "string" ? d.summary.slice(0, 120) : "", commands: [...new Set(d.commands)], run: d.run, file });
+            }
+            const added = new Set(accepted.flatMap((d) => d.commands).filter((c) => !commands.has(c)));
+            if (definitions.length + accepted.length > CUSTOM_LIMITS.actions)
+                throw new Error(`more than ${CUSTOM_LIMITS.actions} custom actions in total`);
+            if (commands.size + added.size > CUSTOM_LIMITS.commands)
+                throw new Error(`more than ${CUSTOM_LIMITS.commands} commands in total`);
+            if (new Set(accepted.map((d) => d.name)).size !== accepted.length)
+                throw new Error("the file defines an action twice");
+            for (const d of accepted) {
+                reserved.add(d.name);
+                definitions.push(d);
+            }
+            for (const c of added)
+                commands.add(c);
+        }
+        catch (error) {
+            problems.push({ file, reason: String(error?.message ?? error).slice(0, 200) });
+        }
+    }
+    return { definitions, problems };
+}
+function createCustomActions(definitions, { transport, core: core2, accepted, log = () => {
+} }) {
+    const actions = {}, enabled = [], disabled = [];
+    for (const d of definitions) {
+        const refused = d.commands.filter((c) => !accepted.has(c));
+        if (refused.length) {
+            disabled.push({ name: d.name, commands: refused });
+            continue;
+        }
+        const declared = new Set(d.commands);
+        const api = Object.freeze({
+            selfId: String(transport.uin ?? ""),
+            async oidb(command2, subCommand, body, { reserved = 0 } = {}) {
+                if (!Number.isInteger(command2) || !Number.isInteger(subCommand) || command2 < 0 || subCommand < 0)
+                    throw new Error("NERONET_CUSTOM_ACTION_INVALID: command and subCommand must be non-negative integers");
+                const name = `OidbSvcTrpcTcp.0x${command2.toString(16)}_${subCommand}`;
+                if (!declared.has(name))
+                    throw new Error(`NERONET_CUSTOM_ACTION_INVALID: ${name} is not declared in commands of ${d.name}`);
+                if (reserved !== 0 && reserved !== 1)
+                    throw new Error("NERONET_CUSTOM_ACTION_INVALID: reserved must be 0 or 1");
+                if (!(body instanceof Uint8Array))
+                    throw new Error("NERONET_CUSTOM_ACTION_INVALID: body must be a Uint8Array (an encoded request)");
+                const reply = await invokeOidb(transport, { command: command2, subCommand, reserved, request: RAW, response: RAW }, body);
+                return Buffer.isBuffer(reply) ? reply : Buffer.alloc(0);
+            },
+            schema: (text2) => compileSchema(text2),
+            uidOf: (userId, groupId) => core2.resolveUid(String(userId), groupId === void 0 || groupId === null ? void 0 : String(groupId)),
+            log: (text2) => log({ customAction: d.name, note: String(text2 ?? "").slice(0, 300) })
+        });
+        actions[d.name] = async (params) => {
+            if (!core2.online)
+                throw new ActionError(RETCODE.FAILED, "NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE");
+            try {
+                const result2 = await d.run(params, api);
+                return result2 === void 0 ? null : result2;
+            }
+            catch (error) {
+                if (error instanceof ActionError)
+                    throw error;
+                const text2 = String(error?.message ?? error).replace(/[ -]+/g, " ").slice(0, 200);
+                const bad6 = /^NERONET_CUSTOM_ACTION_INVALID/.test(text2);
+                throw new ActionError(bad6 ? RETCODE.BAD_REQUEST : RETCODE.FAILED, /^NERONET_[A-Z0-9_]+/.test(text2) ? text2 : `NERONET_CUSTOM_ACTION_FAILED: ${text2}`);
+            }
+        };
+        enabled.push(d);
+    }
+    return { actions, enabled, disabled };
+}
+var CUSTOM_ACTION_DIR, CUSTOM_LIMITS, COMMAND_PATTERN, NAME, RAW, customCommands;
+var init_custom_actions = __esm({
+    "upper/custom-actions.mjs"() {
+        init_oidb();
+        init_schema();
+        init_actions();
+        CUSTOM_ACTION_DIR = "custom-actions";
+        CUSTOM_LIMITS = Object.freeze({ actions: 32, commands: 64, files: 64, fileBytes: 512 * 1024 });
+        COMMAND_PATTERN = /^OidbSvcTrpcTcp\.0x([0-9a-f]{1,5})_(\d{1,5})$/;
+        NAME = /^[a-z][a-z0-9_]{1,63}$/;
+        RAW = Object.freeze({ encode: (b) => Buffer.from(b ?? []), decode: (b) => Buffer.from(b ?? []) });
+        customCommands = (definitions) => [...new Set(definitions.flatMap((d) => d.commands))];
+    }
+});
+function highwayProxyValue(env = process.env) {
+    return env.NERONET_HIGHWAY_PROXY ?? env.HTTP_PROXY ?? "";
+}
+function describeMediaNetwork(env = process.env, args = process.execArgv) {
+    const raw = highwayProxyValue(env);
+    let upload = "direct", issue = null;
+    if (raw) {
+        try {
+            const u = new URL(raw);
+            upload = "http-connect";
+            if (u.protocol !== "http:" || u.username || u.password || u.search || u.hash || u.pathname !== "/")
+                issue = "UNSUPPORTED_PROXY";
+        }
+        catch {
+            upload = "invalid";
+            issue = "INVALID_PROXY";
+        }
+    }
+    const configured = Boolean(env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY);
+    const enabled = env.NODE_USE_ENV_PROXY === "1" || args.includes("--use-env-proxy") || /(?:^|\s)--use-env-proxy(?:\s|$)/.test(env.NODE_OPTIONS ?? "");
+    return { scope: "process-configuration-only", connectivity: "not-probed", upload: { transport: upload, source: highwayProxySource(env), issue }, download: { transport: configured && enabled ? "environment-proxy-configured" : configured ? "proxy-configured-but-not-enabled" : "direct-or-custom-dispatcher", bypassRulesPresent: Boolean(env.NO_PROXY || env.no_proxy) }, warning: issue ? "上传代理格式不受支持，请检查部署配置。" : configured && !enabled ? "下载代理已配置，但未声明 Node 环境代理开关；请检查启动命令。" : null, note: "上传使用 TCP/HTTP CONNECT，下载使用 Node fetch。此处仅显示当前进程配置，不证明网络可达；启动后修改环境变量或自定义 dispatcher 可能改变实际行为。" };
+}
+function imageNetworkError(error) {
+    const codes = new Set();
+    let e = error;
+    const seen = new Set();
+    for (let i = 0; e && typeof e === "object" && i < 6 && !seen.has(e); i++, e = e.cause) {
+        seen.add(e);
+        if (typeof e.code === "string")
+            codes.add(e.code);
+    }
+    if ([...codes].some((c) => ["ENOTFOUND", "EAI_AGAIN"].includes(c)))
+        return "NERONET_IMAGE_DNS_FAILED";
+    if ([...codes].some((c) => ["CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", "ERR_TLS_CERT_ALTNAME_INVALID"].includes(c)))
+        return "NERONET_IMAGE_TLS_FAILED";
+    if ([...codes].some((c) => ["ECONNREFUSED", "ECONNRESET", "EHOSTUNREACH", "ENETUNREACH"].includes(c)))
+        return "NERONET_IMAGE_CONNECTION_FAILED";
+    if ([...codes].some((c) => ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"].includes(c)))
+        return "NERONET_IMAGE_NETWORK_TIMEOUT";
+    return "NERONET_IMAGE_DOWNLOAD_FAILED";
+}
+var highwayProxySource;
+var init_media_network = __esm({
+    "media-network.mjs"() {
+        highwayProxySource = (env) => env.NERONET_HIGHWAY_PROXY !== void 0 ? "NERONET_HIGHWAY_PROXY" : env.HTTP_PROXY !== void 0 ? "HTTP_PROXY" : "none";
+    }
+});
+import fs14 from "node:fs/promises";
+import path15 from "node:path";
 import crypto3 from "node:crypto";
+function imageMime(bytes) {
+    if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+        return "image/png";
+    if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255)
+        return "image/jpeg";
+    if (["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("latin1")))
+        return "image/gif";
+    if (bytes.subarray(0, 4).toString("latin1") === "RIFF" && bytes.subarray(8, 12).toString("latin1") === "WEBP")
+        return "image/webp";
+    if (bytes.subarray(0, 2).toString("latin1") === "BM")
+        return "image/bmp";
+    return null;
+}
+function cdnUrl(raw) {
+    let url;
+    try {
+        url = new URL(raw);
+    }
+    catch {
+        throw fail("NERONET_IMAGE_INVALID_URL");
+    }
+    if (url.protocol === "http:" && HTTP_UPGRADE_HOSTS.has(url.hostname) && !url.port)
+        url.protocol = "https:";
+    if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443" || !CDN_HOSTS.has(url.hostname))
+        throw fail("NERONET_IMAGE_UNSUPPORTED_CDN");
+    return url;
+}
+async function renameRetry(from, to) {
+    try {
+        await fs14.rename(from, to);
+    }
+    catch (e) {
+        if (e.code !== "EPERM" && e.code !== "EBUSY" && e.code !== "EACCES")
+            throw e;
+        await new Promise((r) => setTimeout(r, 50));
+        await fs14.rename(from, to);
+    }
+}
+var IMAGE_CACHE, CDN_HOSTS, HTTP_UPGRADE_HOSTS, hash, fail, isMd52, ImageCache;
+var init_image_cache = __esm({
+    "upper/media/image-cache.mjs"() {
+        init_media_network();
+        IMAGE_CACHE = Object.freeze({ maxBytes: 8 * 1024 * 1024, timeoutMs: 2e4, redirects: 3, maxTotalBytes: 512 * 1024 * 1024, pruneEvery: 64 });
+        CDN_HOSTS = new Set(["multimedia.nt.qq.com.cn", "gchat.qpic.cn", "c2cpicdw.qpic.cn", "gxh.vip.qq.com"]);
+        HTTP_UPGRADE_HOSTS = new Set(["gchat.qpic.cn", "c2cpicdw.qpic.cn"]);
+        hash = (alg, b) => crypto3.createHash(alg).update(b).digest("hex");
+        fail = (code) => Object.assign(new Error(code), { code });
+        isMd52 = (s) => typeof s === "string" && /^[0-9a-f]{32}$/i.test(s);
+        ImageCache = class {
+            constructor({ dir, fetchImpl = fetch, log = () => {
+            }, limits = {} }) {
+                this.dir = dir;
+                this.fetchImpl = fetchImpl;
+                this.log = log;
+                this.limits = { ...IMAGE_CACHE, ...limits };
+                this.inflight = new Map();
+                this.stopper = new AbortController();
+                this.writes = 0;
+            }
+            close() {
+                this.stopper.abort();
+            }
+            #base(md52) {
+                return path15.join(this.dir, md52.toLowerCase());
+            }
+            async cleanTemps() {
+                let names;
+                try {
+                    names = await fs14.readdir(this.dir);
+                }
+                catch (e) {
+                    if (e.code === "ENOENT")
+                        return 0;
+                    throw e;
+                }
+                let n2 = 0;
+                for (const name of names)
+                    if (name.endsWith(".tmp")) {
+                        await fs14.unlink(path15.join(this.dir, name)).then(() => n2++, () => {
+                        });
+                    }
+                await this.prune();
+                return n2;
+            }
+            async prune() {
+                let names;
+                try {
+                    names = await fs14.readdir(this.dir);
+                }
+                catch {
+                    return 0;
+                }
+                const entries = [];
+                for (const name of names) {
+                    if (!name.endsWith(".bin"))
+                        continue;
+                    try {
+                        const st = await fs14.stat(path15.join(this.dir, name));
+                        entries.push({ base: path15.join(this.dir, name.slice(0, -4)), size: st.size, used: st.mtimeMs });
+                    }
+                    catch {
+                    }
+                }
+                let total = entries.reduce((s, e) => s + e.size, 0), removed = 0;
+                entries.sort((a, b) => a.used - b.used);
+                for (const e of entries) {
+                    if (total <= this.limits.maxTotalBytes)
+                        break;
+                    await Promise.all([fs14.rm(e.base + ".bin", { force: true }), fs14.rm(e.base + ".json", { force: true })]).catch(() => {
+                    });
+                    total -= e.size;
+                    removed++;
+                }
+                if (removed)
+                    this.log({ upperImageCachePruned: removed });
+                return removed;
+            }
+            async read(md52) {
+                if (!isMd52(md52))
+                    return null;
+                const base = this.#base(md52);
+                try {
+                    const [metaText, bytes] = await Promise.all([fs14.readFile(base + ".json", "utf8"), fs14.readFile(base + ".bin")]);
+                    const meta = JSON.parse(metaText);
+                    if (!bytes.length || bytes.length > this.limits.maxBytes || bytes.length !== meta.bytes || hash("md5", bytes) !== md52.toLowerCase() || hash("sha256", bytes) !== meta.sha256 || imageMime(bytes) !== meta.mimeType)
+                        throw fail("NERONET_IMAGE_CACHE_INVALID");
+                    const now2 = new Date();
+                    await fs14.utimes(base + ".bin", now2, now2).catch(() => {
+                    });
+                    return bytes;
+                }
+                catch (e) {
+                    if (e.code === "ENOENT")
+                        return null;
+                    if (e instanceof SyntaxError || e.code === "NERONET_IMAGE_CACHE_INVALID") {
+                        this.log({ upperImageCacheRepair: true });
+                        await Promise.all([fs14.rm(base + ".json", { force: true }), fs14.rm(base + ".bin", { force: true })]).catch(() => {
+                        });
+                        return null;
+                    }
+                    this.log({ upperImageCacheReadFailed: e.code ?? "EIO" });
+                    return null;
+                }
+            }
+            async write(md52, bytes, origin) {
+                if (!isMd52(md52) || hash("md5", bytes) !== md52.toLowerCase())
+                    throw fail("NERONET_IMAGE_MD5_MISMATCH");
+                const mimeType = imageMime(bytes);
+                if (!mimeType)
+                    throw fail("NERONET_IMAGE_INVALID_FORMAT");
+                if (!bytes.length || bytes.length > this.limits.maxBytes)
+                    throw fail("NERONET_IMAGE_TOO_LARGE");
+                const base = this.#base(md52), suffix = `.${crypto3.randomUUID()}.tmp`;
+                const dataTmp = base + ".bin" + suffix, metaTmp = base + ".json" + suffix;
+                try {
+                    await fs14.mkdir(this.dir, { recursive: true });
+                    await fs14.writeFile(dataTmp, bytes, { flag: "wx" });
+                    await fs14.writeFile(metaTmp, JSON.stringify({ sha256: hash("sha256", bytes), md5: md52.toLowerCase(), bytes: bytes.length, mimeType, fetchedUtc: (new Date()).toISOString(), origin }), { flag: "wx" });
+                    await renameRetry(dataTmp, base + ".bin");
+                    await renameRetry(metaTmp, base + ".json");
+                }
+                catch {
+                    throw fail("NERONET_IMAGE_CACHE_WRITE_FAILED");
+                }
+                finally {
+                    await Promise.all([fs14.rm(dataTmp, { force: true }), fs14.rm(metaTmp, { force: true })]).catch(() => {
+                    });
+                }
+                if (++this.writes % this.limits.pruneEvery === 0)
+                    await this.prune();
+            }
+            async retain(md52, bytes) {
+                try {
+                    if (isMd52(md52) && bytes?.length && bytes.length <= this.limits.maxBytes && imageMime(bytes)) {
+                        await this.write(md52, Buffer.from(bytes), "sent");
+                        this.log({ upperSentImageRetained: true, bytes: bytes.length });
+                    }
+                }
+                catch (e) {
+                    this.log({ upperSentImageRetentionFailed: e.code ?? "NERONET_IMAGE_CACHE_IO" });
+                }
+            }
+            async content({ md5: md52, url }) {
+                const key = isMd52(md52) ? md52.toLowerCase() : `url:${url}`;
+                if (!this.inflight.has(key)) {
+                    this.inflight.set(key, (async () => {
+                        const cached = await this.read(md52);
+                        if (cached)
+                            return cached;
+                        if (!url)
+                            throw fail("NERONET_IMAGE_URL_UNAVAILABLE");
+                        const bytes = await this.#download(url);
+                        if (isMd52(md52) && hash("md5", bytes) === md52.toLowerCase()) {
+                            try {
+                                await this.write(md52, bytes, "network");
+                            }
+                            catch (e) {
+                                this.log({ upperImageCacheWriteFailed: e.code });
+                            }
+                        }
+                        else
+                            this.log({ upperImageNotCached: isMd52(md52) ? "md5-mismatch" : "no-md5" });
+                        this.log({ upperImageMaterialized: true, bytes: bytes.length });
+                        return bytes;
+                    })().finally(() => this.inflight.delete(key)));
+                }
+                return this.inflight.get(key);
+            }
+            async #download(raw) {
+                const timeout = AbortSignal.timeout(this.limits.timeoutMs);
+                const combined = AbortSignal.any([this.stopper.signal, timeout]);
+                let url = cdnUrl(raw);
+                try {
+                    for (let hop = 0; hop <= this.limits.redirects; hop++) {
+                        const res = await this.fetchImpl(url, { redirect: "manual", signal: combined });
+                        if ([301, 302, 303, 307, 308].includes(res.status)) {
+                            const location = res.headers.get("location");
+                            await res.body?.cancel().catch(() => {
+                            });
+                            if (!location)
+                                throw fail("NERONET_IMAGE_INVALID_REDIRECT");
+                            let next;
+                            try {
+                                next = new URL(location, url).href;
+                            }
+                            catch {
+                                throw fail("NERONET_IMAGE_INVALID_REDIRECT");
+                            }
+                            url = cdnUrl(next);
+                            continue;
+                        }
+                        if (!res.ok) {
+                            await res.body?.cancel().catch(() => {
+                            });
+                            throw fail(`NERONET_IMAGE_HTTP_${res.status}`);
+                        }
+                        if (Number(res.headers.get("content-length")) > this.limits.maxBytes) {
+                            await res.body?.cancel().catch(() => {
+                            });
+                            throw fail("NERONET_IMAGE_TOO_LARGE");
+                        }
+                        if (!res.body)
+                            throw fail("NERONET_IMAGE_EMPTY");
+                        const reader = res.body.getReader(), chunks = [];
+                        let size = 0;
+                        try {
+                            for (;;) {
+                                const part = await reader.read();
+                                if (part.done)
+                                    break;
+                                size += part.value.length;
+                                if (size > this.limits.maxBytes)
+                                    throw fail("NERONET_IMAGE_TOO_LARGE");
+                                chunks.push(part.value);
+                            }
+                        }
+                        finally {
+                            await reader.cancel().catch(() => {
+                            });
+                        }
+                        const bytes = Buffer.concat(chunks);
+                        if (!bytes.length)
+                            throw fail("NERONET_IMAGE_EMPTY");
+                        if (!imageMime(bytes))
+                            throw fail("NERONET_IMAGE_INVALID_FORMAT");
+                        return bytes;
+                    }
+                    throw fail("NERONET_IMAGE_REDIRECT_LIMIT");
+                }
+                catch (e) {
+                    if (/^NERONET_IMAGE_[A-Z0-9_]+$/.test(e.code ?? ""))
+                        throw e;
+                    if (this.stopper.signal.aborted)
+                        throw fail("NERONET_IMAGE_CANCELLED");
+                    if (timeout.aborted)
+                        throw fail("NERONET_IMAGE_TIMEOUT");
+                    throw fail(imageNetworkError(e));
+                }
+            }
+        };
+    }
+});
+import crypto4 from "node:crypto";
 var SEND_MESSAGE_COMMAND, Request, Response, SendRejectedError, MessageSender;
 var init_outbound = __esm({
     "upper/qq/outbound.mjs"() {
@@ -9716,11 +13166,11 @@ var init_outbound = __esm({
             }
         };
         MessageSender = class {
-            constructor(transport, { now: now2 = () => Date.now(), random = () => crypto3.randomInt(1, 2147483647) } = {}) {
+            constructor(transport, { now: now2 = () => Date.now(), random = () => crypto4.randomInt(1, 2147483647) } = {}) {
                 this.transport = transport;
                 this.now = now2;
                 this.random = random;
-                this.clientSequence = crypto3.randomInt(1e4, 6e4);
+                this.clientSequence = crypto4.randomInt(1e4, 6e4);
             }
             buildRequest(target, segments, random, resolved2 = {}) {
                 const elems = segmentsToElements(segments, { ...resolved2, scene: target.kind });
@@ -9782,9 +13232,9 @@ function buildPrivateRecall({ targetUid, clientSequence, random, time, sequence 
         settings: {}
     });
 }
-async function recallMessage(transport, record3, uidOf) {
-    const isGroup = record3.scene === "group";
-    const body = isGroup ? buildGroupRecall({ groupId: record3.peer, sequence: record3.sequence }) : buildPrivateRecall({ targetUid: uidOf(record3.peer), clientSequence: record3.clientSequence, random: record3.random, time: record3.time, sequence: record3.sequence });
+async function recallMessage(transport, record4, uidOf) {
+    const isGroup = record4.scene === "group";
+    const body = isGroup ? buildGroupRecall({ groupId: record4.peer, sequence: record4.sequence }) : buildPrivateRecall({ targetUid: uidOf(record4.peer), clientSequence: record4.clientSequence, random: record4.random, time: record4.time, sequence: record4.sequence });
     const reply = await transport.send(isGroup ? GROUP_RECALL_COMMAND : PRIVATE_RECALL_COMMAND, body);
     if (reply.error)
         throw new RecallError("NERONET_RECALL_FAILED", `${reply.error} ${reply.message ?? ""}`.trim());
@@ -9805,7 +13255,7 @@ var init_recall = __esm({
         };
     }
 });
-import crypto4 from "node:crypto";
+import crypto5 from "node:crypto";
 function identityKey({ scene, peer, sequence, random, time }) {
     const seq = Number(sequence) || 0;
     return seq > 0 ? `${scene}:${peer}:${seq}` : `${scene}:${peer}:r${Number(random) || 0}:${Number(time) || 0}`;
@@ -9815,7 +13265,7 @@ var init_message_index = __esm({
     "upper/onebot/message-index.mjs"() {
         MAX_MESSAGE_ID = 2147483647;
         MessageIndex = class {
-            constructor({ capacity = 5e4, firstId = crypto4.randomInt(1, MAX_MESSAGE_ID - 1e6) } = {}) {
+            constructor({ capacity = 5e4, firstId = crypto5.randomInt(1, MAX_MESSAGE_ID - 1e6) } = {}) {
                 this.capacity = capacity;
                 this.next = firstId;
                 this.byId = new Map();
@@ -9848,20 +13298,20 @@ var init_message_index = __esm({
             findMedia(file) {
                 return this.media.get(String(file)) ?? null;
             }
-            remember(record3) {
-                const key = identityKey(record3);
+            remember(record4) {
+                const key = identityKey(record4);
                 const existing = this.byKey.get(key);
                 if (existing !== void 0) {
                     const old = this.byId.get(existing);
-                    if (old?.stub && !record3.stub)
-                        this.byId.set(existing, { ...record3, peer: String(record3.peer), messageId: existing, key });
+                    if (old?.stub && !record4.stub)
+                        this.byId.set(existing, { ...record4, peer: String(record4.peer), messageId: existing, key });
                     return existing;
                 }
                 const id = this.next;
                 this.next = this.next >= MAX_MESSAGE_ID ? 1 : this.next + 1;
                 if (this.byId.has(id))
                     this.#forget(id);
-                this.byId.set(id, { ...record3, peer: String(record3.peer), messageId: id, key });
+                this.byId.set(id, { ...record4, peer: String(record4.peer), messageId: id, key });
                 this.byKey.set(key, id);
                 while (this.byId.size > this.capacity)
                     this.#forget(this.byId.keys().next().value);
@@ -9871,8 +13321,8 @@ var init_message_index = __esm({
                 const r = this.byId.get(Number(messageId));
                 if (!r)
                     return null;
-                const { key, ...record3 } = r;
-                return record3;
+                const { key, ...record4 } = r;
+                return record4;
             }
             #forget(id) {
                 const r = this.byId.get(id);
@@ -9919,70 +13369,6 @@ var init_message_index = __esm({
             close() {
             }
         };
-    }
-});
-var RateLimitedLog;
-var init_log = __esm({
-    "upper/log.mjs"() {
-        RateLimitedLog = class {
-            constructor(sink, { intervalMs = 10 * 6e4, now: now2 = Date.now } = {}) {
-                this.sink = sink;
-                this.intervalMs = intervalMs;
-                this.now = now2;
-                this.state = new Map();
-            }
-            write(entry) {
-                try {
-                    this.sink(entry);
-                }
-                catch {
-                }
-            }
-            limited(key, entry) {
-                const t = this.now();
-                const s = this.state.get(key) ?? { last: -Infinity, suppressed: 0 };
-                if (t - s.last >= this.intervalMs) {
-                    this.write({ ...entry, ...s.suppressed ? { suppressedSinceLast: s.suppressed } : {} });
-                    this.state.set(key, { last: t, suppressed: 0 });
-                }
-                else {
-                    s.suppressed++;
-                    this.state.set(key, s);
-                }
-            }
-        };
-    }
-});
-async function invokeOidb(transport, service, body) {
-    const { command: command2, subCommand } = service;
-    const inner = service.request.encode(body), reserved = service.reserved ?? 0;
-    const bytes = inner.length ? Envelope.encode({ command: command2, subCommand, errorCode: 0, body: inner, errorMsg: "", reserved }) : Buffer.concat([Envelope.encode({ command: command2, subCommand }), EMPTY_BODY_FIELD, Envelope.encode({ reserved })]);
-    const reply = await transport.send(oidbCommandName(command2, subCommand), bytes);
-    const accepted = (code) => code === 0 || (service.acceptedCodes ?? []).includes(code);
-    if (reply.error && !accepted(reply.error))
-        throw new OidbError(reply.error, reply.message ?? "", command2, subCommand);
-    if (!reply.body?.length)
-        return {};
-    const env = Envelope.decode(reply.body);
-    if (env.errorCode && !accepted(env.errorCode))
-        throw new OidbError(env.errorCode, env.errorMsg ?? "", command2, subCommand);
-    return env.body?.length ? service.response.decode(env.body) : {};
-}
-var Envelope, EMPTY_BODY_FIELD, OidbError, oidbCommandName;
-var init_oidb = __esm({
-    "upper/qq/oidb.mjs"() {
-        init_schema();
-        Envelope = wireType("oidb.proto", "OidbEnvelope");
-        EMPTY_BODY_FIELD = Buffer.from([34, 0]);
-        OidbError = class extends Error {
-            constructor(code, serverMessage, command2, subCommand) {
-                super(`NERONET_OIDB_FAILED: 0x${command2.toString(16)}_${subCommand} code ${code}${serverMessage ? `: ${serverMessage}` : ""}`);
-                this.code = "NERONET_OIDB_FAILED";
-                this.oidbCode = code;
-                this.serverMessage = serverMessage;
-            }
-        };
-        oidbCommandName = (command2, subCommand) => `OidbSvcTrpcTcp.0x${command2.toString(16)}_${subCommand}`;
     }
 });
 function groupMemberListRequest(groupId, token) {
@@ -10067,9 +13453,13 @@ async function fetchFriends(transport, { maxPages = 50 } = {}) {
     }
     throw Object.assign(new Error("NERONET_FRIENDS_TOO_MANY_PAGES"), { code: "NERONET_FRIENDS_TOO_MANY_PAGES" });
 }
+async function fetchUserProfileByUid(transport, uid2) {
+    return profileOf((await invokeOidb(transport, USER_PROFILE_BY_UID, userProfileByUidRequest(uid2))).body, "0");
+}
 async function fetchUserProfile(transport, uin) {
-    const res = await invokeOidb(transport, USER_PROFILE, userProfileRequest(uin));
-    const body = res.body;
+    return profileOf((await invokeOidb(transport, USER_PROFILE, userProfileRequest(uin))).body, uin);
+}
+function profileOf(body, uin) {
     if (!body)
         throw Object.assign(new Error("NERONET_PROFILE_EMPTY"), { code: "NERONET_PROFILE_EMPTY" });
     const bytes = new Map((body.properties?.bytesProperties ?? []).map((p2) => [p2.code ?? 0, p2.value ?? Buffer.alloc(0)]));
@@ -10099,7 +13489,7 @@ async function fetchUserProfile(transport, uin) {
         avatar
     };
 }
-var MEMBER_FIELDS, GROUP_MEMBER_LIST, ROLE, GROUP_LIST, GROUP_LIST_FIELDS, FRIEND_LIST, USER_PROFILE, PROFILE_KEYS, Avatar, userProfileRequest;
+var MEMBER_FIELDS, GROUP_MEMBER_LIST, ROLE, GROUP_LIST, GROUP_LIST_FIELDS, FRIEND_LIST, USER_PROFILE, PROFILE_KEYS, Avatar, userProfileRequest, USER_PROFILE_BY_UID, userProfileByUidRequest;
 var init_contacts = __esm({
     "upper/qq/contacts.mjs"() {
         init_schema();
@@ -10187,6 +13577,8 @@ var init_contacts = __esm({
         PROFILE_KEYS = [20002, 27394, 20009, 20031, 101, 103, 102, 20020, 20003, 20026, 105, 27372, 27406, 20037, 41756, 41757, 42241, 40410, 42031];
         Avatar = wireType("user_profile.proto", "AvatarInfo");
         userProfileRequest = (uin) => ({ uin: Number(uin), keys: PROFILE_KEYS.map((key) => ({ key })) });
+        USER_PROFILE_BY_UID = Object.freeze({ ...USER_PROFILE, reserved: 0, request: wireType("user_profile.proto", "UserInfoByUidRequest") });
+        userProfileByUidRequest = (uid2) => ({ uid: String(uid2), keys: PROFILE_KEYS.map((key) => ({ key })) });
     }
 });
 var Directory;
@@ -10321,9 +13713,9 @@ var init_history = __esm({
         Resp = wireType("group_history.proto", "GroupHistoryResponse");
         HISTORY_LIMITS = Object.freeze({ maxCount: 200, defaultCount: 20, window: 30, maxRequests: 12, minGapMs: 300 });
         RequestPacer = class {
-            constructor({ now: now2 = Date.now, sleep: sleep3 = (ms) => new Promise((r) => setTimeout(r, ms)), gapMs = HISTORY_LIMITS.minGapMs } = {}) {
+            constructor({ now: now2 = Date.now, sleep: sleep5 = (ms) => new Promise((r) => setTimeout(r, ms)), gapMs = HISTORY_LIMITS.minGapMs } = {}) {
                 this.now = now2;
-                this.sleep = sleep3;
+                this.sleep = sleep5;
                 this.gapMs = gapMs;
                 this.lastRequestAt = -Infinity;
                 this.queue = Promise.resolve();
@@ -10342,7 +13734,7 @@ var init_history = __esm({
             }
         };
         GroupHistory = class {
-            constructor(transport, { selfUin = () => "", now: now2 = Date.now, sleep: sleep3 = (ms) => new Promise((r) => setTimeout(r, ms)), pacer = new RequestPacer({ now: now2, sleep: sleep3 }) } = {}) {
+            constructor(transport, { selfUin = () => "", now: now2 = Date.now, sleep: sleep5 = (ms) => new Promise((r) => setTimeout(r, ms)), pacer = new RequestPacer({ now: now2, sleep: sleep5 }) } = {}) {
                 this.transport = transport;
                 this.selfUin = selfUin;
                 this.pacer = pacer;
@@ -10350,9 +13742,9 @@ var init_history = __esm({
             #paced(fn) {
                 return this.pacer.run(fn);
             }
-            fetchRange(groupId, start, end) {
+            fetchRange(groupId, start2, end) {
                 return this.#paced(async () => {
-                    const reply = await this.transport.send(GROUP_HISTORY_COMMAND, Req.encode({ info: { groupUin: Number(groupId), startSequence: start, endSequence: end }, direction: 1 }));
+                    const reply = await this.transport.send(GROUP_HISTORY_COMMAND, Req.encode({ info: { groupUin: Number(groupId), startSequence: start2, endSequence: end }, direction: 1 }));
                     if (reply.error)
                         throw Object.assign(new Error(`NERONET_HISTORY_FAILED: ${reply.error} ${reply.message ?? ""}`.trim()), { code: "NERONET_HISTORY_FAILED" });
                     const out = [];
@@ -10377,18 +13769,18 @@ var init_history = __esm({
                 const found = new Map();
                 let end = anchorSeq;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && end >= 1 && found.size < want; i++) {
-                    const start = Math.max(1, end - HISTORY_LIMITS.window + 1);
-                    const batch = (await this.fetchRange(groupId, start, end)).filter((ev) => ev.sequence <= anchorSeq);
+                    const start2 = Math.max(1, end - HISTORY_LIMITS.window + 1);
+                    const batch = (await this.fetchRange(groupId, start2, end)).filter((ev) => ev.sequence <= anchorSeq);
                     for (const ev of batch)
                         found.set(ev.sequence, ev);
-                    end = batch.length ? batch[0].sequence - 1 : start - 1;
+                    end = batch.length ? batch[0].sequence - 1 : start2 - 1;
                 }
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence).slice(-want);
             }
         };
     }
 });
-var C2C_RANGE_COMMAND, C2C_ROAM_COMMAND, RangeReq, RangeResp, RoamReq, RoamResp, failed, invalid3, FriendHistory;
+var C2C_RANGE_COMMAND, C2C_ROAM_COMMAND, RangeReq, RangeResp, RoamReq, RoamResp, failed2, invalid3, FriendHistory;
 var init_friend_history = __esm({
     "upper/qq/friend-history.mjs"() {
         init_schema();
@@ -10400,7 +13792,7 @@ var init_friend_history = __esm({
         RangeResp = wireType("c2c_history.proto", "C2cRangeResponse");
         RoamReq = wireType("c2c_history.proto", "RoamRequest");
         RoamResp = wireType("c2c_history.proto", "RoamResponse");
-        failed = (detail) => Object.assign(new Error(`NERONET_HISTORY_FAILED: ${detail}`), { code: "NERONET_HISTORY_FAILED" });
+        failed2 = (detail) => Object.assign(new Error(`NERONET_HISTORY_FAILED: ${detail}`), { code: "NERONET_HISTORY_FAILED" });
         invalid3 = (detail) => Object.assign(new Error(`NERONET_HISTORY_INVALID: ${detail}`), { code: "NERONET_HISTORY_INVALID" });
         FriendHistory = class {
             constructor(transport, { selfUin = () => "", pacer, now: now2 = () => Date.now() }) {
@@ -10430,18 +13822,18 @@ var init_friend_history = __esm({
             async #send(command2, bytes) {
                 const reply = await this.transport.send(command2, bytes);
                 if (reply.error)
-                    throw failed(`${reply.error} ${reply.message ?? ""}`.trim());
+                    throw failed2(`${reply.error} ${reply.message ?? ""}`.trim());
                 return reply.body ?? Buffer.alloc(0);
             }
-            fetchRange(friendUid, start, end) {
+            fetchRange(friendUid, start2, end) {
                 return this.pacer.run(async () => {
-                    const r = RangeResp.decode(await this.#send(C2C_RANGE_COMMAND, RangeReq.encode({ friendUid, startSequence: start, endSequence: end })));
+                    const r = RangeResp.decode(await this.#send(C2C_RANGE_COMMAND, RangeReq.encode({ friendUid, startSequence: start2, endSequence: end })));
                     if (r.result)
-                        throw failed(`server result ${r.result} ${r.errorMessage ?? ""}`.trim());
+                        throw failed2(`server result ${r.result} ${r.errorMessage ?? ""}`.trim());
                     const out = this.#decode(r.messages, friendUid, r.friendUid);
                     for (const ev of out)
-                        if (ev.sequence < start || ev.sequence > end)
-                            throw invalid3(`sequence ${ev.sequence} outside ${start}-${end}`);
+                        if (ev.sequence < start2 || ev.sequence > end)
+                            throw invalid3(`sequence ${ev.sequence} outside ${start2}-${end}`);
                     return out.sort((a, b) => a.sequence - b.sequence);
                 });
             }
@@ -10478,7 +13870,7 @@ var init_friend_history = __esm({
                     cursor2 = page.next;
                 }
                 if (found.size < want && !ended)
-                    throw failed(`request budget of ${HISTORY_LIMITS.maxRequests} pages exhausted (wanted ${want}, got ${found.size})`);
+                    throw failed2(`request budget of ${HISTORY_LIMITS.maxRequests} pages exhausted (wanted ${want}, got ${found.size})`);
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence || a.time - b.time).slice(-want);
             }
             async before(friendUid, anchorSeq, count3) {
@@ -10486,26 +13878,26 @@ var init_friend_history = __esm({
                 const found = new Map();
                 let end = anchorSeq;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && end >= 1 && found.size < want; i++) {
-                    const start = Math.max(1, end - HISTORY_LIMITS.window + 1);
-                    const batch = await this.fetchRange(friendUid, start, end);
+                    const start2 = Math.max(1, end - HISTORY_LIMITS.window + 1);
+                    const batch = await this.fetchRange(friendUid, start2, end);
                     for (const ev of batch)
                         found.set(ev.sequence, ev);
-                    end = batch.length ? batch[0].sequence - 1 : start - 1;
+                    end = batch.length ? batch[0].sequence - 1 : start2 - 1;
                 }
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence).slice(-want);
             }
             async after(friendUid, anchorSeq, count3) {
                 const want = normalizeCount(count3);
                 const found = new Map();
-                let start = anchorSeq;
+                let start2 = anchorSeq;
                 for (let i = 0; i < HISTORY_LIMITS.maxRequests && found.size < want; i++) {
-                    const end = start + HISTORY_LIMITS.window - 1;
-                    const batch = await this.fetchRange(friendUid, start, end);
+                    const end = start2 + HISTORY_LIMITS.window - 1;
+                    const batch = await this.fetchRange(friendUid, start2, end);
                     for (const ev of batch)
                         found.set(ev.sequence, ev);
                     if (!batch.length)
                         break;
-                    start = end + 1;
+                    start2 = end + 1;
                 }
                 return [...found.values()].sort((a, b) => a.sequence - b.sequence).slice(0, want);
             }
@@ -10598,11 +13990,11 @@ var init_read_state = __esm({
                     throw fail2("NERONET_READ_RESPONSE_INVALID");
                 if (response.resultCode)
                     throw fail2("NERONET_READ_REPORT_REJECTED");
-                const own = kind === "group" ? response.groupList : response.c2cList;
+                const own2 = kind === "group" ? response.groupList : response.c2cList;
                 const other = kind === "group" ? response.c2cList : response.groupList;
-                if (!Array.isArray(own) || own.length !== 1 || other?.length)
+                if (!Array.isArray(own2) || own2.length !== 1 || other?.length)
                     throw fail2("NERONET_READ_RESPONSE_TARGET_MISMATCH");
-                const item = own[0];
+                const item = own2[0];
                 if (item.resultCode)
                     throw fail2("NERONET_READ_TARGET_REJECTED");
                 if (kind === "group" ? String(item.groupUin ?? "") !== id : item.uid !== uid2 || item.targetUin !== void 0 && String(item.targetUin) !== id)
@@ -10641,7 +14033,7 @@ var init_interaction = __esm({
 function normalizeMediaNode(node) {
     const fileUuid = typeof node?.fileUuid === "string" ? node.fileUuid : "";
     if (!fileUuid)
-        throw failed2("media node has no file uuid");
+        throw failed3("media node has no file uuid");
     const info = node.info ?? {}, type = info.type ?? {};
     return {
         info: {
@@ -10676,26 +14068,26 @@ function ntv2DownloadRequest(kind, scene, { groupId, selfUid, node }) {
 async function ntv2MediaUrl(transport, kind, scene, params) {
     const s = NTV2[kind]?.[scene];
     if (!s)
-        throw failed2(`unknown media ${kind}/${scene}`);
+        throw failed3(`unknown media ${kind}/${scene}`);
     const body = await invokeOidb(transport, { command: s.command, subCommand: 200, reserved: 1, request: RichMediaRequest, response: RichMediaResponse }, ntv2DownloadRequest(kind, scene, params));
     if (body.respHead?.retCode)
-        throw failed2(`server refused (${body.respHead.retCode} ${body.respHead.message ?? ""})`.trim());
-    const domain = body.download?.info?.domain ?? "", path35 = body.download?.info?.urlPath ?? "";
-    if (!domain || !path35)
-        throw failed2("download response has no URL");
-    return `https://${domain}${path35}${body.download?.rKeyParam ?? ""}`;
+        throw failed3(`server refused (${body.respHead.retCode} ${body.respHead.message ?? ""})`.trim());
+    const domain = body.download?.info?.domain ?? "", path42 = body.download?.info?.urlPath ?? "";
+    if (!domain || !path42)
+        throw failed3("download response has no URL");
+    return `https://${domain}${path42}${body.download?.rKeyParam ?? ""}`;
 }
 async function groupFileUrl(transport, groupId, fileId, busId = 102) {
     const body = await invokeOidb(transport, { command: 1750, subCommand: 2, reserved: 1, request: GroupFileRequest, response: GroupFileResponse }, { download: { groupUin: Number(groupId), appId: 7, busId, fileId: String(fileId) } });
     const d = body.download;
     if (!d)
-        throw failed2("group file URL response missing");
+        throw failed3("group file URL response missing");
     if (d.retCode)
-        throw failed2(`server refused (${d.retCode} ${d.clientWording || d.retMsg || ""})`.trim());
+        throw failed3(`server refused (${d.retCode} ${d.clientWording || d.retMsg || ""})`.trim());
     const host = d.downloadDns || d.downloadIp || "";
     const hex = d.downloadUrl?.length ? Buffer.from(d.downloadUrl).toString("hex").toUpperCase() : "";
     if (!host || !hex)
-        throw failed2("group file URL response incomplete");
+        throw failed3("group file URL response incomplete");
     return `https://${host}/ftn_handler/${hex}/?fname=${fileId}`;
 }
 async function privateFileUrl(transport, selfUid, fileId, fileHash) {
@@ -10710,10 +14102,10 @@ async function privateFileUrl(transport, selfUid, fileId, fileHash) {
     });
     const r = body.body?.result;
     if (!r?.server || !r.port || !r.url)
-        throw failed2("private file URL response incomplete");
+        throw failed3("private file URL response incomplete");
     return `http://${r.server}:${r.port}${r.url}&isthumb=0`;
 }
-var RichMediaRequest, RichMediaResponse, GroupFileRequest, GroupFileResponse, PrivateFileUrlRequest, PrivateFileUrlResponse, failed2, NTV2, int;
+var RichMediaRequest, RichMediaResponse, GroupFileRequest, GroupFileResponse, PrivateFileUrlRequest, PrivateFileUrlResponse, failed3, NTV2, int;
 var init_media_urls = __esm({
     "upper/qq/media-urls.mjs"() {
         init_schema();
@@ -10724,7 +14116,7 @@ var init_media_urls = __esm({
         GroupFileResponse = wireType("file_url.proto", "GroupFileResponse");
         PrivateFileUrlRequest = wireType("file_url.proto", "PrivateFileUrlRequest");
         PrivateFileUrlResponse = wireType("file_url.proto", "PrivateFileUrlResponse");
-        failed2 = (detail) => Object.assign(new Error(`NERONET_MEDIA_URL_FAILED: ${detail}`), { code: "NERONET_MEDIA_URL_FAILED" });
+        failed3 = (detail) => Object.assign(new Error(`NERONET_MEDIA_URL_FAILED: ${detail}`), { code: "NERONET_MEDIA_URL_FAILED" });
         NTV2 = {
             record: { group: { command: 4718, requestId: 4 }, private: { command: 4717, requestId: 1 }, requestType: 1, businessType: 3 },
             video: { group: { command: 4586, requestId: 1 }, private: { command: 4585, requestId: 1 }, requestType: 2, businessType: 2 }
@@ -10906,21 +14298,21 @@ function friendNotice(subType, content, time, uin, msg, selfUin) {
             return [];
     }
 }
-var T, GroupMute, Notify, React, FriendRecall, GrayTip, NewFriend, GroupChange, SelfJoin, GroupAdmin, OperatorInfo, NOTICE_MSG_TYPES, templates, pick, TitleChange, NameChange, decodeGroupName;
+var T2, GroupMute, Notify, React, FriendRecall, GrayTip, NewFriend, GroupChange, SelfJoin, GroupAdmin, OperatorInfo, NOTICE_MSG_TYPES, templates, pick, TitleChange, NameChange, decodeGroupName;
 var init_notices = __esm({
     "upper/qq/notices.mjs"() {
         init_schema();
-        T = (name) => wireType("notices.proto", name);
-        GroupMute = T("GroupMute");
-        Notify = T("NotifyMessageBody");
-        React = T("GroupReactNotify");
-        FriendRecall = T("FriendRecall");
-        GrayTip = T("GeneralGrayTipInfo");
-        NewFriend = T("NewFriend");
-        GroupChange = T("GroupChange");
-        SelfJoin = T("SelfJoinInGroup");
-        GroupAdmin = T("GroupAdmin");
-        OperatorInfo = T("OperatorInfo");
+        T2 = (name) => wireType("notices.proto", name);
+        GroupMute = T2("GroupMute");
+        Notify = T2("NotifyMessageBody");
+        React = T2("GroupReactNotify");
+        FriendRecall = T2("FriendRecall");
+        GrayTip = T2("GeneralGrayTipInfo");
+        NewFriend = T2("NewFriend");
+        GroupChange = T2("GroupChange");
+        SelfJoin = T2("SelfJoinInGroup");
+        GroupAdmin = T2("GroupAdmin");
+        OperatorInfo = T2("OperatorInfo");
         NOTICE_MSG_TYPES = new Set([732, 528, 33, 34, 85, 44]);
         templates = (params) => new Map((params ?? []).filter((p2) => p2.name !== void 0).map((p2) => [p2.name, p2.value ?? ""]));
         pick = (map, ...keys) => {
@@ -10931,9 +14323,121 @@ var init_notices = __esm({
             }
             return "";
         };
-        TitleChange = T("GroupSpecialTitleChange");
-        NameChange = T("GroupNameChange");
+        TitleChange = T2("GroupSpecialTitleChange");
+        NameChange = T2("GroupNameChange");
         decodeGroupName = (param) => NameChange.decode(param).name ?? "";
+    }
+});
+function groupRequestAction({ groupId, sequence, eventType, approve, reason = "", operateTransInfo }) {
+    const message2 = String(reason ?? "");
+    return {
+        accept: approve ? 1 : 2,
+        body: {
+            sequence: BigInt(sequence),
+            eventType: Number(eventType),
+            groupUin: Number(groupId),
+            message: message2.length ? message2 : " ",
+            ...operateTransInfo?.length ? { operateTransInfo } : {}
+        }
+    };
+}
+async function kickMember(transport, { groupId, uid: uid2, rejectAddRequest = false, reason = "" }) {
+    const res = await invokeOidb(transport, S.kick, kickRequest(groupId, uid2, rejectAddRequest, reason));
+    for (const r of res.results ?? [])
+        if ((r.result ?? 0) !== 0)
+            throw failure("NERONET_GROUP_ADMIN_REFUSED", `QQ 拒绝了移出群成员（结果 ${r.result}）`);
+}
+async function fetchGroupRequests(transport, { filtered = false, count: count3 = 50 } = {}) {
+    const res = await invokeOidb(transport, S.inbox(filtered), { count: count3, field2: 0n });
+    return (res.requests ?? []).map((r) => ({
+        sequence: String(r.sequence ?? 0n),
+        eventType: r.eventType ?? 0,
+        state: r.state ?? 0,
+        groupId: String(r.group?.groupUin ?? 0),
+        groupName: r.group?.groupName ?? "",
+        targetUin: String(r.target?.uin ?? 0),
+        targetName: r.target?.name ?? "",
+        invitorUin: String(r.invitor?.uin ?? 0),
+        invitorName: r.invitor?.name ?? "",
+        operatorUin: String(r.operatorUser?.uin ?? 0),
+        operatorName: r.operatorUser?.name ?? "",
+        comment: r.comment ?? "",
+        operateTransInfo: r.operateTransInfo?.length ? Buffer.from(r.operateTransInfo) : null,
+        filtered: !!filtered
+    }));
+}
+async function fetchAllGroupRequests(transport, { count: count3 = 50 } = {}) {
+    const [main7, risk] = await Promise.allSettled([fetchGroupRequests(transport, { count: count3 }), fetchGroupRequests(transport, { filtered: true, count: count3 })]);
+    if (main7.status === "rejected" && risk.status === "rejected")
+        throw main7.reason;
+    return [...main7.status === "fulfilled" ? main7.value : [], ...risk.status === "fulfilled" ? risk.value : []];
+}
+var T3, Empty2, svc, GROUP_ADMIN_SERVICES, GROUP_ADMIN_COMMANDS, S, NEVER, failure, kickRequest, muteRequest, muteAllRequest, setAdminRequest, cardRequest, groupNameRequest, titleRequest, leaveRequest, friendRequestAction, muteMember, muteAll, setAdmin, setMemberCard, setGroupName, setSpecialTitle, leaveGroup, answerGroupRequest, answerFriendRequest;
+var init_group_admin = __esm({
+    "upper/qq/group-admin.mjs"() {
+        init_schema();
+        init_oidb();
+        T3 = (name) => wireType("group_admin.proto", name);
+        Empty2 = T3("Empty");
+        svc = (command2, subCommand, request, response = Empty2, reserved = 0) => Object.freeze({ command: command2, subCommand, reserved, request: T3(request), response: typeof response === "string" ? T3(response) : response });
+        GROUP_ADMIN_SERVICES = Object.freeze({
+            kick: svc(2208, 1, "KickMemberRequest", "KickMemberResponse"),
+            mute: svc(4691, 1, "MuteMemberRequest"),
+            muteAll: svc(2202, 0, "MuteAllRequest"),
+            setAdmin: svc(4246, 1, "SetAdminRequest"),
+            card: svc(2300, 3, "MemberCardRequest"),
+            groupName: svc(2202, 15, "GroupNameRequest"),
+            title: svc(2300, 2, "SpecialTitleRequest"),
+            leave: svc(4247, 1, "LeaveGroupRequest"),
+            groupRequest: (filtered) => svc(4296, filtered ? 2 : 1, "GroupRequestAction", Empty2, 1),
+            inbox: (filtered) => svc(4288, filtered ? 2 : 1, "GroupRequestInboxRequest", "GroupRequestInboxResponse", 1),
+            friendRequest: svc(2909, 44, "FriendRequestAction")
+        });
+        GROUP_ADMIN_COMMANDS = Object.freeze([
+            "OidbSvcTrpcTcp.0x8a0_1",
+            "OidbSvcTrpcTcp.0x1253_1",
+            "OidbSvcTrpcTcp.0x89a_0",
+            "OidbSvcTrpcTcp.0x1096_1",
+            "OidbSvcTrpcTcp.0x8fc_3",
+            "OidbSvcTrpcTcp.0x89a_15",
+            "OidbSvcTrpcTcp.0x8fc_2",
+            "OidbSvcTrpcTcp.0x1097_1",
+            "OidbSvcTrpcTcp.0x10c8_1",
+            "OidbSvcTrpcTcp.0x10c8_2",
+            "OidbSvcTrpcTcp.0x10c0_1",
+            "OidbSvcTrpcTcp.0x10c0_2",
+            "OidbSvcTrpcTcp.0xb5d_44"
+        ]);
+        S = GROUP_ADMIN_SERVICES;
+        NEVER = 4294967295;
+        failure = (code, text2) => Object.assign(new Error(`${code}: ${text2}`), { code });
+        kickRequest = (groupId, uid2, rejectAddRequest, reason = "") => ({ groupUin: Number(groupId), targetUid: uid2, rejectAddRequest: rejectAddRequest ? 1 : 0, reason: String(reason ?? "") });
+        muteRequest = (groupId, uid2, seconds) => ({ groupUin: Number(groupId), type: 1, body: { targetUid: uid2, duration: seconds } });
+        muteAllRequest = (groupId, enable) => ({ groupUin: Number(groupId), muteState: { state: enable ? NEVER : 0 } });
+        setAdminRequest = (groupId, uid2, enable) => ({ groupUin: Number(groupId), uid: uid2, isAdmin: enable ? 1 : 0 });
+        cardRequest = (groupId, uid2, card) => ({ groupUin: Number(groupId), body: { targetUid: uid2, targetName: String(card ?? "") } });
+        groupNameRequest = (groupId, name) => ({ groupUin: Number(groupId), body: { targetName: String(name) } });
+        titleRequest = (groupId, uid2, title) => ({ groupUin: Number(groupId), body: { targetUid: uid2, specialTitle: String(title ?? ""), expireTime: NEVER, uinName: String(title ?? "") } });
+        leaveRequest = (groupId) => ({ groupUin: Number(groupId) });
+        friendRequestAction = (uid2, approve) => ({ accept: approve ? 3 : 5, targetUid: uid2 });
+        muteMember = (transport, { groupId, uid: uid2, seconds }) => invokeOidb(transport, S.mute, muteRequest(groupId, uid2, seconds)).then(() => {
+        });
+        muteAll = (transport, { groupId, enable }) => invokeOidb(transport, S.muteAll, muteAllRequest(groupId, enable)).then(() => {
+        });
+        setAdmin = (transport, { groupId, uid: uid2, enable }) => invokeOidb(transport, S.setAdmin, setAdminRequest(groupId, uid2, enable)).then(() => {
+        });
+        setMemberCard = (transport, { groupId, uid: uid2, card }) => invokeOidb(transport, S.card, cardRequest(groupId, uid2, card)).then(() => {
+        });
+        setGroupName = (transport, { groupId, name }) => invokeOidb(transport, S.groupName, groupNameRequest(groupId, name)).then(() => {
+        });
+        setSpecialTitle = (transport, { groupId, uid: uid2, title }) => invokeOidb(transport, S.title, titleRequest(groupId, uid2, title)).then(() => {
+        });
+        leaveGroup = (transport, { groupId }) => invokeOidb(transport, S.leave, leaveRequest(groupId)).then(() => {
+        });
+        answerGroupRequest = (transport, entry) => invokeOidb(transport, S.groupRequest(!!entry.filtered), groupRequestAction(entry)).then(() => {
+        });
+        answerFriendRequest = (transport, { uid: uid2, approve }) => invokeOidb(transport, S.friendRequest, friendRequestAction(uid2, approve)).then(() => {
+        });
     }
 });
 function emojiEntry(e) {
@@ -11368,9 +14872,9 @@ var init_highway_http_decoder = __esm({
     "highway-http-decoder.mjs"() {
     }
 });
-function postHighwayFrame(socket, host, path35, body, { idleMs = 3e4, totalMs = 12e4, maxHeaderBytes = 65536, maxBodyBytes = 8 * 1024 * 1024, signal } = {}) {
+function postHighwayFrame(socket, host, path42, body, { idleMs = 3e4, totalMs = 12e4, maxHeaderBytes = 65536, maxBodyBytes = 8 * 1024 * 1024, signal } = {}) {
     return new Promise((resolve, reject) => {
-        if (![idleMs, totalMs, maxHeaderBytes, maxBodyBytes].every((n2) => Number.isSafeInteger(n2) && n2 > 0) || /[\r\n]/.test(host + path35))
+        if (![idleMs, totalMs, maxHeaderBytes, maxBodyBytes].every((n2) => Number.isSafeInteger(n2) && n2 > 0) || /[\r\n]/.test(host + path42))
             return reject(Error("NERONET_HIGHWAY_INVALID_EXCHANGE"));
         const decoder = createHighwayResponseDecoder({ maxHeaderBytes, maxBodyBytes });
         let done = false, responseReady = false, pendingWrites = body.length ? 2 : 1, received = 0, chunks = [], idle, total;
@@ -11383,19 +14887,19 @@ function postHighwayFrame(socket, host, path35, body, { idleMs = 3e4, totalMs = 
             socket.off("close", end);
             signal?.removeEventListener("abort", abort);
         };
-        const finish2 = (failure2) => {
+        const finish2 = (failure3) => {
             if (done)
                 return;
-            if (!failure2) {
+            if (!failure3) {
                 responseReady = true;
                 if (pendingWrites)
                     return;
             }
             done = true;
             cleanup();
-            if (failure2) {
+            if (failure3) {
                 socket.destroy();
-                reject(Error(failure2));
+                reject(Error(failure3));
             }
             else
                 resolve(new Uint8Array(Buffer.concat(chunks, received)));
@@ -11424,12 +14928,12 @@ function postHighwayFrame(socket, host, path35, body, { idleMs = 3e4, totalMs = 
                 return finish2("NERONET_HIGHWAY_RESPONSE_EXTRA_DATA");
             arm();
             try {
-                const result = decoder.feed(buf);
-                for (const chunk2 of result.chunks) {
+                const result2 = decoder.feed(buf);
+                for (const chunk2 of result2.chunks) {
                     chunks.push(chunk2);
                     received += chunk2.length;
                 }
-                if (result.done)
+                if (result2.done)
                     finish2();
             }
             catch (e) {
@@ -11447,7 +14951,7 @@ function postHighwayFrame(socket, host, path35, body, { idleMs = 3e4, totalMs = 
         signal?.addEventListener("abort", abort, { once: true });
         arm();
         total = setTimeout(() => finish2("NERONET_HIGHWAY_RESPONSE_TOTAL_TIMEOUT"), totalMs);
-        const request = `POST ${path35} HTTP/1.1\r
+        const request = `POST ${path42} HTTP/1.1\r
 Host: ${host}\r
 Connection: keep-alive\r
 Accept-Encoding: identity\r
@@ -11477,35 +14981,35 @@ var init_highway_response = __esm({
         init_highway_http_decoder();
     }
 });
-import fs10 from "node:fs";
-import path11 from "node:path";
-import { randomUUID as randomUUID2 } from "node:crypto";
+import fs15 from "node:fs";
+import path16 from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
 async function reviewHighwayEndpoints(servers2) {
     const directory = process.env.NERONET_HIGHWAY_REVIEW_DIR;
     if (!directory)
         return;
-    const deployment3 = loadDeploymentProfile();
-    if (deployment3.mode !== "lab")
+    const deployment4 = loadDeploymentProfile();
+    if (deployment4.mode !== "lab")
         throw Error("NERONET_HIGHWAY_REVIEW_LAB_ONLY");
-    assertWithin(directory, deployment3.homeRoot);
-    const policy = JSON.parse(fs10.readFileSync(path11.join(directory, "authorization.json"), "utf8").replace(/^\uFEFF/, ""));
+    assertWithin(directory, deployment4.homeRoot);
+    const policy = JSON.parse(fs15.readFileSync(path16.join(directory, "authorization.json"), "utf8").replace(/^\uFEFF/, ""));
     const expiry = Date.parse(policy.expiresUtc);
     if (!Number.isFinite(expiry) || Date.now() >= expiry || policy.maxAttempts !== 2)
         throw Error("NERONET_HIGHWAY_REVIEW_AUTHORIZATION_INVALID");
-    const recordPath = path11.join(directory, "attempts.json");
-    const attempts = fs10.existsSync(recordPath) ? JSON.parse(fs10.readFileSync(recordPath, "utf8")) : [];
+    const recordPath = path16.join(directory, "attempts.json");
+    const attempts = fs15.existsSync(recordPath) ? JSON.parse(fs15.readFileSync(recordPath, "utf8")) : [];
     if (attempts.length >= policy.maxAttempts)
         throw Error("NERONET_HIGHWAY_REVIEW_ATTEMPT_LIMIT");
-    const id = randomUUID2(), pending = path11.join(directory, "pending.json");
-    const record3 = { id, utc: (new Date()).toISOString(), source: "fetchHighwaySession decoded HttpConn.0x6ff_501 response", servers: servers2.map(({ host, port: port3 }) => ({ host, port: port3 })) };
-    fs10.writeFileSync(pending, JSON.stringify(record3), { flag: "wx" });
-    attempts.push({ id, utc: record3.utc });
-    fs10.writeFileSync(recordPath, JSON.stringify(attempts));
-    const until = Math.min(expiry, Date.now() + 9e4), ack = path11.join(directory, "approved-" + id + ".json");
+    const id = randomUUID3(), pending = path16.join(directory, "pending.json");
+    const record4 = { id, utc: (new Date()).toISOString(), source: "fetchHighwaySession decoded HttpConn.0x6ff_501 response", servers: servers2.map(({ host, port: port3 }) => ({ host, port: port3 })) };
+    fs15.writeFileSync(pending, JSON.stringify(record4), { flag: "wx" });
+    attempts.push({ id, utc: record4.utc });
+    fs15.writeFileSync(recordPath, JSON.stringify(attempts));
+    const until = Math.min(expiry, Date.now() + 9e4), ack = path16.join(directory, "approved-" + id + ".json");
     try {
         while (Date.now() < until) {
-            if (fs10.existsSync(ack)) {
-                const approved = JSON.parse(fs10.readFileSync(ack, "utf8").replace(/^\uFEFF/, ""));
+            if (fs15.existsSync(ack)) {
+                const approved = JSON.parse(fs15.readFileSync(ack, "utf8").replace(/^\uFEFF/, ""));
                 if (approved.id !== id || approved.allowed !== true)
                     throw Error("NERONET_HIGHWAY_REVIEW_NOT_APPROVED");
                 return;
@@ -11515,7 +15019,7 @@ async function reviewHighwayEndpoints(servers2) {
         throw Error("NERONET_HIGHWAY_REVIEW_TIMEOUT");
     }
     finally {
-        fs10.renameSync(pending, path11.join(directory, "observed-" + id + ".json"));
+        fs15.renameSync(pending, path16.join(directory, "observed-" + id + ".json"));
     }
 }
 var init_highway_endpoint_review = __esm({
@@ -11523,24 +15027,24 @@ var init_highway_endpoint_review = __esm({
         init_deployment_profile();
     }
 });
-import crypto5 from "node:crypto";
+import crypto6 from "node:crypto";
 function packFrame(head, body) {
-    const frame = Buffer.alloc(10 + head.length + body.length);
-    frame[0] = 40;
-    frame.writeUInt32BE(head.length, 1);
-    frame.writeUInt32BE(body.length, 5);
-    Buffer.from(head).copy(frame, 9);
-    Buffer.from(body).copy(frame, 9 + head.length);
-    frame[frame.length - 1] = 41;
-    return frame;
+    const frame2 = Buffer.alloc(10 + head.length + body.length);
+    frame2[0] = 40;
+    frame2.writeUInt32BE(head.length, 1);
+    frame2.writeUInt32BE(body.length, 5);
+    Buffer.from(head).copy(frame2, 9);
+    Buffer.from(body).copy(frame2, 9 + head.length);
+    frame2[frame2.length - 1] = 41;
+    return frame2;
 }
-function unpackFrame(frame) {
-    if (frame.length < 10 || frame[0] !== 40 || frame[frame.length - 1] !== 41)
+function unpackFrame(frame2) {
+    if (frame2.length < 10 || frame2[0] !== 40 || frame2[frame2.length - 1] !== 41)
         throw new Error("invalid highway frame");
-    const headLen = frame.readUInt32BE(1), bodyLen = frame.readUInt32BE(5);
-    if (9 + headLen + bodyLen + 1 > frame.length)
+    const headLen = frame2.readUInt32BE(1), bodyLen = frame2.readUInt32BE(5);
+    if (9 + headLen + bodyLen + 1 > frame2.length)
         throw new Error("truncated highway frame");
-    return { head: frame.subarray(9, 9 + headLen), body: frame.subarray(9 + headLen, 9 + headLen + bodyLen) };
+    return { head: frame2.subarray(9, 9 + headLen), body: frame2.subarray(9 + headLen, 9 + headLen + bodyLen) };
 }
 function buildSessionRequest() {
     return SessionRequest.encode({ httpConn: { field1: 0, field2: 0, field3: 16, field4: 1, field6: 3, serviceTypes: [1, 5, 10, 21], field9: 2, field10: 9, field11: 8, ver: "1.0.1" } });
@@ -11567,7 +15071,7 @@ function buildExtend({ uKey, ipv4s = [], msgInfoBody = [] }, sha1, fileIndex = 0
         hash: { fileSha1: Array.isArray(sha1) ? sha1 : [sha1] }
     });
 }
-async function postFrame(server, path35, frame, conn) {
+async function postFrame(server, path42, frame2, conn) {
     if (!conn.socket || conn.socket.destroyed || conn.server !== server) {
         conn.socket?.destroy();
         conn.socket = await connectHighwayTransport(server.host, server.port, HIGHWAY.connectTimeoutMs);
@@ -11576,7 +15080,7 @@ async function postFrame(server, path35, frame, conn) {
         conn.server = server;
     }
     try {
-        return Buffer.from(await postHighwayFrame(conn.socket, server.host, path35, frame, { idleMs: HIGHWAY.idleMs, totalMs: Math.max(1, conn.deadline - Date.now()) }));
+        return Buffer.from(await postHighwayFrame(conn.socket, server.host, path42, frame2, { idleMs: HIGHWAY.idleMs, totalMs: Math.max(1, conn.deadline - Date.now()) }));
     }
     catch (e) {
         conn.socket?.destroy();
@@ -11584,7 +15088,7 @@ async function postFrame(server, path35, frame, conn) {
         throw e;
     }
 }
-var HIGHWAY_SESSION_COMMAND, HIGHWAY, SessionRequest, SessionResponse, ReqHead, RespHead, Ext, HighwayError, ipv4ToString, sleep2, md5, HighwayClient;
+var HIGHWAY_SESSION_COMMAND, HIGHWAY, SessionRequest, SessionResponse, ReqHead, RespHead, Ext, HighwayError, ipv4ToString, sleep3, md5, HighwayClient;
 var init_highway = __esm({
     "upper/qq/highway.mjs"() {
         init_schema();
@@ -11617,15 +15121,15 @@ var init_highway = __esm({
             }
         };
         ipv4ToString = (ip) => `${ip & 255}.${ip >>> 8 & 255}.${ip >>> 16 & 255}.${ip >>> 24 & 255}`;
-        sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
-        md5 = (b) => crypto5.createHash("md5").update(b).digest();
+        sleep3 = (ms) => new Promise((r) => setTimeout(r, ms));
+        md5 = (b) => crypto6.createHash("md5").update(b).digest();
         HighwayClient = class {
-            constructor(transport, { post = postFrame, sleep: pause2 = sleep2 } = {}) {
+            constructor(transport, { post = postFrame, sleep: pause3 = sleep3 } = {}) {
                 this.transport = transport;
                 this.post = post;
                 this.active = new Set();
                 this.closed = false;
-                this.sleep = pause2;
+                this.sleep = pause3;
             }
             close() {
                 this.closed = true;
@@ -11683,7 +15187,7 @@ var init_highway = __esm({
                     throw stopped();
                 const session = await this.session();
                 await reviewHighwayEndpoints(session.servers);
-                const path35 = `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`;
+                const path42 = `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`;
                 const conn = { socket: null, server: null, deadline: Date.now() + HIGHWAY.uploadTimeoutMs, cancelled: false };
                 if (this.closed)
                     throw stopped();
@@ -11710,7 +15214,7 @@ var init_highway = __esm({
                                     throw stopped();
                                 if (Date.now() > conn.deadline)
                                     throw new HighwayError("timeout", `upload exceeded ${HIGHWAY.uploadTimeoutMs} ms at ${offset}/${size}`);
-                                body = await this.post(session.servers[server], path35, packFrame(head, chunk2), conn);
+                                body = await this.post(session.servers[server], path42, packFrame(head, chunk2), conn);
                             }
                             catch (e) {
                                 if (e instanceof HighwayError)
@@ -11755,34 +15259,34 @@ var init_highway = __esm({
         };
     }
 });
-import crypto6 from "node:crypto";
+import crypto7 from "node:crypto";
 function md5FromEmojiId(emojiId) {
     const md52 = String(emojiId).split("_")[4];
     if (!md52 || !/^[0-9a-fA-F]{32}$/.test(md52))
         throw invalid5(`emoji_id has no md5: ${emojiId}`);
     return md52.toUpperCase();
 }
-var T2, ListReq, ListResp, DetailReq, ModifyReq, OpResp, BdhReq, BdhResp, FavHead, RespHead2, FACEROAM_SERVICE, BDH_SERVICE, OS_VERSION, LIST_QQ_VERSION, failed3, invalid5, customFaceUrl, listRequest, CustomFaces;
+var T4, ListReq, ListResp, DetailReq, ModifyReq, OpResp, BdhReq, BdhResp, FavHead, RespHead2, FACEROAM_SERVICE, BDH_SERVICE, OS_VERSION, LIST_QQ_VERSION, failed4, invalid5, customFaceUrl, listRequest, CustomFaces;
 var init_custom_faces = __esm({
     "upper/qq/custom-faces.mjs"() {
         init_schema();
         init_oidb();
         init_highway();
-        T2 = (n2) => wireType("custom_faces.proto", n2);
-        ListReq = T2("FaceroamOpReq");
-        ListResp = T2("FaceroamOpResp");
-        DetailReq = T2("CustomFaceMoveBody");
-        ModifyReq = T2("CustomFaceModifyBody");
-        OpResp = T2("CustomFaceModifyResp");
-        BdhReq = T2("BDHExpressionRoamReq");
-        BdhResp = T2("BDHExpressionRoamResp");
-        FavHead = T2("FavEmojiHighwayHead");
+        T4 = (n2) => wireType("custom_faces.proto", n2);
+        ListReq = T4("FaceroamOpReq");
+        ListResp = T4("FaceroamOpResp");
+        DetailReq = T4("CustomFaceMoveBody");
+        ModifyReq = T4("CustomFaceModifyBody");
+        OpResp = T4("CustomFaceModifyResp");
+        BdhReq = T4("BDHExpressionRoamReq");
+        BdhResp = T4("BDHExpressionRoamResp");
+        FavHead = T4("FavEmojiHighwayHead");
         RespHead2 = wireType("highway.proto", "RespDataHighwayHead");
         FACEROAM_SERVICE = "Faceroam.OpReq";
         BDH_SERVICE = "ImgStore.BDHExpressionRoam";
         OS_VERSION = "10.0.26200";
         LIST_QQ_VERSION = "9.9.28-46928";
-        failed3 = (detail) => Object.assign(new Error(`NERONET_CUSTOM_FACE_FAILED: ${detail}`), { code: "NERONET_CUSTOM_FACE_FAILED" });
+        failed4 = (detail) => Object.assign(new Error(`NERONET_CUSTOM_FACE_FAILED: ${detail}`), { code: "NERONET_CUSTOM_FACE_FAILED" });
         invalid5 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
         customFaceUrl = (selfUin, emojiId) => `https://p.qpic.cn/qq_expression/${selfUin}/${emojiId}/0`;
         listRequest = (uin) => ListReq.encode({ inner: { field1: 1, osVersion: OS_VERSION, qqVersion: LIST_QQ_VERSION }, uin: BigInt(uin), field3: 1, field6: 1 });
@@ -11794,10 +15298,10 @@ var init_custom_faces = __esm({
             async ids() {
                 const reply = await this.transport.send(FACEROAM_SERVICE, listRequest(this.transport.uin));
                 if (reply.error)
-                    throw failed3(`list failed (${reply.error} ${reply.message ?? ""})`.trim());
+                    throw failed4(`list failed (${reply.error} ${reply.message ?? ""})`.trim());
                 const r = ListResp.decode(reply.body ?? Buffer.alloc(0));
                 if (r.retCode)
-                    throw failed3(`list refused (${r.retCode} ${r.message ?? ""})`.trim());
+                    throw failed4(`list refused (${r.retCode} ${r.message ?? ""})`.trim());
                 return r.item?.faceIds ?? [];
             }
             async details(emojiIds) {
@@ -11806,13 +15310,13 @@ var init_custom_faces = __esm({
                 const emojis = emojiIds.map((emojiId) => ({ emojiId, md5: md5FromEmojiId(emojiId) }));
                 const r = await invokeOidb(this.transport, { command: 36910, subCommand: 1, reserved: 1, request: DetailReq, response: OpResp }, { field1: 1, osVersion: OS_VERSION, opType: 2, emojis });
                 if (r.retCode)
-                    throw failed3(`detail refused (${r.retCode} ${r.errMsg ?? ""})`.trim());
+                    throw failed4(`detail refused (${r.retCode} ${r.errMsg ?? ""})`.trim());
                 const desc = new Map();
                 for (const e of r.entries ?? []) {
                     if (!e.emoji?.emojiId)
-                        throw failed3("detail response entry without emoji id");
+                        throw failed4("detail response entry without emoji id");
                     if (desc.has(e.emoji.emojiId))
-                        throw failed3(`detail response repeats ${e.emoji.emojiId}`);
+                        throw failed4(`detail response repeats ${e.emoji.emojiId}`);
                     desc.set(e.emoji.emojiId, e.desc || e.legacyDesc || "");
                 }
                 return emojis.map(({ emojiId, md5: md52 }) => ({ emojiId, md5: md52, url: customFaceUrl(this.transport.uin, emojiId), desc: desc.get(emojiId) ?? "" }));
@@ -11820,11 +15324,11 @@ var init_custom_faces = __esm({
             async modify(emojiId, desc) {
                 const r = await invokeOidb(this.transport, { command: 36910, subCommand: 1, request: ModifyReq, response: OpResp }, { field1: 1, osVersion: OS_VERSION, opType: 3, entry: { emoji: { emojiId, md5: md5FromEmojiId(emojiId) }, desc }, field12: 1 });
                 if (r.retCode)
-                    throw failed3(`modify refused (${r.retCode} ${r.errMsg ?? ""})`.trim());
+                    throw failed4(`modify refused (${r.retCode} ${r.errMsg ?? ""})`.trim());
             }
             async add(bytes) {
                 const uin = String(this.transport.uin);
-                const md52 = crypto6.createHash("md5").update(bytes).digest();
+                const md52 = crypto7.createHash("md5").update(bytes).digest();
                 const emojiId = `${uin}_0_0_0_${md52.toString("hex").toUpperCase()}_0_0`;
                 const session = await this.highway.session();
                 const reply = await this.transport.send(BDH_SERVICE, BdhReq.encode({
@@ -11835,10 +15339,10 @@ var init_custom_faces = __esm({
                     tail: { inner: { field1: 0, field2: 0, field3: "0" }, field2: 1 }
                 }));
                 if (reply.error)
-                    throw failed3(`upload request failed (${reply.error} ${reply.message ?? ""})`.trim());
+                    throw failed4(`upload request failed (${reply.error} ${reply.message ?? ""})`.trim());
                 const token = BdhResp.decode(reply.body ?? Buffer.alloc(0)).inner?.token;
                 if (!token?.length)
-                    throw failed3("upload response has no token");
+                    throw failed4("upload response has no token");
                 const head = FavHead.encode({
                     baseHead: { version: 1, uin, command: "PicUp.DataUp", seq: 1, retryTimes: 0, filesize: BigInt(bytes.length), dataFlag: 16, commandId: 9 },
                     segHead: { serviceId: 0, filesize: BigInt(bytes.length), dataOffset: 0n, dataLength: BigInt(bytes.length), serviceTicket: token, md5: md52, fileMd5: md52 },
@@ -11852,7 +15356,7 @@ var init_custom_faces = __esm({
                     body = await postFrame(session.servers[0], `/cgi-bin/httpconn?htcmd=0x6FF0087&uin=${uin}`, packFrame(head, bytes), conn);
                 }
                 catch (e) {
-                    throw failed3(`highway upload failed: ${e?.message ?? e}`);
+                    throw failed4(`highway upload failed: ${e?.message ?? e}`);
                 }
                 finally {
                     conn.socket?.destroy();
@@ -11864,14 +15368,14 @@ var init_custom_faces = __esm({
                 catch {
                 }
                 if (code)
-                    throw failed3(`highway refused the sticker (error ${code})`);
+                    throw failed4(`highway refused the sticker (error ${code})`);
                 return emojiId;
             }
         };
     }
 });
-import fs11 from "node:fs";
-import path12 from "node:path";
+import fs16 from "node:fs";
+import path17 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function pickMediaSource(data = {}) {
     const file = String(data.file ?? "").trim();
@@ -11909,7 +15413,7 @@ function localPath(source) {
 }
 function fileNameFromUrl(url) {
     try {
-        const base = path12.posix.basename(new URL(url).pathname);
+        const base = path17.posix.basename(new URL(url).pathname);
         return /\.[A-Za-z0-9]{1,5}$/.test(base) ? decodeURIComponent(base) : "";
     }
     catch {
@@ -11999,7 +15503,7 @@ async function loadMediaSource(source, { what = "media", maxBytes, fetchImpl = f
     const file = localPath(source);
     let stat;
     try {
-        stat = fs11.statSync(file);
+        stat = fs16.statSync(file);
     }
     catch {
         throw invalid6(`${what} file not found`);
@@ -12010,7 +15514,7 @@ async function loadMediaSource(source, { what = "media", maxBytes, fetchImpl = f
         throw tooLarge(what, stat.size, maxBytes);
     if (stat.size === 0)
         throw invalid6(`${what} file is empty`);
-    return { bytes: fs11.readFileSync(file), fileName: path12.basename(file) };
+    return { bytes: fs16.readFileSync(file), fileName: path17.basename(file) };
 }
 var FETCH_TIMEOUT_MS, USER_AGENT, MediaSourceError, invalid6, tooLarge;
 var init_source = __esm({
@@ -12027,9 +15531,9 @@ var init_source = __esm({
         tooLarge = (what, size, max) => new MediaSourceError("NERONET_MEDIA_TOO_LARGE", `${what} ${size} > ${max} bytes`);
     }
 });
-import fs12 from "node:fs";
-import path13 from "node:path";
-import crypto7 from "node:crypto";
+import fs17 from "node:fs";
+import path18 from "node:path";
+import crypto8 from "node:crypto";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 async function openFileSource(source, { fetchImpl = fetch } = {}) {
     const s = String(source ?? "").trim();
@@ -12047,7 +15551,7 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
         }
         let st;
         try {
-            st = fs12.statSync(file);
+            st = fs17.statSync(file);
         }
         catch {
             throw invalidSource("file not found");
@@ -12058,10 +15562,10 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
             throw invalidSource("file is empty");
         if (st.size > FILE_LIMITS.localBytes)
             throw Object.assign(new Error(`NERONET_MEDIA_TOO_LARGE: file ${st.size} > ${FILE_LIMITS.localBytes}`), { code: "NERONET_MEDIA_TOO_LARGE" });
-        const fh = await fs12.promises.open(file, "r");
+        const fh = await fs17.promises.open(file, "r");
         return {
             size: st.size,
-            name: path13.basename(file),
+            name: path18.basename(file),
             async read(offset, length) {
                 const buf = Buffer.allocUnsafe(length);
                 let got = 0;
@@ -12074,9 +15578,9 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
                 return buf;
             },
             async assertUnchanged() {
-                const now2 = await fs12.promises.stat(file);
+                const now2 = await fs17.promises.stat(file);
                 if (now2.size !== st.size || now2.mtimeMs !== st.mtimeMs)
-                    throw failed4("file source changed between hashing and upload");
+                    throw failed5("file source changed between hashing and upload");
             },
             close: () => fh.close()
         };
@@ -12087,7 +15591,7 @@ async function openFileSource(source, { fetchImpl = fetch } = {}) {
         } };
 }
 async function hashSource(src) {
-    const md52 = crypto7.createHash("md5"), sha1 = crypto7.createHash("sha1"), head = crypto7.createHash("md5");
+    const md52 = crypto8.createHash("md5"), sha1 = crypto8.createHash("sha1"), head = crypto8.createHash("md5");
     for (let o = 0; o < src.size; o += FILE_LIMITS.piece) {
         const chunk2 = await src.read(o, Math.min(FILE_LIMITS.piece, src.size - o));
         md52.update(chunk2);
@@ -12124,7 +15628,7 @@ function privateUploadHost(u) {
     const port3 = rtpIp && rtp.inPort > 0 ? rtp.inPort : httpsUsed && u.uploadHttpsPort > 0 ? u.uploadHttpsPort : u.uploadPort ?? 0;
     return { host, port: port3 };
 }
-var GroupFileRequest2, GroupFileResponse2, U, PrivateUploadReq, PrivateUploadResp, PublishReq, Empty2, FinalizeReq, FinalizeResp, UploadExt, FileExtra2, SendReq, SendResp, FILE_LIMITS, failed4, invalidSource, ipv4, clientInfo, FileUploader;
+var GroupFileRequest2, GroupFileResponse2, U, PrivateUploadReq, PrivateUploadResp, PublishReq, Empty3, FinalizeReq, FinalizeResp, UploadExt, FileExtra2, SendReq2, SendResp2, FILE_LIMITS, failed5, invalidSource, ipv4, clientInfo, FileUploader;
 var init_file_upload = __esm({
     "upper/qq/file-upload.mjs"() {
         init_schema();
@@ -12137,15 +15641,15 @@ var init_file_upload = __esm({
         PrivateUploadReq = U("OidbPrivateFileUploadReq");
         PrivateUploadResp = U("OidbPrivateFileUploadResp");
         PublishReq = U("OidbGroupSendFileReq");
-        Empty2 = U("OidbEmpty");
+        Empty3 = U("OidbEmpty");
         FinalizeReq = U("OidbOfflineFileFinalizeReq");
         FinalizeResp = U("OidbOfflineFileFinalizeResp");
         UploadExt = U("FileUploadExt");
         FileExtra2 = U("FileExtra");
-        SendReq = wireType("send_msg.proto", "SendMessageRequest");
-        SendResp = wireType("send_msg.proto", "SendMessageResponse");
+        SendReq2 = wireType("send_msg.proto", "SendMessageRequest");
+        SendResp2 = wireType("send_msg.proto", "SendMessageResponse");
         FILE_LIMITS = Object.freeze({ localBytes: 4 * 1024 ** 3, inlineBytes: 100 * 1024 ** 2, headMd5Bytes: 10002432, piece: 1024 * 1024 });
-        failed4 = (detail) => Object.assign(new Error(`NERONET_FILE_UPLOAD_FAILED: ${detail}`), { code: "NERONET_FILE_UPLOAD_FAILED" });
+        failed5 = (detail) => Object.assign(new Error(`NERONET_FILE_UPLOAD_FAILED: ${detail}`), { code: "NERONET_FILE_UPLOAD_FAILED" });
         invalidSource = (detail) => Object.assign(new Error(`NERONET_MEDIA_SOURCE_INVALID: ${detail}`), { code: "NERONET_MEDIA_SOURCE_INVALID" });
         ipv4 = (v) => `${v & 255}.${v >>> 8 & 255}.${v >>> 16 & 255}.${v >>> 24 & 255}`;
         clientInfo = { clientType: 3, appId: "100", terminalType: 3, clientVer: "1.1.1", unknown: 4 };
@@ -12177,15 +15681,15 @@ var init_file_upload = __esm({
                     } });
                 const u = body.upload;
                 if (!u)
-                    throw failed4("group upload response missing");
+                    throw failed5("group upload response missing");
                 if (u.retCode)
-                    throw failed4(`group upload refused (${u.retCode} ${u.clientWording || u.retMsg || ""})`.trim());
+                    throw failed5(`group upload refused (${u.retCode} ${u.clientWording || u.retMsg || ""})`.trim());
                 if (!u.fileId)
-                    throw failed4("group upload response has no file id");
+                    throw failed5("group upload response has no file id");
                 if (!u.boolFileExist && upload) {
                     const host = u.uploadIp || u.serverDns || "", port3 = u.uploadPort ?? 0;
                     if (!host || !port3)
-                        throw failed4("group upload host missing");
+                        throw failed5("group upload host missing");
                     const extend = groupUploadExt({ senderUin: this.transport.uin, groupId, fileName, fileSize: src.size, md5: h.md5, fileId: u.fileId, uploadKey: u.fileKey ?? new Uint8Array(0), checkKey: u.checkKey ?? new Uint8Array(0), host, port: port3 });
                     await src.assertUnchanged();
                     await this.highway.upload({ commandId: 71, source: src, fileMd5: h.md5, extend });
@@ -12201,13 +15705,13 @@ var init_file_upload = __esm({
                 return { fileId: u.fileId, fileName, fileSize: src.size, md5: h.md5 };
             }
             async publishGroup(groupId, fileId) {
-                await invokeOidb(this.transport, { command: 1753, subCommand: 4, request: PublishReq, response: Empty2 }, { body: { groupUin: Number(groupId), type: 2, info: { busiType: 102, fileId: String(fileId), field3: crypto7.randomInt(1, 2147483647), field5: 1 } } });
+                await invokeOidb(this.transport, { command: 1753, subCommand: 4, request: PublishReq, response: Empty3 }, { body: { groupUin: Number(groupId), type: 2, info: { busiType: 102, fileId: String(fileId), field3: crypto8.randomInt(1, 2147483647), field5: 1 } } });
             }
             async private(peerUid, src, { name = "", upload = true } = {}) {
                 const fileName = name.trim() || src.name.trim() || "file.bin";
                 const selfUid = await this.selfUid();
                 if (!selfUid || !peerUid)
-                    throw failed4("uid unavailable for a private file");
+                    throw failed5("uid unavailable for a private file");
                 const h = await hashSource(src);
                 const body = await invokeOidb(this.transport, { command: 3639, subCommand: 1700, request: PrivateUploadReq, response: PrivateUploadResp }, {
                     command: 1700,
@@ -12219,15 +15723,15 @@ var init_file_upload = __esm({
                 });
                 const u = body.upload;
                 if (!u)
-                    throw failed4("private upload response missing");
+                    throw failed5("private upload response missing");
                 if (u.retCode)
-                    throw failed4(`private upload refused (${u.retCode} ${u.retMsg ?? ""})`.trim());
+                    throw failed5(`private upload refused (${u.retCode} ${u.retMsg ?? ""})`.trim());
                 if (!u.uuid)
-                    throw failed4("private upload response has no file id");
+                    throw failed5("private upload response has no file id");
                 if (!u.boolFileExist && upload) {
                     const { host, port: port3 } = privateUploadHost(u);
                     if (!host || !(port3 > 0))
-                        throw failed4("private upload host missing");
+                        throw failed5("private upload host missing");
                     const key = u.mediaPlatformUploadKey?.length ? u.mediaPlatformUploadKey : u.uploadKey ?? new Uint8Array(0);
                     const extend = privateUploadExt({ senderUin: this.transport.uin, fileName, fileSize: src.size, md5: h.md5, sha1: h.sha1, fileId: u.uuid, uploadKey: key, host, port: port3 });
                     await src.assertUnchanged();
@@ -12248,8 +15752,8 @@ var init_file_upload = __esm({
                 const extra = { file: { fileType: 0, fileUuid: info.fileId, fileMd5: info.md5, fileName: info.fileName, fileSize: BigInt(info.fileSize), subcmd: 1, dangerEvel: 0, expireTime: now2 + 7 * 24 * 3600, fileHash: info.fileHash } };
                 if (meta)
                     extra.field6 = { field2: { field1: meta.field110 ?? 0, fileUuid: info.fileId, fileName: info.fileName, field6: meta.field3 ?? 0, field7: meta.field101 ?? new Uint8Array(0), field8: meta.field100 ?? new Uint8Array(0), timestamp1: meta.timestamp1 ?? 0, fileHash: info.fileHash, selfUid, destUid: peerUid } };
-                const random = crypto7.randomInt(1, 2147483647), clientSequence = this.nextClientSequence();
-                const reply = await this.transport.send(SEND_MESSAGE_COMMAND, SendReq.encode({
+                const random = crypto8.randomInt(1, 2147483647), clientSequence = this.nextClientSequence();
+                const reply = await this.transport.send(SEND_MESSAGE_COMMAND, SendReq2.encode({
                     routingHead: { trans0x211: { ccCmd: 4, uid: peerUid } },
                     contentHead: { type: 1, subType: 0 },
                     messageBody: { msgContent: FileExtra2.encode(extra) },
@@ -12258,10 +15762,10 @@ var init_file_upload = __esm({
                     ctrl: { msgFlag: now2 }
                 }));
                 if (reply.error)
-                    throw failed4(`file message not sent (${reply.error} ${reply.message ?? ""})`.trim());
-                const r = SendResp.decode(reply.body ?? Buffer.alloc(0));
+                    throw failed5(`file message not sent (${reply.error} ${reply.message ?? ""})`.trim());
+                const r = SendResp2.decode(reply.body ?? Buffer.alloc(0));
                 if (r.result)
-                    throw failed4(`file message rejected (result ${r.result} ${r.errMsg ?? ""})`.trim());
+                    throw failed5(`file message rejected (result ${r.result} ${r.errMsg ?? ""})`.trim());
                 return { sequence: r.privateSequence ?? 0, clientSequence, random, time: r.timestamp1 ?? now2 };
             }
         };
@@ -12422,10 +15926,10 @@ var init_image_format = __esm({
         ascii = (b, o, s) => b.length >= o + s.length && [...s].every((c, i) => b[o + i] === c.charCodeAt(0));
     }
 });
-import crypto8 from "node:crypto";
+import crypto9 from "node:crypto";
 function describeImage(bytes, { fileName = "", subType = 0, summary = "" } = {}) {
-    const md52 = crypto8.createHash("md5").update(bytes).digest();
-    const sha1 = crypto8.createHash("sha1").update(bytes).digest();
+    const md52 = crypto9.createHash("md5").update(bytes).digest();
+    const sha1 = crypto9.createHash("sha1").update(bytes).digest();
     const fmt = detectImageFormat(bytes);
     return {
         bytes,
@@ -12561,7 +16065,7 @@ var init_media = __esm({
             }
         };
         uploadService = (scene) => ({ command: IMAGE_UPLOAD[scene].command, subCommand: 100, reserved: 1, request: UploadRequest, response: UploadResponse });
-        randomId = () => crypto8.randomBytes(8).readBigUInt64BE() & 0x7fffffffffffffffn;
+        randomId = () => crypto9.randomBytes(8).readBigUInt64BE() & 0x7fffffffffffffffn;
         RKEY_TYPE = Object.freeze({ PRIVATE_IMAGE: 10, GROUP_IMAGE: 20, FALLBACK_IMAGE: 2 });
         RKEY = { skew: 60, cooldown: 30, emptyCooldown: 10, waitMs: 5e3 };
         rkeyService = { command: 36967, subCommand: 202, reserved: 1, request: RichMediaRequest2, response: RichMediaResponse2 };
@@ -12632,1346 +16136,10 @@ var init_media = __esm({
         };
     }
 });
-import zlib2 from "node:zlib";
-import crypto9 from "node:crypto";
-function parseInnerForwardId(id) {
-    const at = typeof id === "string" ? id.indexOf(FORWARD.innerSeparator) : -1;
-    if (at <= 0 || at === id.length - 1)
-        return null;
-    const uuid = id.slice(at + 1);
-    return UNISEQ.test(uuid) ? { outer: id.slice(0, at), uuid } : null;
-}
-function buildNodeBody(node, selfUid, { now: now2 = Math.floor(Date.now() / 1e3), random = crypto9.randomInt(1, 2147483647), sequence = crypto9.randomInt(1e6, 1e7) } = {}) {
-    return {
-        responseHead: { fromUin: Number(node.userUin), toUid: selfUid, forward: { friendName: node.nickname } },
-        contentHead: { msgType: 9, subType: 4, msgId: random, sequence, timestamp: node.time > 0 ? node.time : now2, c2cCmd: 0 },
-        body: { richText: { elems: node.elems } }
-    };
-}
-function buildSendRequest({ groupId, selfUid, bodies, inner = [] }) {
-    const payload = zlib2.gzipSync(Buffer.from(LongMsgResult.encode({ action: [{ actionCommand: "MultiMsg", actionData: { msgBody: bodies } }, ...inner.map((a) => ({ actionCommand: a.uuid, actionData: { msgBody: a.bodies } }))] })));
-    return SendReq2.encode({
-        info: { type: groupId ? 3 : 1, uid: { uid: groupId ? String(groupId) : selfUid }, ...groupId ? { groupUin: Number(groupId) } : {}, payload },
-        settings: { field1: 4, field2: 1, field3: 7, field4: 0 }
-    });
-}
-function buildRecvRequest(resId, selfUid) {
-    return RecvReq.encode({ info: { uid: { uid: selfUid }, resId, acquire: 1 }, settings: { field1: 2, field2: 0, field3: 0, field4: 0 } });
-}
-function previewOf(segments) {
-    for (const s of segments) {
-        if (s.type === "text" && s.data.text)
-            return s.data.text.slice(0, 30);
-        const label = { image: "[图片]", record: "[语音]", video: "[视频]", file: "[文件]", forward: "[聊天记录]", face: "[表情]" }[s.type];
-        if (label)
-            return label;
-    }
-    return "";
-}
-function innerSource(nodes, isGroup) {
-    const names = [...new Set(nodes.map((n2) => String(n2.nickname ?? "").trim()).filter(Boolean))].slice(0, 4);
-    return names.length ? `${names.join("和")}的聊天记录` : isGroup ? "群聊的聊天记录" : "聊天记录";
-}
-var FORWARD, SendReq2, SendResp2, RecvReq, RecvResp, LongMsgResult, ForwardError, invalidForward, UNISEQ, innerForwardId, newsOf, clone, ForwardCache, ForwardService;
-var init_forward = __esm({
-    "upper/qq/forward.mjs"() {
-        init_schema();
-        init_cards();
-        init_inbound();
-        FORWARD = Object.freeze({
-            sendCommand: "trpc.group.long_msg_interface.MsgService.SsoSendLongMsg",
-            recvCommand: "trpc.group.long_msg_interface.MsgService.SsoRecvLongMsg",
-            maxDepth: 3,
-            maxOutputBytes: 32 * 1024 * 1024,
-            cacheEntries: 512,
-            innerSeparator: "@",
-            maxCardBytes: 32 * 1024 * 1024,
-            maxNodes: 5e3,
-            maxCacheEntryBytes: 16 * 1024 * 1024
-        });
-        SendReq2 = wireType("forward.proto", "SendLongMsgReq");
-        SendResp2 = wireType("forward.proto", "SendLongMsgResp");
-        RecvReq = wireType("forward.proto", "RecvLongMsgReq");
-        RecvResp = wireType("forward.proto", "RecvLongMsgResp");
-        LongMsgResult = wireType("forward.proto", "LongMsgResult");
-        ForwardError = class extends Error {
-            constructor(detail, cause2) {
-                super(`NERONET_FORWARD_FAILED: ${detail}`, cause2 ? { cause: cause2 } : void 0);
-                this.code = "NERONET_FORWARD_FAILED";
-            }
-        };
-        invalidForward = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
-        UNISEQ = /^[0-9A-Za-z-]{1,64}$/;
-        innerForwardId = (outer, uuid) => `${outer}${FORWARD.innerSeparator}${uuid}`;
-        newsOf = (nodes) => nodes.slice(0, 4).map((n2) => {
-            const name = String(n2.nickname ?? "").trim() || String(n2.userUin || "QQ用户");
-            const p2 = previewOf(n2.segments ?? []);
-            return { text: p2 ? `${name}: ${p2}` : name };
-        });
-        clone = (nodes) => structuredClone(nodes);
-        ForwardCache = class {
-            constructor(max = FORWARD.cacheEntries) {
-                this.max = max;
-                this.entries = new Map();
-            }
-            get(resId) {
-                for (const [root, layers] of this.entries) {
-                    const nodes = layers.get(resId);
-                    if (nodes) {
-                        this.entries.delete(root);
-                        this.entries.set(root, layers);
-                        return clone(nodes);
-                    }
-                }
-                return null;
-            }
-            set(root, layers) {
-                if (!layers.has(root))
-                    throw new Error("forward cache entry is missing its outer level");
-                let bytes = 0;
-                for (const v of layers.values())
-                    bytes += JSON.stringify(v).length;
-                if (bytes > FORWARD.maxCacheEntryBytes)
-                    return false;
-                this.entries.delete(root);
-                this.entries.set(root, new Map([...layers].map(([k, v]) => [k, clone(v)])));
-                while (this.entries.size > this.max)
-                    this.entries.delete(this.entries.keys().next().value);
-                return true;
-            }
-        };
-        ForwardService = class {
-            constructor(transport, { selfUid, selfUin, cache = new ForwardCache() }) {
-                this.transport = transport;
-                this.selfUid = selfUid;
-                this.selfUin = selfUin;
-                this.cache = cache;
-            }
-            async upload(nodes, target, build) {
-                const selfUid = await this.selfUid();
-                if (!selfUid)
-                    throw new ForwardError("own uid unavailable");
-                const top = await this.#uploadLevel(nodes, target, build, selfUid, 0);
-                this.cache.set(top.resId, top.layers);
-                return { resId: top.resId, layers: top.layers };
-            }
-            async #uploadLevel(nodes, target, build, selfUid, depth) {
-                if (depth >= FORWARD.maxDepth)
-                    throw invalidForward(`forward nesting depth exceeds ${FORWARD.maxDepth}`);
-                if (!Array.isArray(nodes) || !nodes.length)
-                    throw invalidForward("forward needs at least one node");
-                const isGroup = !!target.groupId;
-                const inner = [], layers = new Map(), bodies = [], views = [];
-                for (const node of nodes) {
-                    let elems, segments, media = [];
-                    if (node.innerForward) {
-                        const sub = await this.#uploadLevel(node.innerForward, target, build, selfUid, depth + 1);
-                        inner.push({ uuid: sub.uuid, bodies: sub.bodies }, ...sub.inner);
-                        for (const [k, v] of sub.layers)
-                            layers.set(k, v);
-                        const innerViews = sub.layers.get(sub.resId);
-                        elems = [forwardCardElement({
-                                resId: sub.resId,
-                                uuid: sub.uuid,
-                                source: node.source || innerSource(innerViews, isGroup),
-                                summary: node.summary || `查看${node.innerForward.length}条转发消息`,
-                                prompt: node.prompt || "[聊天记录]",
-                                news: node.news?.length ? node.news : newsOf(innerViews),
-                                tSum: node.innerForward.length
-                            })];
-                        segments = [{ type: "forward", data: { id: sub.resId } }];
-                    }
-                    else
-                        ({ elems, segments, media = [] } = await build(node));
-                    const random = crypto9.randomInt(1, 2147483647), sequence = crypto9.randomInt(1e6, 1e7);
-                    const time = node.time > 0 ? node.time : Math.floor(Date.now() / 1e3);
-                    bodies.push(buildNodeBody({ ...node, elems, time }, selfUid, { random, sequence }));
-                    views.push({ userUin: String(node.userUin), nickname: node.nickname, time, msgId: random, msgSeq: sequence, segments, media, scene: "private" });
-                }
-                const reply = await this.transport.send(FORWARD.sendCommand, buildSendRequest({ groupId: target.groupId, selfUid, bodies, inner }));
-                if (reply.error)
-                    throw new ForwardError(`upload failed (${reply.error} ${reply.message ?? ""})`.trim());
-                let resId = "";
-                try {
-                    resId = SendResp2.decode(reply.body ?? Buffer.alloc(0)).result?.resId ?? "";
-                }
-                catch (e) {
-                    throw new ForwardError("upload response undecodable", e);
-                }
-                if (!resId)
-                    throw new ForwardError("upload response has no res id");
-                layers.set(resId, views);
-                return { resId, uuid: crypto9.randomUUID(), bodies, inner, layers };
-            }
-            async fetch(resId) {
-                resId = String(resId ?? "").trim();
-                if (!resId || resId.length > 512 || /[\s<>"]/.test(resId))
-                    throw invalidForward("forward id is invalid");
-                const hit = this.cache.get(resId);
-                if (hit)
-                    return hit;
-                const innerId = parseInnerForwardId(resId);
-                if (innerId) {
-                    await this.fetch(innerId.outer);
-                    const layer = this.cache.get(resId);
-                    if (!layer)
-                        throw new ForwardError(`inner forward ${innerId.uuid} not found in its outer message`);
-                    return layer;
-                }
-                const selfUid = await this.selfUid();
-                if (!selfUid)
-                    throw new ForwardError("own uid unavailable");
-                const reply = await this.transport.send(FORWARD.recvCommand, buildRecvRequest(resId, selfUid));
-                if (reply.error)
-                    throw new ForwardError(`download failed (${reply.error} ${reply.message ?? ""})`.trim());
-                let payload;
-                try {
-                    payload = RecvResp.decode(reply.body ?? Buffer.alloc(0)).result?.payload;
-                }
-                catch (e) {
-                    throw new ForwardError("download response undecodable", e);
-                }
-                if (!payload?.length)
-                    throw new ForwardError(`forward ${resId} not found or empty`);
-                let result;
-                try {
-                    result = LongMsgResult.decode(zlib2.gunzipSync(Buffer.from(payload), { maxOutputLength: FORWARD.maxOutputBytes }));
-                }
-                catch (e) {
-                    throw new ForwardError(`forward payload unreadable (${payload.length} bytes compressed, limit ${FORWARD.maxOutputBytes})`, e);
-                }
-                const actions = result.action ?? [];
-                const piggyback = new Map(actions.filter((a) => a.actionCommand && a.actionCommand !== "MultiMsg").map((a) => [a.actionCommand, a.actionData?.msgBody ?? []]));
-                const main6 = actions.find((a) => a.actionCommand === "MultiMsg")?.actionData?.msgBody ?? [];
-                const limits = { cardBudget: { left: FORWARD.maxCardBytes }, nodesLeft: FORWARD.maxNodes };
-                const nodes = this.decodeBodies(main6, resId, piggyback, limits);
-                const layers = this.#collectLayers(resId, nodes, piggyback, limits);
-                if (nodes.length)
-                    this.cache.set(resId, layers);
-                return clone(nodes);
-            }
-            decodeBodies(bodies, rootId, piggyback = new Map(), limits = { cardBudget: { left: FORWARD.maxCardBytes }, nodesLeft: FORWARD.maxNodes }) {
-                const root = parseInnerForwardId(rootId)?.outer ?? rootId;
-                const out = [];
-                for (const body of bodies) {
-                    if (--limits.nodesLeft < 0)
-                        throw new ForwardError(`forward has more than ${FORWARD.maxNodes} nodes`);
-                    const ev = decodeMessageBody(body, this.selfUin(), 0, { forward: true, cardBudget: limits.cardBudget });
-                    if (!ev || ev.kind === "unhandled")
-                        continue;
-                    const refs = new Map((ev.forwardRefs ?? []).map((r) => [r.segment, r.uuid]));
-                    const forwardUuids = [];
-                    const segments = ev.segments.map((seg) => {
-                        if (seg.type === "forward") {
-                            forwardUuids.push({ id: seg.data.id, uuid: refs.get(seg) ?? "" });
-                            return seg;
-                        }
-                        if (seg.type !== "xml" || Number(seg.data.resid) !== 35)
-                            return seg;
-                        const xml = String(seg.data.data ?? "");
-                        if (xmlAttribute(xml, "action") !== "viewMultiMsg" || xmlAttribute(xml, "m_resid"))
-                            return seg;
-                        const uuid = xmlAttribute(xml, "m_fileName");
-                        if (!uuid || !UNISEQ.test(uuid) || !piggyback.has(uuid))
-                            return seg;
-                        const id = innerForwardId(root, uuid);
-                        forwardUuids.push({ id, uuid });
-                        return { type: "forward", data: { id } };
-                    });
-                    out.push({
-                        userUin: ev.sender.uin,
-                        nickname: ev.kind === "group" ? ev.sender.card || ev.sender.nickname : ev.sender.nickname,
-                        time: ev.time,
-                        msgId: ev.random,
-                        msgSeq: ev.sequence,
-                        segments,
-                        media: ev.media ?? [],
-                        scene: ev.kind,
-                        ...ev.kind === "group" ? { groupId: ev.groupId, senderCard: ev.sender.card ?? "" } : {},
-                        ...ev.reply ? { reply: ev.reply } : {},
-                        forwardUuids
-                    });
-                }
-                return out;
-            }
-            #collectLayers(resId, nodes, piggyback, limits) {
-                const root = parseInnerForwardId(resId)?.outer ?? resId;
-                const layers = new Map([[resId, nodes]]);
-                for (const chain of layers.values()) {
-                    for (const node of chain) {
-                        for (const { uuid } of node.forwardUuids ?? []) {
-                            if (!uuid || !UNISEQ.test(uuid) || !piggyback.has(uuid))
-                                continue;
-                            const id = innerForwardId(root, uuid);
-                            if (layers.has(id))
-                                continue;
-                            layers.set(id, this.decodeBodies(piggyback.get(uuid), resId, piggyback, limits));
-                        }
-                    }
-                }
-                return layers;
-            }
-        };
-    }
-});
-function isWavFile(fileData) {
-    try {
-        let chunks = unpackWavFileChunks(fileData), fmt = decodeFormatChunk(chunks.get("fmt")), data = chunks.get("data");
-        return getWavFileType(fmt), verifyDataChunkLength(data, fmt), true;
-    }
-    catch {
-        return false;
-    }
-}
-function decodeWavFile(fileData) {
-    let chunks = unpackWavFileChunks(fileData), fmt = decodeFormatChunk(chunks.get("fmt")), data = chunks.get("data"), wavFileType = getWavFileType(fmt), audioEncoding = wavFileTypeAudioEncodings[wavFileType], wavFileTypeName = audioEncodingNames[audioEncoding] + fmt.bitsPerSample;
-    return verifyDataChunkLength(data, fmt), { channelData: decodeDataChunk(data, fmt, wavFileType), sampleRate: fmt.sampleRate, numberOfChannels: fmt.numberOfChannels, audioEncoding, bitsPerSample: fmt.bitsPerSample, wavFileTypeName };
-}
-function unpackWavFileChunks(fileData) {
-    let dataView;
-    fileData instanceof ArrayBuffer ? dataView = new DataView(fileData) : dataView = new DataView(fileData.buffer, fileData.byteOffset, fileData.byteLength);
-    let fileLength = dataView.byteLength;
-    if (fileLength < 20)
-        throw new Error("WAV file is too short.");
-    if (getString(dataView, 0, 4) != "RIFF")
-        throw new Error("Not a valid WAV file (no RIFF header).");
-    let mainChunkLength = dataView.getUint32(4, true);
-    if (8 + mainChunkLength != fileLength)
-        throw new Error(`Main chunk length of WAV file (${8 + mainChunkLength}) does not match file size (${fileLength}).`);
-    if (getString(dataView, 8, 4) != "WAVE")
-        throw new Error("RIFF file is not a WAV file.");
-    let chunks = new Map(), fileOffset = 12;
-    for (; fileOffset < fileLength;) {
-        if (fileOffset + 8 > fileLength)
-            throw new Error(`Incomplete chunk prefix in WAV file at offset ${fileOffset}.`);
-        let chunkId = getString(dataView, fileOffset, 4).trim(), chunkLength = dataView.getUint32(fileOffset + 4, true);
-        if (fileOffset + 8 + chunkLength > fileLength)
-            throw new Error(`Incomplete chunk data in WAV file at offset ${fileOffset}.`);
-        let chunkData = new DataView(dataView.buffer, dataView.byteOffset + fileOffset + 8, chunkLength);
-        chunks.set(chunkId, chunkData);
-        let padLength = chunkLength % 2;
-        fileOffset += 8 + chunkLength + padLength;
-    }
-    return chunks;
-}
-function getString(dataView, offset, length) {
-    let a = new Uint8Array(dataView.buffer, dataView.byteOffset + offset, length);
-    return String.fromCharCode.apply(null, a);
-}
-function getInt24(dataView, offset) {
-    let b0 = dataView.getInt8(offset + 2) * 65536, b12 = dataView.getUint16(offset, true);
-    return b0 + b12;
-}
-function decodeFormatChunk(dataView) {
-    if (!dataView)
-        throw new Error("No format chunk found in WAV file.");
-    if (dataView.byteLength < 16)
-        throw new Error("Format chunk of WAV file is too short.");
-    let fmt = {};
-    return fmt.formatCode = dataView.getUint16(0, true), fmt.numberOfChannels = dataView.getUint16(2, true), fmt.sampleRate = dataView.getUint32(4, true), fmt.bytesPerSec = dataView.getUint32(8, true), fmt.bytesPerFrame = dataView.getUint16(12, true), fmt.bitsPerSample = dataView.getUint16(14, true), fmt;
-}
-function getWavFileType(fmt) {
-    if (fmt.numberOfChannels < 1 || fmt.numberOfChannels > 999)
-        throw new Error("Invalid number of channels in WAV file.");
-    let bytesPerSample = Math.ceil(fmt.bitsPerSample / 8), expectedBytesPerFrame = fmt.numberOfChannels * bytesPerSample;
-    if (fmt.formatCode == 1 && fmt.bitsPerSample >= 1 && fmt.bitsPerSample <= 8 && fmt.bytesPerFrame == expectedBytesPerFrame)
-        return 0;
-    if (fmt.formatCode == 1 && fmt.bitsPerSample >= 9 && fmt.bitsPerSample <= 16 && fmt.bytesPerFrame == expectedBytesPerFrame)
-        return 1;
-    if (fmt.formatCode == 1 && fmt.bitsPerSample >= 17 && fmt.bitsPerSample <= 24 && fmt.bytesPerFrame == expectedBytesPerFrame)
-        return 2;
-    if (fmt.formatCode == 3 && fmt.bitsPerSample == 32 && fmt.bytesPerFrame == expectedBytesPerFrame)
-        return 3;
-    throw new Error(`Unsupported WAV file type, formatCode=${fmt.formatCode}, bitsPerSample=${fmt.bitsPerSample}, bytesPerFrame=${fmt.bytesPerFrame}, numberOfChannels=${fmt.numberOfChannels}.`);
-}
-function decodeDataChunk(data, fmt, wavFileType) {
-    switch (wavFileType) {
-        case 0:
-            return decodeDataChunk_uint8(data, fmt);
-        case 1:
-            return decodeDataChunk_int16(data, fmt);
-        case 2:
-            return decodeDataChunk_int24(data, fmt);
-        case 3:
-            return decodeDataChunk_float32(data, fmt);
-        default:
-            throw new Error("No decoder.");
-    }
-}
-function decodeDataChunk_int16(data, fmt) {
-    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
-    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
-        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
-            let sampleValueFloat = data.getInt16(offs, true) / 32768;
-            channelData[channelNo][frameNo] = sampleValueFloat, offs += 2;
-        }
-    return channelData;
-}
-function decodeDataChunk_uint8(data, fmt) {
-    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
-    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
-        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
-            let sampleValueFloat = (data.getUint8(offs) - 128) / 128;
-            channelData[channelNo][frameNo] = sampleValueFloat, offs += 1;
-        }
-    return channelData;
-}
-function decodeDataChunk_int24(data, fmt) {
-    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
-    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
-        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
-            let sampleValueFloat = getInt24(data, offs) / 8388608;
-            channelData[channelNo][frameNo] = sampleValueFloat, offs += 3;
-        }
-    return channelData;
-}
-function decodeDataChunk_float32(data, fmt) {
-    let channelData = allocateChannelDataArrays(data.byteLength, fmt), numberOfChannels = fmt.numberOfChannels, numberOfFrames = channelData[0].length, offs = 0;
-    for (let frameNo = 0; frameNo < numberOfFrames; frameNo++)
-        for (let channelNo = 0; channelNo < numberOfChannels; channelNo++) {
-            let sampleValueFloat = data.getFloat32(offs, true);
-            channelData[channelNo][frameNo] = sampleValueFloat, offs += 4;
-        }
-    return channelData;
-}
-function allocateChannelDataArrays(dataLength, fmt) {
-    let numberOfFrames = Math.floor(dataLength / fmt.bytesPerFrame), channelData = new Array(fmt.numberOfChannels);
-    for (let channelNo = 0; channelNo < fmt.numberOfChannels; channelNo++)
-        channelData[channelNo] = new Float32Array(numberOfFrames);
-    return channelData;
-}
-function verifyDataChunkLength(data, fmt) {
-    if (!data)
-        throw new Error("No data chunk found in WAV file.");
-    if (data.byteLength % fmt.bytesPerFrame != 0)
-        throw new Error("WAV file data chunk length is not a multiple of frame size.");
-}
-function ensureMonoPcm(channelData) {
-    let { length: numberOfChannels } = channelData;
-    if (numberOfChannels === 1)
-        return channelData[0];
-    let monoData = new Float32Array(channelData[0].length);
-    for (let i = 0; i < monoData.length; i++) {
-        let sum = 0;
-        for (let j = 0; j < numberOfChannels; j++)
-            sum += channelData[j][i];
-        monoData[i] = sum / numberOfChannels;
-    }
-    return monoData;
-}
-function ensureS16lePcm(input) {
-    let int16Array = new Int16Array(input.length);
-    for (let offset = 0; offset < input.length; offset++) {
-        let x = ~~(input[offset] * 32768);
-        int16Array[offset] = x > 32767 ? 32767 : x;
-    }
-    return int16Array.buffer;
-}
-function binaryFromSource(source) {
-    return ArrayBuffer.isView(source) ? source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength) : source;
-}
-async function encode2(input, sampleRate) {
-    let instance = await silk_default(), buffer = binaryFromSource(input);
-    if (!buffer?.byteLength)
-        throw new Error("input data length is 0");
-    if (isWavFile(input)) {
-        let { channelData, sampleRate: wavSampleRate } = decodeWavFile(input);
-        sampleRate ||= wavSampleRate, buffer = ensureS16lePcm(ensureMonoPcm(channelData));
-    }
-    let data = new Uint8Array(), duration = instance.silk_encode(buffer, sampleRate, (output) => {
-        data = output.slice();
-    });
-    if (duration === 0)
-        throw new Error("silk encoding failure");
-    return { data, duration };
-}
-async function decode2(input, sampleRate) {
-    let instance = await silk_default(), buffer = binaryFromSource(input);
-    if (!buffer?.byteLength)
-        throw new Error("input data length is 0");
-    let data = new Uint8Array(), duration = instance.silk_decode(buffer, sampleRate, (output) => {
-        output.length > 0 && (data = output.slice());
-    });
-    if (duration === 0)
-        throw new Error("silk decoding failure");
-    return { data, duration };
-}
-function getDuration(data, frameMs = 20) {
-    let buffer = binaryFromSource(data), view = new DataView(buffer), byteLength = view.byteLength, offset = view.getUint8(0) === 2 ? 10 : 9, blocks = 0;
-    for (; offset < byteLength;) {
-        let size = view.getUint16(offset, true);
-        blocks += 1, offset += size + 2;
-    }
-    return blocks * frameMs;
-}
-var Module, silk_default, audioEncodingNames, wavFileTypeAudioEncodings;
-var init_lib = __esm({
-    "vendor/silk-wasm/lib/index.mjs"() {
-        Module = async function (moduleArg = {}) {
-            var moduleRtn, g = moduleArg, aa, q, ba = new Promise((a, b) => {
-                aa = a, q = b;
-            }), ca = typeof window == "object", da = typeof WorkerGlobalScope < "u", t = typeof process == "object" && typeof process.versions == "object" && typeof process.versions.node == "string" && process.type != "renderer";
-            if (t) {
-                let { createRequire: a } = await import("module");
-                var require2 = a(import.meta.url);
-            }
-            var u = (a, b) => {
-                throw b;
-            }, ea = import.meta.url, v = "", fa, w;
-            if (t) {
-                var fs36 = require2("fs"), ha = require2("path");
-                ea.startsWith("file:") && (v = ha.dirname(require2("url").fileURLToPath(ea)) + "/"), w = (a) => (a = y(a) ? new URL(a) : a, fs36.readFileSync(a)), fa = async (a) => (a = y(a) ? new URL(a) : a, fs36.readFileSync(a, void 0)), process.argv.slice(2), u = (a, b) => {
-                    throw process.exitCode = a, b;
-                };
-            }
-            else if (ca || da) {
-                try {
-                    v = new URL(".", ea).href;
-                }
-                catch {
-                }
-                da && (w = (a) => {
-                    var b = new XMLHttpRequest();
-                    return b.open("GET", a, false), b.responseType = "arraybuffer", b.send(null), new Uint8Array(b.response);
-                }), fa = async (a) => {
-                    if (y(a))
-                        return new Promise((d, c) => {
-                            var e = new XMLHttpRequest();
-                            e.open("GET", a, true), e.responseType = "arraybuffer", e.onload = () => {
-                                e.status == 200 || e.status == 0 && e.response ? d(e.response) : c(e.status);
-                            }, e.onerror = c, e.send(null);
-                        });
-                    var b = await fetch(a, { credentials: "same-origin" });
-                    if (b.ok)
-                        return b.arrayBuffer();
-                    throw Error(b.status + " : " + b.url);
-                };
-            }
-            console.log.bind(console);
-            var A = console.error.bind(console), C, D2, E = false, ia, ja, F, G, H, I, J, ka, la, ma, na, y = (a) => a.startsWith("file://");
-            function pa() {
-                var a = D2.buffer;
-                ja = new Int8Array(a), G = new Int16Array(a), F = new Uint8Array(a), H = new Uint16Array(a), I = new Int32Array(a), J = new Uint32Array(a), ka = new Float32Array(a), na = new Float64Array(a), la = new BigInt64Array(a), ma = new BigUint64Array(a);
-            }
-            var K = 0, L = null;
-            function qa(a) {
-                throw g.onAbort?.(a), a = "Aborted(" + a + ")", A(a), E = true, a = new WebAssembly.RuntimeError(a + ". Build with -sASSERTIONS for more info."), q(a), a;
-            }
-            var ra;
-            async function sa(a) {
-                if (!C)
-                    try {
-                        var b = await fa(a);
-                        return new Uint8Array(b);
-                    }
-                    catch {
-                    }
-                if (a == ra && C)
-                    a = new Uint8Array(C);
-                else if (w)
-                    a = w(a);
-                else
-                    throw "both async and sync fetching of the wasm failed";
-                return a;
-            }
-            async function ta(a, b) {
-                try {
-                    var d = await sa(a);
-                    return await WebAssembly.instantiate(d, b);
-                }
-                catch (c) {
-                    A(`failed to asynchronously prepare wasm: ${c}`), qa(c);
-                }
-            }
-            async function ua(a) {
-                var b = ra;
-                if (!C && typeof WebAssembly.instantiateStreaming == "function" && !y(b) && !t)
-                    try {
-                        var d = fetch(b, { credentials: "same-origin" });
-                        return await WebAssembly.instantiateStreaming(d, a);
-                    }
-                    catch (c) {
-                        A(`wasm streaming compile failed: ${c}`), A("falling back to ArrayBuffer instantiation");
-                    }
-                return ta(b, a);
-            }
-            class va {
-                name = "ExitStatus";
-                constructor(a) {
-                    this.message = `Program terminated with exit(${a})`, this.status = a;
-                }
-            }
-            var wa = (a) => {
-                for (; 0 < a.length;)
-                    a.shift()(g);
-            }, xa = [], ya = [], za = () => {
-                var a = g.preRun.shift();
-                ya.push(a);
-            }, O = true;
-            class Aa {
-                constructor(a) {
-                    this.I = a - 24;
-                }
-            }
-            var Ba = 0, Ca = 0, Da, P = (a) => {
-                for (var b = ""; F[a];)
-                    b += Da[F[a++]];
-                return b;
-            }, Q = {}, R = {}, S = {}, T4 = g.BindingError = class extends Error {
-                constructor(a) {
-                    super(a), this.name = "BindingError";
-                }
-            }, Ea = (a) => {
-                throw new T4(a);
-            };
-            function Fa(a, b, d = {}) {
-                var c = b.name;
-                if (!a)
-                    throw new T4(`type "${c}" must have a positive integer typeid pointer`);
-                if (R.hasOwnProperty(a)) {
-                    if (d.K)
-                        return;
-                    throw new T4(`Cannot register type '${c}' twice`);
-                }
-                R[a] = b, delete S[a], Q.hasOwnProperty(a) && (b = Q[a], delete Q[a], b.forEach((e) => e()));
-            }
-            function U2(a, b, d = {}) {
-                return Fa(a, b, d);
-            }
-            var Ga = (a, b, d) => {
-                switch (b) {
-                    case 1:
-                        return d ? (c) => ja[c] : (c) => F[c];
-                    case 2:
-                        return d ? (c) => G[c >> 1] : (c) => H[c >> 1];
-                    case 4:
-                        return d ? (c) => I[c >> 2] : (c) => J[c >> 2];
-                    case 8:
-                        return d ? (c) => la[c >> 3] : (c) => ma[c >> 3];
-                    default:
-                        throw new TypeError(`invalid integer width (${b}): ${a}`);
-                }
-            }, Ha = [], V = [], Ia = (a) => {
-                9 < a && --V[a + 1] === 0 && (V[a] = void 0, Ha.push(a));
-            }, Ja = (a) => {
-                if (!a)
-                    throw new T4(`Cannot use deleted val. handle = ${a}`);
-                return V[a];
-            }, Ka = (a) => {
-                switch (a) {
-                    case void 0:
-                        return 2;
-                    case null:
-                        return 4;
-                    case true:
-                        return 6;
-                    case false:
-                        return 8;
-                    default:
-                        let b = Ha.pop() || V.length;
-                        return V[b] = a, V[b + 1] = 1, b;
-                }
-            };
-            function La(a) {
-                return this.fromWireType(J[a >> 2]);
-            }
-            var Ma = { name: "emscripten::val", fromWireType: (a) => {
-                    var b = Ja(a);
-                    return Ia(a), b;
-                }, toWireType: (a, b) => Ka(b), H: 8, readValueFromPointer: La, G: null }, Na = (a, b) => {
-                switch (b) {
-                    case 4:
-                        return function (d) {
-                            return this.fromWireType(ka[d >> 2]);
-                        };
-                    case 8:
-                        return function (d) {
-                            return this.fromWireType(na[d >> 3]);
-                        };
-                    default:
-                        throw new TypeError(`invalid float width (${b}): ${a}`);
-                }
-            }, Oa = (a) => {
-                for (; a.length;) {
-                    var b = a.pop();
-                    a.pop()(b);
-                }
-            };
-            function Pa(a) {
-                for (var b = 1; b < a.length; ++b)
-                    if (a[b] !== null && a[b].G === void 0)
-                        return true;
-                return false;
-            }
-            var Sa = (a, b) => {
-                if (g[a].F === void 0) {
-                    var d = g[a];
-                    g[a] = function (...c) {
-                        if (!g[a].F.hasOwnProperty(c.length))
-                            throw new T4(`Function '${b}' called with an invalid number of arguments (${c.length}) - expects one of (${g[a].F})!`);
-                        return g[a].F[c.length].apply(this, c);
-                    }, g[a].F = [], g[a].F[d.J] = d;
-                }
-            }, Ta = (a, b, d) => {
-                if (g.hasOwnProperty(a)) {
-                    if (d === void 0 || g[a].F !== void 0 && g[a].F[d] !== void 0)
-                        throw new T4(`Cannot register public name '${a}' twice`);
-                    if (Sa(a, a), g[a].F.hasOwnProperty(d))
-                        throw new T4(`Cannot register multiple overloads of a function with the same number of arguments (${d})!`);
-                    g[a].F[d] = b;
-                }
-                else
-                    g[a] = b, g[a].J = d;
-            }, Ua = (a, b) => {
-                for (var d = [], c = 0; c < a; c++)
-                    d.push(J[b + 4 * c >> 2]);
-                return d;
-            }, Va = g.InternalError = class extends Error {
-                constructor(a) {
-                    super(a), this.name = "InternalError";
-                }
-            }, Wa = [], Xa, Ya = (a, b) => {
-                a = P(a);
-                var d;
-                if ((d = Wa[b]) || (Wa[b] = d = Xa.get(b)), typeof d != "function")
-                    throw new T4(`unknown function pointer with signature ${a}: ${b}`);
-                return d;
-            };
-            class Za extends Error {
-            }
-            for (var ab = (a) => {
-                a = $a(a);
-                var b = P(a);
-                return W(a), b;
-            }, bb = (a, b) => {
-                function d(f) {
-                    e[f] || R[f] || (S[f] ? S[f].forEach(d) : (c.push(f), e[f] = true));
-                }
-                var c = [], e = {};
-                throw b.forEach(d), new Za(`${a}: ` + c.map(ab).join([", "]));
-            }, cb = (a, b) => {
-                function d(h) {
-                    if (h = b(h), h.length !== c.length)
-                        throw new Va("Mismatched type converter count");
-                    for (var l = 0; l < c.length; ++l)
-                        U2(c[l], h[l]);
-                }
-                var c = [];
-                c.forEach((h) => S[h] = a);
-                var e = Array(a.length), f = [], m = 0;
-                a.forEach((h, l) => {
-                    R.hasOwnProperty(h) ? e[l] = R[h] : (f.push(h), Q.hasOwnProperty(h) || (Q[h] = []), Q[h].push(() => {
-                        e[l] = R[h], ++m, m === f.length && d(e);
-                    }));
-                }), f.length === 0 && d(e);
-            }, db = (a) => {
-                a = a.trim();
-                let b = a.indexOf("(");
-                return b === -1 ? a : a.slice(0, b);
-            }, eb = typeof TextDecoder < "u" ? new TextDecoder() : void 0, fb = (a = 0, b = NaN) => {
-                var d = F, c = a + b;
-                for (b = a; d[b] && !(b >= c);)
-                    ++b;
-                if (16 < b - a && d.buffer && eb)
-                    return eb.decode(d.subarray(a, b));
-                for (c = ""; a < b;) {
-                    var e = d[a++];
-                    if (e & 128) {
-                        var f = d[a++] & 63;
-                        if ((e & 224) == 192)
-                            c += String.fromCharCode((e & 31) << 6 | f);
-                        else {
-                            var m = d[a++] & 63;
-                            e = (e & 240) == 224 ? (e & 15) << 12 | f << 6 | m : (e & 7) << 18 | f << 12 | m << 6 | d[a++] & 63, 65536 > e ? c += String.fromCharCode(e) : (e -= 65536, c += String.fromCharCode(55296 | e >> 10, 56320 | e & 1023));
-                        }
-                    }
-                    else
-                        c += String.fromCharCode(e);
-                }
-                return c;
-            }, gb = typeof TextDecoder < "u" ? new TextDecoder("utf-16le") : void 0, hb = (a, b) => {
-                for (var d = a >> 1, c = d + b / 2; !(d >= c) && H[d];)
-                    ++d;
-                if (d <<= 1, 32 < d - a && gb)
-                    return gb.decode(F.subarray(a, d));
-                for (d = "", c = 0; !(c >= b / 2); ++c) {
-                    var e = G[a + 2 * c >> 1];
-                    if (e == 0)
-                        break;
-                    d += String.fromCharCode(e);
-                }
-                return d;
-            }, ib = (a, b, d) => {
-                if (d ??= 2147483647, 2 > d)
-                    return 0;
-                d -= 2;
-                var c = b;
-                d = d < 2 * a.length ? d / 2 : a.length;
-                for (var e = 0; e < d; ++e)
-                    G[b >> 1] = a.charCodeAt(e), b += 2;
-                return G[b >> 1] = 0, b - c;
-            }, jb = (a) => 2 * a.length, kb = (a, b) => {
-                for (var d = 0, c = ""; !(d >= b / 4);) {
-                    var e = I[a + 4 * d >> 2];
-                    if (e == 0)
-                        break;
-                    ++d, 65536 <= e ? (e -= 65536, c += String.fromCharCode(55296 | e >> 10, 56320 | e & 1023)) : c += String.fromCharCode(e);
-                }
-                return c;
-            }, lb = (a, b, d) => {
-                if (d ??= 2147483647, 4 > d)
-                    return 0;
-                var c = b;
-                d = c + d - 4;
-                for (var e = 0; e < a.length; ++e) {
-                    var f = a.charCodeAt(e);
-                    if (55296 <= f && 57343 >= f) {
-                        var m = a.charCodeAt(++e);
-                        f = 65536 + ((f & 1023) << 10) | m & 1023;
-                    }
-                    if (I[b >> 2] = f, b += 4, b + 4 > d)
-                        break;
-                }
-                return I[b >> 2] = 0, b - c;
-            }, mb = (a) => {
-                for (var b = 0, d = 0; d < a.length; ++d) {
-                    var c = a.charCodeAt(d);
-                    55296 <= c && 57343 >= c && ++d, b += 4;
-                }
-                return b;
-            }, nb = 0, ob = [], pb = (a) => {
-                var b = ob.length;
-                return ob.push(a), b;
-            }, qb = (a, b) => {
-                var d = R[a];
-                if (d === void 0)
-                    throw a = `${b} has unknown type ${ab(a)}`, new T4(a);
-                return d;
-            }, rb = (a, b) => {
-                for (var d = Array(a), c = 0; c < a; ++c)
-                    d[c] = qb(J[b + 4 * c >> 2], `parameter ${c}`);
-                return d;
-            }, sb = (a, b, d) => {
-                var c = [];
-                return a = a.toWireType(c, d), c.length && (J[b >> 2] = Ka(c)), a;
-            }, X = {}, tb = (a) => {
-                ia = a, O || 0 < nb || (g.onExit?.(a), E = true), u(a, new va(a));
-            }, ub = (a) => {
-                if (!E)
-                    try {
-                        if (a(), !(O || 0 < nb))
-                            try {
-                                ia = a = ia, tb(a);
-                            }
-                            catch (b) {
-                                b instanceof va || b == "unwind" || u(1, b);
-                            }
-                    }
-                    catch (b) {
-                        b instanceof va || b == "unwind" || u(1, b);
-                    }
-            }, vb = Array(256), Y = 0; 256 > Y; ++Y)
-                vb[Y] = String.fromCharCode(Y);
-            Da = vb, V.push(0, 1, void 0, 1, null, 1, true, 1, false, 1), g.count_emval_handles = () => V.length / 2 - 5 - Ha.length, g.noExitRuntime && (O = g.noExitRuntime), g.printErr && (A = g.printErr), g.wasmBinary && (C = g.wasmBinary);
-            var Ab = { u: (a, b, d) => {
-                    var c = new Aa(a);
-                    throw J[c.I + 16 >> 2] = 0, J[c.I + 4 >> 2] = b, J[c.I + 8 >> 2] = d, Ba = a, Ca++, Ba;
-                }, v: () => qa(""), l: (a, b, d) => {
-                    b = P(b), U2(a, { name: b, fromWireType: (c) => c, toWireType: function (c, e) {
-                            if (typeof e != "bigint" && typeof e != "number")
-                                throw e === null ? e = "null" : (c = typeof e, e = c === "object" || c === "array" || c === "function" ? e.toString() : "" + e), new TypeError(`Cannot convert "${e}" to ${this.name}`);
-                            return typeof e == "number" && (e = BigInt(e)), e;
-                        }, H: 8, readValueFromPointer: Ga(b, d, b.indexOf("u") == -1), G: null });
-                }, o: (a, b, d, c) => {
-                    b = P(b), U2(a, { name: b, fromWireType: function (e) {
-                            return !!e;
-                        }, toWireType: function (e, f) {
-                            return f ? d : c;
-                        }, H: 8, readValueFromPointer: function (e) {
-                            return this.fromWireType(F[e]);
-                        }, G: null });
-                }, m: (a) => U2(a, Ma), k: (a, b, d) => {
-                    b = P(b), U2(a, { name: b, fromWireType: (c) => c, toWireType: (c, e) => e, H: 8, readValueFromPointer: Na(b, d), G: null });
-                }, c: (a, b, d, c, e, f, m) => {
-                    var h = Ua(b, d);
-                    a = P(a), a = db(a), e = Ya(c, e), Ta(a, function () {
-                        bb(`Cannot call ${a} due to unbound types`, h);
-                    }, b - 1), cb(h, (l) => {
-                        var k = [l[0], null].concat(l.slice(1));
-                        l = a;
-                        var p2 = a, z = e, n2 = k.length;
-                        if (2 > n2)
-                            throw new T4("argTypes array size mismatch! Must at least get return value and 'this' types!");
-                        var B = k[1] !== null && false, M = Pa(k), Qa = k[0].name !== "void";
-                        z = [p2, Ea, z, f, Oa, k[0], k[1]];
-                        for (var x = 0; x < n2 - 2; ++x)
-                            z.push(k[x + 2]);
-                        if (!M)
-                            for (x = B ? 1 : 2; x < k.length; ++x)
-                                k[x].G !== null && z.push(k[x].G);
-                        M = Pa(k), x = k.length - 2;
-                        var r = [], N = ["fn"];
-                        for (B && N.push("thisWired"), n2 = 0; n2 < x; ++n2)
-                            r.push(`arg${n2}`), N.push(`arg${n2}Wired`);
-                        r = r.join(","), N = N.join(","), r = `return function (${r}) {
-`, M && (r += `var destructors = [];
-`);
-                        var Ra = M ? "destructors" : "null", oa = "humanName throwBindingError invoker fn runDestructors retType classParam".split(" ");
-                        for (B && (r += `var thisWired = classParam['toWireType'](${Ra}, this);
-`), n2 = 0; n2 < x; ++n2)
-                            r += `var arg${n2}Wired = argType${n2}['toWireType'](${Ra}, arg${n2});
-`, oa.push(`argType${n2}`);
-                        if (r += (Qa || m ? "var rv = " : "") + `invoker(${N});
-`, M)
-                            r += `runDestructors(destructors);
-`;
-                        else
-                            for (n2 = B ? 1 : 2; n2 < k.length; ++n2)
-                                B = n2 === 1 ? "thisWired" : "arg" + (n2 - 2) + "Wired", k[n2].G !== null && (r += `${B}_dtor(${B});
-`, oa.push(`${B}_dtor`));
-                        Qa && (r += `var ret = retType['fromWireType'](rv);
-return ret;
-`);
-                        let [yb, zb] = [oa, r + `}
-`];
-                        if (k = new Function(...yb, zb)(...z), p2 = Object.defineProperty(k, "name", { value: p2 }), k = b - 1, !g.hasOwnProperty(l))
-                            throw new Va("Replacing nonexistent public symbol");
-                        return g[l].F !== void 0 && k !== void 0 ? g[l].F[k] = p2 : (g[l] = p2, g[l].J = k), [];
-                    });
-                }, b: (a, b, d, c, e) => {
-                    if (b = P(b), e === -1 && (e = 4294967295), e = (h) => h, c === 0) {
-                        var f = 32 - 8 * d;
-                        e = (h) => h << f >>> f;
-                    }
-                    var m = b.includes("unsigned") ? function (h, l) {
-                        return l >>> 0;
-                    } : function (h, l) {
-                        return l;
-                    };
-                    U2(a, { name: b, fromWireType: e, toWireType: m, H: 8, readValueFromPointer: Ga(b, d, c !== 0), G: null });
-                }, a: (a, b, d) => {
-                    function c(f) {
-                        return new e(ja.buffer, J[f + 4 >> 2], J[f >> 2]);
-                    }
-                    var e = [Int8Array, Uint8Array, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array][b];
-                    d = P(d), U2(a, { name: d, fromWireType: c, H: 8, readValueFromPointer: c }, { K: true });
-                }, n: (a, b) => {
-                    b = P(b), U2(a, { name: b, fromWireType: function (d) {
-                            for (var c = J[d >> 2], e = d + 4, f, m = e, h = 0; h <= c; ++h) {
-                                var l = e + h;
-                                (h == c || F[l] == 0) && (m = m ? fb(m, l - m) : "", f === void 0 ? f = m : (f += "\0", f += m), m = l + 1);
-                            }
-                            return W(d), f;
-                        }, toWireType: function (d, c) {
-                            c instanceof ArrayBuffer && (c = new Uint8Array(c));
-                            var e, f = typeof c == "string";
-                            if (!(f || ArrayBuffer.isView(c) && c.BYTES_PER_ELEMENT == 1))
-                                throw new T4("Cannot pass non-string to std::string");
-                            var m;
-                            if (f)
-                                for (e = m = 0; e < c.length; ++e) {
-                                    var h = c.charCodeAt(e);
-                                    127 >= h ? m++ : 2047 >= h ? m += 2 : 55296 <= h && 57343 >= h ? (m += 4, ++e) : m += 3;
-                                }
-                            else
-                                m = c.length;
-                            if (e = m, m = wb(4 + e + 1), h = m + 4, J[m >> 2] = e, f) {
-                                if (f = h, h = e + 1, e = F, 0 < h) {
-                                    h = f + h - 1;
-                                    for (var l = 0; l < c.length; ++l) {
-                                        var k = c.charCodeAt(l);
-                                        if (55296 <= k && 57343 >= k) {
-                                            var p2 = c.charCodeAt(++l);
-                                            k = 65536 + ((k & 1023) << 10) | p2 & 1023;
-                                        }
-                                        if (127 >= k) {
-                                            if (f >= h)
-                                                break;
-                                            e[f++] = k;
-                                        }
-                                        else {
-                                            if (2047 >= k) {
-                                                if (f + 1 >= h)
-                                                    break;
-                                                e[f++] = 192 | k >> 6;
-                                            }
-                                            else {
-                                                if (65535 >= k) {
-                                                    if (f + 2 >= h)
-                                                        break;
-                                                    e[f++] = 224 | k >> 12;
-                                                }
-                                                else {
-                                                    if (f + 3 >= h)
-                                                        break;
-                                                    e[f++] = 240 | k >> 18, e[f++] = 128 | k >> 12 & 63;
-                                                }
-                                                e[f++] = 128 | k >> 6 & 63;
-                                            }
-                                            e[f++] = 128 | k & 63;
-                                        }
-                                    }
-                                    e[f] = 0;
-                                }
-                            }
-                            else
-                                F.set(c, h);
-                            return d !== null && d.push(W, m), m;
-                        }, H: 8, readValueFromPointer: La, G(d) {
-                            W(d);
-                        } });
-                }, e: (a, b, d) => {
-                    if (d = P(d), b === 2)
-                        var c = hb, e = ib, f = jb, m = (h) => H[h >> 1];
-                    else
-                        b === 4 && (c = kb, e = lb, f = mb, m = (h) => J[h >> 2]);
-                    U2(a, { name: d, fromWireType: (h) => {
-                            for (var l = J[h >> 2], k, p2 = h + 4, z = 0; z <= l; ++z) {
-                                var n2 = h + 4 + z * b;
-                                (z == l || m(n2) == 0) && (p2 = c(p2, n2 - p2), k === void 0 ? k = p2 : (k += "\0", k += p2), p2 = n2 + b);
-                            }
-                            return W(h), k;
-                        }, toWireType: (h, l) => {
-                            if (typeof l != "string")
-                                throw new T4(`Cannot pass non-string to C++ string type ${d}`);
-                            var k = f(l), p2 = wb(4 + k + b);
-                            return J[p2 >> 2] = k / b, e(l, p2 + 4, k + b), h !== null && h.push(W, p2), p2;
-                        }, H: 8, readValueFromPointer: La, G(h) {
-                            W(h);
-                        } });
-                }, f: (a) => {
-                    U2(a, Ma);
-                }, p: (a, b) => {
-                    b = P(b), U2(a, { L: true, name: b, H: 0, fromWireType: () => {
-                        }, toWireType: () => {
-                        } });
-                }, s: () => {
-                    O = false, nb = 0;
-                }, i: (a, b, d, c) => (a = ob[a], b = Ja(b), a(null, b, d, c)), d: Ia, h: (a, b, d) => {
-                    b = rb(a, b);
-                    var c = b.shift();
-                    a--;
-                    var e = `return function (obj, func, destructorsRef, args) {
-`, f = 0, m = [];
-                    d === 0 && m.push("obj");
-                    for (var h = ["retType"], l = [c], k = 0; k < a; ++k)
-                        m.push(`arg${k}`), h.push(`argType${k}`), l.push(b[k]), e += `  var arg${k} = argType${k}.readValueFromPointer(args${f ? "+" + f : ""});
-`, f += b[k].H;
-                    return e += `  var rv = ${d === 1 ? "new func" : "func.call"}(${m.join(", ")});
-`, c.L || (h.push("emval_returnValue"), l.push(sb), e += `  return emval_returnValue(retType, destructorsRef, rv);
-`), a = new Function(...h, e + `};
-`)(...l), d = `methodCaller<(${b.map((p2) => p2.name).join(", ")}) => ${c.name}>`, pb(Object.defineProperty(a, "name", { value: d }));
-                }, q: (a) => {
-                    9 < a && (V[a + 1] += 1);
-                }, g: (a) => {
-                    var b = Ja(a);
-                    Oa(b), Ia(a);
-                }, j: (a, b) => (a = qb(a, "_emval_take_value"), a = a.readValueFromPointer(b), Ka(a)), t: (a, b) => {
-                    if (X[a] && (clearTimeout(X[a].id), delete X[a]), !b)
-                        return 0;
-                    var d = setTimeout(() => {
-                        delete X[a], ub(() => xb(a, performance.now()));
-                    }, b);
-                    return X[a] = { id: d, M: b }, 0;
-                }, w: (a) => {
-                    var b = F.length;
-                    if (a >>>= 0, 2147483648 < a)
-                        return false;
-                    for (var d = 1; 4 >= d; d *= 2) {
-                        var c = b * (1 + 0.2 / d);
-                        c = Math.min(c, a + 100663296);
-                        a: {
-                            c = (Math.min(2147483648, 65536 * Math.ceil(Math.max(a, c) / 65536)) - D2.buffer.byteLength + 65535) / 65536 | 0;
-                            try {
-                                D2.grow(c), pa();
-                                var e = 1;
-                                break a;
-                            }
-                            catch {
-                            }
-                            e = void 0;
-                        }
-                        if (e)
-                            return true;
-                    }
-                    return false;
-                }, r: tb }, Z = await (async function () {
-                function a(c) {
-                    return Z = c.exports, D2 = Z.x, pa(), Xa = Z.D, K--, g.monitorRunDependencies?.(K), K == 0 && L && (c = L, L = null, c()), Z;
-                }
-                K++, g.monitorRunDependencies?.(K);
-                var b = { a: Ab };
-                if (g.instantiateWasm)
-                    return new Promise((c) => {
-                        g.instantiateWasm(b, (e, f) => {
-                            c(a(e, f));
-                        });
-                    });
-                ra ??= g.locateFile ? g.locateFile ? g.locateFile("silk.wasm", v) : v + "silk.wasm" : new URL("silk.wasm", import.meta.url).href;
-                try {
-                    var d = await ua(b);
-                    return a(d.instance);
-                }
-                catch (c) {
-                    return q(c), Promise.reject(c);
-                }
-            })(), $a = Z.z, wb = Z.A, W = Z.B, xb = Z.C;
-            function Bb() {
-                function a() {
-                    if (g.calledRun = true, !E) {
-                        if (Z.y(), aa(g), g.onRuntimeInitialized?.(), g.postRun)
-                            for (typeof g.postRun == "function" && (g.postRun = [g.postRun]); g.postRun.length;) {
-                                var b = g.postRun.shift();
-                                xa.push(b);
-                            }
-                        wa(xa);
-                    }
-                }
-                if (0 < K)
-                    L = Bb;
-                else {
-                    if (g.preRun)
-                        for (typeof g.preRun == "function" && (g.preRun = [g.preRun]); g.preRun.length;)
-                            za();
-                    wa(ya), 0 < K ? L = Bb : g.setStatus ? (g.setStatus("Running..."), setTimeout(() => {
-                        setTimeout(() => g.setStatus(""), 1), a();
-                    }, 1)) : a();
-                }
-            }
-            if (g.preInit)
-                for (typeof g.preInit == "function" && (g.preInit = [g.preInit]); 0 < g.preInit.length;)
-                    g.preInit.shift()();
-            return Bb(), moduleRtn = ba, moduleRtn;
-        };
-        silk_default = Module;
-        audioEncodingNames = ["int", "float"];
-        wavFileTypeAudioEncodings = [0, 0, 0, 1];
-    }
-});
-import fs13 from "node:fs";
-import { spawn as spawn3, spawnSync } from "node:child_process";
-function findFfmpeg(env = process.env) {
-    if (ffmpegChecked && env === process.env)
-        return ffmpegPath;
-    const candidate = env.NERONET_FFMPEG || "ffmpeg";
-    let found = null;
-    try {
-        const r = spawnSync(candidate, ["-hide_banner", "-version"], { windowsHide: true, timeout: 5e3, encoding: "utf8" });
-        if (r.status === 0 && /ffmpeg version/i.test(r.stdout))
-            found = candidate;
-    }
-    catch {
-    }
-    if (env === process.env) {
-        ffmpegChecked = true;
-        ffmpegPath = found;
-    }
-    return found;
-}
-function runFfmpeg(args, input) {
-    const exe = findFfmpeg();
-    if (!exe)
-        return Promise.reject(new Error("this audio/video format needs ffmpeg: " + FFMPEG_HINT));
-    return new Promise((resolve, reject) => {
-        const p2 = spawn3(exe, ["-hide_banner", "-loglevel", "error", ...args], { windowsHide: true });
-        const out = [], err2 = [];
-        p2.stdout.on("data", (d) => out.push(d));
-        p2.stderr.on("data", (d) => err2.push(d));
-        p2.on("error", reject);
-        p2.on("close", (code) => code === 0 ? resolve(Buffer.concat(out)) : reject(new Error("ffmpeg failed: " + Buffer.concat(err2).toString().slice(-300))));
-        if (input)
-            p2.stdin.end(input);
-        else
-            p2.stdin.end();
-    });
-}
-function ffmpegInfo(file) {
-    const exe = findFfmpeg();
-    if (!exe)
-        return null;
-    const r = spawnSync(exe, ["-hide_banner", "-i", file], { windowsHide: true, timeout: 15e3, encoding: "utf8" });
-    const text2 = r.stderr || "";
-    const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(text2);
-    const v = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(text2);
-    return { duration: d ? +d[1] * 3600 + +d[2] * 60 + parseFloat(d[3]) : 0, width: v ? +v[1] : 0, height: v ? +v[2] : 0 };
-}
-function normalizeSilk(bytes) {
-    const b = Buffer.from(bytes);
-    if (b.subarray(0, 9).toString("latin1") === "#!SILK_V3")
-        return Buffer.concat([Buffer.from([2]), b]);
-    if (b[0] !== 2 && b.subarray(1, 10).toString("latin1") === "#!SILK_V3") {
-        const c = Buffer.from(b);
-        c[0] = 2;
-        return c;
-    }
-    return b;
-}
-function isSilkBytes(bytes) {
-    return normalizeSilk(bytes).subarray(1, 10).toString("latin1") === "#!SILK_V3";
-}
-function wavToMonoS16(bytes) {
-    const b = Buffer.from(bytes);
-    if (b.toString("latin1", 0, 4) !== "RIFF" || b.toString("latin1", 8, 12) !== "WAVE")
-        throw new Error("not a WAV file");
-    let off = 12, fmt = null, data = null;
-    while (off + 8 <= b.length) {
-        const id = b.toString("latin1", off, off + 4), size = b.readUInt32LE(off + 4), body = off + 8;
-        if (id === "fmt ") {
-            fmt = { code: b.readUInt16LE(body), channels: b.readUInt16LE(body + 2), rate: b.readUInt32LE(body + 4), bits: b.readUInt16LE(body + 14) };
-            if (fmt.code === 65534 && size >= 26)
-                fmt.code = b.readUInt16LE(body + 24);
-        }
-        else if (id === "data") {
-            data = b.subarray(body, Math.min(b.length, body + size));
-            break;
-        }
-        off = body + size + (size & 1);
-    }
-    if (!fmt || !data)
-        throw new Error("WAV without fmt/data chunk");
-    const code = fmt.code;
-    const bytesPer = fmt.bits / 8, frame = bytesPer * fmt.channels;
-    if (![1, 3].includes(code) || ![16, 24, 32].includes(fmt.bits) || code === 3 && fmt.bits !== 32)
-        throw new Error(`unsupported WAV encoding (format ${fmt.code}, ${fmt.bits}-bit)`);
-    const frames = Math.floor(data.length / frame), out = new Int16Array(frames);
-    for (let i = 0; i < frames; i++) {
-        let sum = 0;
-        for (let c = 0; c < fmt.channels; c++) {
-            const p2 = i * frame + c * bytesPer;
-            let s;
-            if (code === 3)
-                s = data.readFloatLE(p2);
-            else if (fmt.bits === 16)
-                s = data.readInt16LE(p2) / 32768;
-            else if (fmt.bits === 24)
-                s = data.readIntLE(p2, 3) / 8388608;
-            else
-                s = data.readInt32LE(p2) / 2147483648;
-            sum += s;
-        }
-        out[i] = Math.max(-32768, Math.min(32767, Math.round(sum / fmt.channels * 32767)));
-    }
-    return { pcm: out, rate: fmt.rate };
-}
-function resampleS16(pcm, from, to) {
-    if (from === to)
-        return pcm;
-    const n2 = Math.max(1, Math.round(pcm.length * to / from)), out = new Int16Array(n2), step = from / to;
-    for (let i = 0; i < n2; i++) {
-        const x = i * step, i0 = Math.floor(x), i1 = Math.min(pcm.length - 1, i0 + 1), f = x - i0;
-        out[i] = Math.round((pcm[Math.min(i0, pcm.length - 1)] ?? 0) * (1 - f) + (pcm[i1] ?? 0) * f);
-    }
-    return out;
-}
-function s16ToWav(pcm, rate) {
-    const data = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), h = Buffer.alloc(44);
-    h.write("RIFF", 0);
-    h.writeUInt32LE(36 + data.length, 4);
-    h.write("WAVE", 8);
-    h.write("fmt ", 12);
-    h.writeUInt32LE(16, 16);
-    h.writeUInt16LE(1, 20);
-    h.writeUInt16LE(1, 22);
-    h.writeUInt32LE(rate, 24);
-    h.writeUInt32LE(rate * 2, 28);
-    h.writeUInt16LE(2, 32);
-    h.writeUInt16LE(16, 34);
-    h.write("data", 36);
-    h.writeUInt32LE(data.length, 40);
-    return Buffer.concat([h, data]);
-}
-async function toPcm(bytes) {
-    const b = Buffer.from(bytes);
-    if (isSilkBytes(b)) {
-        const d = await decode2(normalizeSilk(b), SILK_RATE);
-        return { pcm: new Int16Array(d.data.buffer, d.data.byteOffset, d.data.byteLength / 2), rate: SILK_RATE };
-    }
-    if (isWav(b)) {
-        try {
-            const w = wavToMonoS16(b);
-            return SILK_RATES.has(w.rate) ? w : { pcm: resampleS16(w.pcm, w.rate, SILK_RATE), rate: SILK_RATE };
-        }
-        catch (error) {
-            if (!findFfmpeg())
-                throw error;
-        }
-    }
-    const raw = await runFfmpeg(["-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", String(SILK_RATE), "pipe:1"], b);
-    return { pcm: new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.byteLength / 2)), rate: SILK_RATE };
-}
-var SILK_RATE, SILK_RATES, FFMPEG_HINT, ffmpegChecked, ffmpegPath, isWav, audioAddon;
-var init_audio_addon = __esm({
-    "audio-addon.mjs"() {
-        init_lib();
-        SILK_RATE = 24e3;
-        SILK_RATES = new Set([8e3, 12e3, 16e3, 24e3, 32e3, 44100, 48e3]);
-        FFMPEG_HINT = "install ffmpeg and put it on PATH, or set NERONET_FFMPEG to ffmpeg.exe";
-        ffmpegChecked = false;
-        ffmpegPath = null;
-        isWav = (b) => b.length >= 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WAVE";
-        audioAddon = Object.freeze({
-            neronet: true,
-            async getDuration(file) {
-                const b = fs13.readFileSync(file);
-                if (isSilkBytes(b))
-                    return getDuration(normalizeSilk(b)) / 1e3;
-                if (isWav(b)) {
-                    try {
-                        const w = wavToMonoS16(b);
-                        return w.pcm.length / w.rate;
-                    }
-                    catch {
-                    }
-                }
-                return ffmpegInfo(file)?.duration || 1;
-            },
-            async convertToNTSilkTct(input, output) {
-                const b = fs13.readFileSync(input);
-                if (isSilkBytes(b)) {
-                    fs13.writeFileSync(output, normalizeSilk(b));
-                    return;
-                }
-                const { pcm, rate } = await toPcm(b);
-                if (!pcm.length)
-                    throw new Error("audio has no samples");
-                const e = await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate);
-                fs13.writeFileSync(output, Buffer.from(e.data));
-            },
-            async decodeAudioToFmt(input, output, format2) {
-                const { pcm, rate } = await toPcm(fs13.readFileSync(input));
-                const fmt = String(format2).toLowerCase();
-                if (fmt === "wav")
-                    fs13.writeFileSync(output, s16ToWav(pcm, rate));
-                else if (fmt === "pcm")
-                    fs13.writeFileSync(output, Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
-                else if (fmt === "silk")
-                    fs13.writeFileSync(output, Buffer.from((await encode2(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), rate)).data));
-                else {
-                    const out = await runFfmpeg(["-f", "s16le", "-ar", String(rate), "-ac", "1", "-i", "pipe:0", "-f", fmt === "m4a" ? "ipod" : fmt, "pipe:1"], Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
-                    fs13.writeFileSync(output, out);
-                }
-                return { result: true };
-            },
-            async getVideoInfo(file) {
-                const info = ffmpegInfo(file);
-                if (!info)
-                    throw new Error("video thumbnail needs ffmpeg: " + FFMPEG_HINT);
-                let image = null;
-                try {
-                    image = await runFfmpeg(["-ss", "0", "-i", file, "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1"]);
-                }
-                catch {
-                    image = null;
-                }
-                return { ...info, image };
-            }
-        });
-    }
-});
 import crypto10 from "node:crypto";
-import fs14 from "node:fs";
-import os from "node:os";
-import path14 from "node:path";
+import fs18 from "node:fs";
+import os3 from "node:os";
+import path19 from "node:path";
 import zlib3 from "node:zlib";
 function uploadRequest(scene, target, { requestId, businessType, uploadInfo, extBizInfo, compat }) {
     return {
@@ -14024,9 +16192,9 @@ function waveform(pcm, channels2 = 1, bins = 30) {
     if (frames) {
         let any = false;
         for (let b = 0; b < bins; b++) {
-            const start = Math.floor(b * frames / bins), end = Math.max(start + 1, Math.floor((b + 1) * frames / bins));
+            const start2 = Math.floor(b * frames / bins), end = Math.max(start2 + 1, Math.floor((b + 1) * frames / bins));
             let peak = 0;
-            for (let f = start; f < end && f < frames; f++)
+            for (let f = start2; f < end && f < frames; f++)
                 for (let c = 0; c < channels2; c++)
                     peak = Math.max(peak, Math.abs(pcm.readInt16LE((f * channels2 + c) * 2)));
             out[b] = Math.min(255, Math.round(peak * 255 / 32767));
@@ -14038,25 +16206,25 @@ function waveform(pcm, channels2 = 1, bins = 30) {
     }
     return Buffer.from(PttWaveform.encode({ size: bins, amplitudes: out }));
 }
-async function prepareVoice(bytes, { addon = audioAddon, tmp = os.tmpdir() } = {}) {
-    const dir = fs14.mkdtempSync(path14.join(tmp, "neronet-voice-"));
+async function prepareVoice(bytes, { addon = audioAddon, tmp = os3.tmpdir() } = {}) {
+    const dir = fs18.mkdtempSync(path19.join(tmp, "neronet-voice-"));
     try {
-        const input = path14.join(dir, "in"), out = path14.join(dir, "out.silk"), wav = path14.join(dir, "wave.wav");
-        fs14.writeFileSync(input, bytes);
+        const input = path19.join(dir, "in"), out = path19.join(dir, "out.silk"), wav = path19.join(dir, "wave.wav");
+        fs18.writeFileSync(input, bytes);
         try {
             await addon.convertToNTSilkTct(input, out);
         }
         catch (e) {
             throw invalid7(`voice conversion failed: ${e?.message ?? e}`);
         }
-        const silk = fs14.readFileSync(out);
+        const silk = fs18.readFileSync(out);
         if (!silk.length)
             throw invalid7("voice is empty after SILK conversion");
         const duration = Math.max(1, Math.round(await addon.getDuration(out)));
         let wave;
         try {
             await addon.decodeAudioToFmt(out, wav, "wav");
-            const w = fs14.readFileSync(wav), data = w.indexOf("data", 12);
+            const w = fs18.readFileSync(wav), data = w.indexOf("data", 12);
             if (data > 0)
                 wave = waveform(w.subarray(data + 8, data + 8 + w.readUInt32LE(data + 4)), w.readUInt16LE(22) || 1);
         }
@@ -14065,7 +16233,7 @@ async function prepareVoice(bytes, { addon = audioAddon, tmp = os.tmpdir() } = {
         return { silk, duration, waveform: wave };
     }
     finally {
-        fs14.rmSync(dir, { recursive: true, force: true });
+        fs18.rmSync(dir, { recursive: true, force: true });
     }
 }
 function voiceRequest(scene, target, v) {
@@ -14131,25 +16299,25 @@ function placeholderCover() {
 async function prepareVideo(source, { thumb, addon = audioAddon } = {}) {
     let file = source.path, tmpDir = null;
     if (!file) {
-        tmpDir = fs14.mkdtempSync(path14.join(os.tmpdir(), "neronet-video-"));
-        file = path14.join(tmpDir, "in.mp4");
-        fs14.writeFileSync(file, source.bytes);
+        tmpDir = fs18.mkdtempSync(path19.join(os3.tmpdir(), "neronet-video-"));
+        file = path19.join(tmpDir, "in.mp4");
+        fs18.writeFileSync(file, source.bytes);
     }
     const cleanup = () => {
         if (tmpDir)
-            fs14.rmSync(tmpDir, { recursive: true, force: true });
+            fs18.rmSync(tmpDir, { recursive: true, force: true });
     };
     try {
-        const st = fs14.statSync(file), size = st.size;
+        const st = fs18.statSync(file), size = st.size;
         if (!size)
             throw invalid7("video is empty");
         if (size > VIDEO_MAX_BYTES)
             throw Object.assign(new Error(`NERONET_MEDIA_TOO_LARGE: video ${size} > ${VIDEO_MAX_BYTES}`), { code: "NERONET_MEDIA_TOO_LARGE" });
         const md52 = crypto10.createHash("md5"), sha1 = crypto10.createHash("sha1"), sha1Blocks = [];
-        const fd = fs14.openSync(file, "r"), buf = Buffer.allocUnsafe(BLOCK);
+        const fd = fs18.openSync(file, "r"), buf = Buffer.allocUnsafe(BLOCK);
         try {
             for (let off = 0; off < size;) {
-                const n2 = fs14.readSync(fd, buf, 0, Math.min(BLOCK, size - off), off);
+                const n2 = fs18.readSync(fd, buf, 0, Math.min(BLOCK, size - off), off);
                 if (!n2)
                     throw invalid7("video file shrank while hashing");
                 const c = buf.subarray(0, n2);
@@ -14160,7 +16328,7 @@ async function prepareVideo(source, { thumb, addon = audioAddon } = {}) {
             }
         }
         finally {
-            fs14.closeSync(fd);
+            fs18.closeSync(fd);
         }
         let info = null;
         try {
@@ -14207,10 +16375,10 @@ function videoRequest(scene, target, v) {
     });
 }
 async function uploadVideo(transport, highway, scene, target, v) {
-    const st = fs14.statSync(v.file);
+    const st = fs18.statSync(v.file);
     if (st.size !== v.size || st.mtimeMs !== v.mtimeMs)
         throw new AvUploadError("video source changed between hashing and upload");
-    const fh = await fs14.promises.open(v.file, "r");
+    const fh = await fs18.promises.open(v.file, "r");
     try {
         const source = { size: v.size, async read(off, len) {
                 const b = Buffer.allocUnsafe(len);
@@ -14296,17 +16464,17 @@ var init_http_client = __esm({
         PUBLIC_SUFFIX = new Set(["com", "cn", "net", "org", "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn"]);
         SEP = "\0";
         WebHttpError = class extends Error {
-            constructor(kind, detail, { sent = false, host = "", path: path35 = "", cause: cause2 = "" } = {}) {
+            constructor(kind, detail, { sent = false, host = "", path: path42 = "", cause: cause2 = "" } = {}) {
                 super(`${kind}: ${detail}`);
                 this.kind = kind;
                 this.sent = sent;
                 this.host = host;
-                this.path = path35;
+                this.path = path42;
                 this.causeCode = cause2;
             }
         };
         domainMatch = (host, domain) => host === domain || host.endsWith("." + domain);
-        pathMatch = (path35, cookiePath) => path35 === cookiePath || path35.startsWith(cookiePath) && (cookiePath.endsWith("/") || path35[cookiePath.length] === "/");
+        pathMatch = (path42, cookiePath) => path42 === cookiePath || path42.startsWith(cookiePath) && (cookiePath.endsWith("/") || path42[cookiePath.length] === "/");
         defaultPath = (pathname) => {
             const i = pathname.lastIndexOf("/");
             return i <= 0 ? "/" : pathname.slice(0, i);
@@ -14324,7 +16492,7 @@ var init_http_client = __esm({
                     const name = first.slice(0, eq).trim(), value = first.slice(eq + 1).trim();
                     if (!name)
                         continue;
-                    let domain = host, hostOnly = true, path35 = defaultPath(target.pathname), secure = false, expires = Infinity;
+                    let domain = host, hostOnly = true, path42 = defaultPath(target.pathname), secure = false, expires = Infinity;
                     for (const raw of parts) {
                         const i = raw.indexOf("="), key2 = (i < 0 ? raw : raw.slice(0, i)).trim().toLowerCase(), v = i < 0 ? "" : raw.slice(i + 1).trim();
                         if (key2 === "domain" && v) {
@@ -14332,7 +16500,7 @@ var init_http_client = __esm({
                             hostOnly = false;
                         }
                         else if (key2 === "path" && v.startsWith("/"))
-                            path35 = v;
+                            path42 = v;
                         else if (key2 === "secure")
                             secure = true;
                         else if (key2 === "max-age" && /^-?\d+$/.test(v))
@@ -14351,18 +16519,18 @@ var init_http_client = __esm({
                         rejected.push({ name, reason: "secure" });
                         continue;
                     }
-                    const key = domain + SEP + path35 + SEP + name;
+                    const key = domain + SEP + path42 + SEP + name;
                     if (!value || expires <= now2) {
                         this.#cookies.delete(key);
                         continue;
                     }
-                    this.#cookies.set(key, { name, value, domain, hostOnly, path: path35, secure, expires });
+                    this.#cookies.set(key, { name, value, domain, hostOnly, path: path42, secure, expires });
                     accepted.push(name);
                 }
                 return { accepted, rejected };
             }
-            set({ name, value, domain, path: path35 = "/", secure = true }) {
-                this.#cookies.set(domain + SEP + path35 + SEP + name, { name, value, domain, hostOnly: false, path: path35, secure, expires: Infinity });
+            set({ name, value, domain, path: path42 = "/", secure = true }) {
+                this.#cookies.set(domain + SEP + path42 + SEP + name, { name, value, domain, hostOnly: false, path: path42, secure, expires: Infinity });
             }
             #matching(url, now2) {
                 const target = url instanceof URL ? url : new URL(url), host = target.hostname.toLowerCase();
@@ -14486,129 +16654,9 @@ var init_http_client = __esm({
         };
     }
 });
-function projectSensitive(value, registry = secrets, depth = 0) {
-    if (typeof value === "string")
-        return maskUrlCredentials(registry.scrub(value));
-    if (value === null || typeof value !== "object")
-        return value;
-    if (depth > 12)
-        return "[omitted]";
-    if (Array.isArray(value))
-        return value.map((item) => projectSensitive(item, registry, depth + 1));
-    if (value instanceof Uint8Array)
-        return value;
-    const out = {};
-    for (const [key, item] of Object.entries(value)) {
-        out[key] = SENSITIVE_KEY.test(key) && item !== null && item !== void 0 && item !== "" ? MASK : projectSensitive(item, registry, depth + 1);
-    }
-    return out;
-}
-var MASK, SENSITIVE_KEY, URL_PARAM, SecretRegistry, secrets, maskUrlCredentials;
-var init_sensitive_projection = __esm({
-    "upper/onebot/sensitive-projection.mjs"() {
-        MASK = "***";
-        SENSITIVE_KEY = /^(set-?cookie|cookies?|p_?skey|skey|pskey|client_?key|pt4_token|pt_?key|super_?key|bkn|g_tk|csrf_token|token|access_token|authorization|password|secret)$/i;
-        URL_PARAM = /([?&](?:clientkey|client_key|p_skey|pskey|skey|g_tk|bkn|pt4_token|access_token)=)[^&#\s"']*/gi;
-        SecretRegistry = class {
-            #values = new Set();
-            get size() {
-                return this.#values.size;
-            }
-            add(value) {
-                const text2 = typeof value === "number" ? String(value) : value;
-                if (typeof text2 !== "string" || text2.length < 6)
-                    return;
-                this.#values.add(text2);
-                const encoded = encodeURIComponent(text2);
-                if (encoded !== text2)
-                    this.#values.add(encoded);
-            }
-            remove(value) {
-                const text2 = String(value ?? "");
-                this.#values.delete(text2);
-                this.#values.delete(encodeURIComponent(text2));
-            }
-            clear() {
-                this.#values.clear();
-            }
-            scrub(text2) {
-                if (typeof text2 !== "string" || !this.#values.size)
-                    return text2;
-                let out = text2;
-                for (const value of this.#values)
-                    if (out.includes(value))
-                        out = out.split(value).join(MASK);
-                return out;
-            }
-        };
-        secrets = new SecretRegistry();
-        maskUrlCredentials = (text2) => text2.replace(URL_PARAM, `$1${MASK}`);
-    }
-});
-var WEB_ERRORS, clip, WebServiceError, webError;
-var init_errors = __esm({
-    "upper/web/errors.mjs"() {
-        init_sensitive_projection();
-        WEB_ERRORS = Object.freeze({
-            NERONET_QZONE_PARAM_INVALID: { retcode: 1400, meaning: "参数不正确", advice: "按动作说明修正参数后重试" },
-            NERONET_WEB_DOMAIN_NOT_ALLOWED: { retcode: 1400, meaning: "该域名的网页登录态没有开放", advice: "只使用文档列出的功能" },
-            NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE: { retcode: 100, meaning: "机器人 QQ 不在线或业务已暂停", advice: "等 QQ 恢复在线后重试" },
-            NERONET_WEB_CREDENTIALS_UNAVAILABLE: { retcode: 100, meaning: "没有取得网页登录态", advice: "确认机器人 QQ 在线后重试；持续出现时带上阶段和代码反馈" },
-            NERONET_QZONE_AUTH_EXPIRED: { retcode: 100, meaning: "QQ 空间不接受当前登录态", advice: "登录态已自动刷新过一次；确认机器人账号能正常打开 QQ 空间后重试" },
-            NERONET_QZONE_VERIFICATION_REQUIRED: { retcode: 100, meaning: "QQ 空间要求人工验证", advice: "用机器人账号在 QQ 或浏览器中打开空间完成验证后重试，NeroNet 不会绕过验证" },
-            NERONET_QZONE_PERMISSION_DENIED: { retcode: 100, meaning: "QQ 空间拒绝了这次操作（没有权限）", advice: "确认说说属于机器人账号、对方空间允许访问" },
-            NERONET_QZONE_RATE_LIMITED: { retcode: 100, meaning: "QQ 空间提示操作过于频繁", advice: "过一段时间再手动重试，不要连续调用" },
-            NERONET_QZONE_REMOTE_ERROR: { retcode: 100, meaning: "QQ 空间返回了错误", advice: "按返回的代码和提示处理" },
-            NERONET_QZONE_RESPONSE_INVALID: { retcode: 100, meaning: "QQ 空间的响应无法识别或缺少必要内容", advice: "写入类操作请先到空间核对是否已生效，再决定是否重试" },
-            NERONET_QZONE_POST_NOT_FOUND: { retcode: 100, meaning: "说说不存在或已经删除", advice: "用 get_qzone_msg_list 核对 tid" },
-            NERONET_QZONE_DELETE_NOT_CONFIRMED: { retcode: 100, meaning: "QQ 空间接受了删除请求，但说说仍然存在", advice: "过一会儿再调用一次 delete_qzone_msg，并用 get_qzone_msg_list 核对" },
-            NERONET_QZONE_UPLOAD_FAILED: { retcode: 100, meaning: "图片没有准备好或上传失败，说说没有发表", advice: "检查这张图片后重试" },
-            NERONET_QZONE_OUTCOME_UNKNOWN: { retcode: 100, meaning: "请求已经发出但没有收到结果，不确定是否生效", advice: "先到空间或用 get_qzone_msg_list 核对，确认没有生效再重新调用；NeroNet 不会自动重发" },
-            NERONET_QZONE_NETWORK_FAILED: { retcode: 100, meaning: "与 QQ 空间的连接失败", advice: "检查网络和代理设置后重试" },
-            NERONET_QZONE_BUSY: { retcode: 100, meaning: "等待处理的空间请求太多", advice: "等前面的请求结束后重试" },
-            NERONET_SESSION_CHANGED: { retcode: 100, meaning: "账号会话已变化或程序正在停止，结果没有交付", advice: "程序恢复后重新调用；写入类操作请先核对是否已生效" }
-        });
-        clip = (text2, max) => {
-            const s = String(text2 ?? "").replace(/[\x00-\x1f\x7f]+/g, " ").trim();
-            return s.length > max ? s.slice(0, max) + "…" : s;
-        };
-        WebServiceError = class extends Error {
-            constructor(code, { stage, detail = "", image, http: http7, remoteCode, remoteSubcode, remoteMessage, cause: cause2, note = "" } = {}) {
-                const entry = WEB_ERRORS[code] ?? WEB_ERRORS.NERONET_QZONE_REMOTE_ERROR;
-                const facts = [`阶段 ${stage}`];
-                if (image !== void 0)
-                    facts.push(`第 ${image} 张图片`);
-                if (http7 !== void 0)
-                    facts.push(`HTTP ${http7}`);
-                if (remoteCode !== void 0)
-                    facts.push(`code ${remoteCode}`);
-                if (remoteSubcode !== void 0)
-                    facts.push(`subcode ${remoteSubcode}`);
-                if (remoteMessage)
-                    facts.push(`提示“${clip(remoteMessage, 80)}”`);
-                const text2 = `${code}: ${entry.meaning}（${facts.join("，")}）${detail ? `：${clip(detail, 160)}` : ""}。处理：${entry.advice}${note ? `；${note}` : ""}。`;
-                super(secrets.scrub(text2));
-                this.code = code;
-                this.retcode = entry.retcode;
-                this.stage = stage;
-                if (image !== void 0)
-                    this.image = image;
-                if (http7 !== void 0)
-                    this.http = http7;
-                if (remoteCode !== void 0)
-                    this.remoteCode = remoteCode;
-                if (remoteSubcode !== void 0)
-                    this.remoteSubcode = remoteSubcode;
-                if (cause2)
-                    this.cause = cause2;
-            }
-        };
-        webError = (code, info) => new WebServiceError(code, info);
-    }
-});
-function objectEnd(text2, start) {
+function objectEnd(text2, start2) {
     let depth = 0, inString = false;
-    for (let i = start; i < text2.length; i++) {
+    for (let i = start2; i < text2.length; i++) {
         const c = text2[i];
         if (inString) {
             if (c === "\\")
@@ -14628,12 +16676,12 @@ function objectEnd(text2, start) {
     }
     return -1;
 }
-function tryObject(text2, start) {
-    const end = objectEnd(text2, start);
+function tryObject(text2, start2) {
+    const end = objectEnd(text2, start2);
     if (end < 0)
         return null;
     try {
-        const value = JSON.parse(text2.slice(start, end));
+        const value = JSON.parse(text2.slice(start2, end));
         return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
     }
     catch {
@@ -14813,7 +16861,7 @@ var init_qzone_parser = __esm({
 function normalizeRight(value) {
     const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
     if (!QZONE_RIGHTS.includes(n2))
-        throw bad("ugc_right must be one of 1, 4, 16, 64, 128");
+        throw bad4("ugc_right must be one of 1, 4, 16, 64, 128");
     return n2;
 }
 function normalizeTargets(right, value, limits = QZONE_LIMITS) {
@@ -14826,19 +16874,19 @@ function normalizeTargets(right, value, limits = QZONE_LIMITS) {
         if (!s)
             continue;
         if (!/^[1-9]\d{4,9}$/.test(s) || Number(s) > 4294967295)
-            throw bad("target_uins must be QQ numbers");
+            throw bad4("target_uins must be QQ numbers");
         seen.add(s);
     }
     if (!seen.size)
-        throw bad("target_uins is required when ugc_right is 16 or 128");
+        throw bad4("target_uins is required when ugc_right is 16 or 128");
     if (seen.size > limits.maxTargets)
-        throw bad(`target_uins holds more than ${limits.maxTargets} numbers`);
+        throw bad4(`target_uins holds more than ${limits.maxTargets} numbers`);
     return [...seen];
 }
 function tidOf(value) {
     const tid = String(value ?? "").trim();
     if (!/^[0-9A-Za-z_]{8,64}$/.test(tid))
-        throw bad("tid is required and must be a post id");
+        throw bad4("tid is required and must be a post id");
     return tid;
 }
 function intIn(value, name, min, max, fallback) {
@@ -14846,7 +16894,7 @@ function intIn(value, name, min, max, fallback) {
         return fallback;
     const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
     if (!Number.isSafeInteger(n2) || n2 < min || n2 > max)
-        throw bad(`${name} must be an integer from ${min} to ${max}`);
+        throw bad4(`${name} must be an integer from ${min} to ${max}`);
     return n2;
 }
 function uinOf(value, fallback) {
@@ -14854,10 +16902,10 @@ function uinOf(value, fallback) {
         return fallback;
     const s = String(value).trim();
     if (!/^[1-9]\d{4,9}$/.test(s) || Number(s) > 4294967295)
-        throw bad("target_uin must be a QQ number");
+        throw bad4("target_uin must be a QQ number");
     return s;
 }
-var QZONE_DOMAIN, QZONE_RIGHTS, QZONE_LIMITS, ENDPOINTS, LIST_ROUTE_MEMORY_MS, TIMEOUT, RESPONSE_BYTES, FORM, bad, QzoneService;
+var QZONE_DOMAIN, QZONE_RIGHTS, QZONE_LIMITS, ENDPOINTS, LIST_ROUTE_MEMORY_MS, TIMEOUT, RESPONSE_BYTES, FORM, bad4, QzoneService;
 var init_qzone = __esm({
     "upper/web/qzone.mjs"() {
         init_errors();
@@ -14888,12 +16936,12 @@ var init_qzone = __esm({
         TIMEOUT = Object.freeze({ read: 2e4, write: 3e4, upload: 9e4, settle: 2e3 });
         RESPONSE_BYTES = 2 * 1024 * 1024;
         FORM = { "Content-Type": "application/x-www-form-urlencoded" };
-        bad = (detail) => webError("NERONET_QZONE_PARAM_INVALID", { stage: "parameters", detail });
+        bad4 = (detail) => webError("NERONET_QZONE_PARAM_INVALID", { stage: "parameters", detail });
         QzoneService = class {
-            constructor({ credentials, http: http7, selfUin, online, loadImage, isCurrent = () => true, limits = QZONE_LIMITS, timeouts = {}, log = () => {
+            constructor({ credentials, http: http8, selfUin, online, loadImage, isCurrent = () => true, limits = QZONE_LIMITS, timeouts = {}, log = () => {
             } }) {
                 this.credentials = credentials;
-                this.http = http7;
+                this.http = http8;
                 this.selfUin = selfUin;
                 this.online = online;
                 this.loadImage = loadImage;
@@ -14930,27 +16978,27 @@ var init_qzone = __esm({
                 this.pending++;
                 const started = Date.now();
                 const run = async () => {
-                    const result = await work(this.#assertActive(stage));
+                    const result2 = await work(this.#assertActive(stage));
                     this.#assertActive(stage);
-                    return result;
+                    return result2;
                 };
                 try {
-                    let result;
+                    let result2;
                     if (write) {
                         const queued = this.writes.then(run);
                         this.writes = queued.catch(() => {
                         });
-                        result = await queued;
+                        result2 = await queued;
                     }
                     else
-                        result = await run();
+                        result2 = await run();
                     this.log({ qzone: stage, ok: true, ms: Date.now() - started });
-                    return result;
+                    return result2;
                 }
                 catch (error) {
-                    const failure2 = error instanceof WebServiceError ? error : webError("NERONET_QZONE_REMOTE_ERROR", { stage, detail: "unexpected failure" });
-                    this.log({ qzone: stage, ok: false, ms: Date.now() - started, error: failure2.code, at: failure2.stage, ...failure2.remoteCode !== void 0 ? { remoteCode: failure2.remoteCode } : {}, ...failure2.remoteSubcode !== void 0 ? { remoteSubcode: failure2.remoteSubcode } : {}, ...failure2.http !== void 0 ? { http: failure2.http } : {} });
-                    throw failure2;
+                    const failure3 = error instanceof WebServiceError ? error : webError("NERONET_QZONE_REMOTE_ERROR", { stage, detail: "unexpected failure" });
+                    this.log({ qzone: stage, ok: false, ms: Date.now() - started, error: failure3.code, at: failure3.stage, ...failure3.remoteCode !== void 0 ? { remoteCode: failure3.remoteCode } : {}, ...failure3.remoteSubcode !== void 0 ? { remoteSubcode: failure3.remoteSubcode } : {}, ...failure3.http !== void 0 ? { http: failure3.http } : {} });
+                    throw failure3;
                 }
                 finally {
                     this.pending--;
@@ -15046,15 +17094,15 @@ var init_qzone = __esm({
             }
             publish({ content, images, ugcRight, targetUins } = {}) {
                 if (typeof content !== "string" || !content.trim())
-                    throw bad("content is required");
+                    throw bad4("content is required");
                 if ([...content].length > this.limits.maxContentChars)
-                    throw bad(`content is longer than ${this.limits.maxContentChars} characters`);
+                    throw bad4(`content is longer than ${this.limits.maxContentChars} characters`);
                 const right = normalizeRight(ugcRight), targets = normalizeTargets(right, targetUins, this.limits);
                 const sources = images === void 0 || images === null ? [] : images;
                 if (!Array.isArray(sources) || sources.some((s) => typeof s !== "string" || !s.trim()))
-                    throw bad("images must be an array of picture sources");
+                    throw bad4("images must be an array of picture sources");
                 if (sources.length > this.limits.maxImages)
-                    throw bad(`at most ${this.limits.maxImages} pictures per post`);
+                    throw bad4(`at most ${this.limits.maxImages} pictures per post`);
                 return this.#enter("publish", true, async (self2) => {
                     const pictures2 = await this.#loadPictures(sources);
                     const richvals = [];
@@ -15254,7 +17302,7 @@ var init_web_credentials = __esm({
         init_sensitive_projection();
         CLIENT_KEY_SERVICE = Object.freeze({ command: 4138, subCommand: 1, reserved: 0, request: wireType("web_auth.proto", "ClientKeyRequest"), response: wireType("web_auth.proto", "ClientKeyResponse") });
         PSKEY_SERVICE = Object.freeze({ command: 4138, subCommand: 0, reserved: 0, request: wireType("web_auth.proto", "PskeyRequest"), response: wireType("web_auth.proto", "PskeyResponse") });
-        WEB_DOMAINS = Object.freeze(["qzone.qq.com"]);
+        WEB_DOMAINS = Object.freeze(["qzone.qq.com", "qun.qq.com"]);
         CLIENT_KEY_INDEX_FALLBACK = 19;
         CREDENTIAL_TTL_MS = 10 * 6e4;
         JUMP_URL = "https://ssl.ptlogin2.qq.com/jump";
@@ -15262,10 +17310,10 @@ var init_web_credentials = __esm({
         HOP_TIMEOUT_MS = 8e3;
         CHAIN_TIMEOUT_MS = 2e4;
         WebCredentials = class {
-            constructor(transport, { http: http7, isCurrent = () => true, now: now2 = Date.now, jumpUrl = JUMP_URL, ttlMs = CREDENTIAL_TTL_MS, registry = secrets, log = () => {
+            constructor(transport, { http: http8, isCurrent = () => true, now: now2 = Date.now, jumpUrl = JUMP_URL, ttlMs = CREDENTIAL_TTL_MS, registry = secrets, log = () => {
             } }) {
                 this.transport = transport;
-                this.http = http7;
+                this.http = http8;
                 this.isCurrent = isCurrent;
                 this.now = now2;
                 this.jumpUrl = jumpUrl;
@@ -15299,8 +17347,8 @@ var init_web_credentials = __esm({
                 else
                     this.cache.clear();
             }
-            #assertActive(stage, epoch2) {
-                if (this.closed || !this.isCurrent() || String(this.transport.uin ?? "") !== this.account || epoch2 !== void 0 && epoch2 !== this.epoch)
+            #assertActive(stage, epoch3) {
+                if (this.closed || !this.isCurrent() || String(this.transport.uin ?? "") !== this.account || epoch3 !== void 0 && epoch3 !== this.epoch)
                     throw webError("NERONET_SESSION_CHANGED", { stage });
                 if (!this.account || !this.transport.isLoggedIn || this.transport.businessPaused)
                     throw webError("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE", { stage });
@@ -15320,18 +17368,18 @@ var init_web_credentials = __esm({
                     return cached;
                 let running = this.refreshing.get(domain);
                 if (!running || running.epoch !== this.epoch) {
-                    const epoch2 = this.epoch;
-                    const promise = this.#refresh(domain, epoch2).finally(() => {
+                    const epoch3 = this.epoch;
+                    const promise = this.#refresh(domain, epoch3).finally(() => {
                         if (this.refreshing.get(domain)?.promise === promise)
                             this.refreshing.delete(domain);
                     });
-                    running = { epoch: epoch2, promise };
+                    running = { epoch: epoch3, promise };
                     this.refreshing.set(domain, running);
                 }
                 return running.promise;
             }
-            async #refresh(domain, epoch2) {
-                const uin = this.account, report2 = { webCredentials: domain, hops: [], pskeySource: null, cookies: [], rejected: [] };
+            async #refresh(domain, epoch3) {
+                const uin = this.account, report3 = { webCredentials: domain, hops: [], pskeySource: null, cookies: [], rejected: [] };
                 try {
                     let key;
                     try {
@@ -15340,13 +17388,13 @@ var init_web_credentials = __esm({
                     catch (error) {
                         throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "client-key", detail: oidbDetail(error), cause: error });
                     }
-                    this.#assertActive("client-key", epoch2);
+                    this.#assertActive("client-key", epoch3);
                     const clientKey = typeof key.clientKey === "string" ? key.clientKey : "";
                     if (!clientKey)
                         throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "client-key", detail: "the account service returned no client key" });
                     this.#remember(clientKey);
                     const keyIndex = key.keyIndex || CLIENT_KEY_INDEX_FALLBACK;
-                    report2.keyIndexFallback = !key.keyIndex;
+                    report3.keyIndexFallback = !key.keyIndex;
                     const jar = new CookieJar(), site = new URL(`https://${domain}/`);
                     const first = new URL(this.jumpUrl);
                     first.search = `ptlang=1033&clientuin=${uin}&clientkey=${encodeURIComponent(clientKey)}&u1=${encodeURIComponent(`https://${domain}/${uin}/infocenter`)}&keyindex=${keyIndex}`;
@@ -15361,25 +17409,25 @@ var init_web_credentials = __esm({
                             response = await this.http.request({ url: next, jar, timeoutMs: Math.min(HOP_TIMEOUT_MS, left), maxBytes: 64 * 1024, readBody: false });
                         }
                         catch (error) {
-                            report2.hops.push({ host: next.hostname, failed: error?.kind ?? "error" });
+                            report3.hops.push({ host: next.hostname, failed: error?.kind ?? "error" });
                             if (hop === 0 || error?.kind === "cancelled")
                                 throw error?.kind === "cancelled" ? webError("NERONET_SESSION_CHANGED", { stage: "jump" }) : webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "jump", detail: `${next.hostname}: ${error?.message ?? error}`, cause: error });
                             break;
                         }
-                        report2.hops.push({ host: next.hostname, status: response.status });
+                        report3.hops.push({ host: next.hostname, status: response.status });
                         for (const r of response.cookies.rejected)
-                            report2.rejected.push(r.name);
+                            report3.rejected.push(r.name);
                         if (jar.get("p_skey", site))
                             break;
                         next = response.location;
                     }
                     for (const value of jar.values())
                         this.#remember(value);
-                    this.#assertActive("jump", epoch2);
+                    this.#assertActive("jump", epoch3);
                     if (!jar.get("uin", site))
-                        throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "jump", detail: "the login jump set no account cookie", http: report2.hops[0]?.status });
+                        throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "jump", detail: "the login jump set no account cookie", http: report3.hops[0]?.status });
                     let pskey = jar.get("p_skey", site);
-                    report2.pskeySource = pskey ? "jump" : null;
+                    report3.pskeySource = pskey ? "jump" : null;
                     if (!pskey) {
                         let reply;
                         try {
@@ -15388,26 +17436,26 @@ var init_web_credentials = __esm({
                         catch (error) {
                             throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "pskey", detail: oidbDetail(error), cause: error });
                         }
-                        this.#assertActive("pskey", epoch2);
+                        this.#assertActive("pskey", epoch3);
                         const item = (reply.pskeyItems ?? []).find((i) => i.domain === domain && typeof i.pskey === "string" && i.pskey);
                         if (!item)
                             throw webError("NERONET_WEB_CREDENTIALS_UNAVAILABLE", { stage: "pskey", detail: `no p_skey for ${domain}` });
                         pskey = item.pskey;
                         this.#remember(pskey);
                         jar.set({ name: "p_skey", value: pskey, domain });
-                        report2.pskeySource = "account-service";
+                        report3.pskeySource = "account-service";
                     }
                     const gtk = webToken(pskey);
                     this.#remember(gtk);
-                    report2.cookies = jar.names();
-                    const result = { domain, uin, jar, gtk, skey: jar.get("skey", site), pskey, obtainedAt: this.now() };
-                    this.#assertActive("credentials", epoch2);
-                    this.cache.set(domain, result);
-                    this.log({ ...report2, ok: true });
-                    return result;
+                    report3.cookies = jar.names();
+                    const result2 = { domain, uin, jar, gtk, skey: jar.get("skey", site), pskey, obtainedAt: this.now() };
+                    this.#assertActive("credentials", epoch3);
+                    this.cache.set(domain, result2);
+                    this.log({ ...report3, ok: true });
+                    return result2;
                 }
                 catch (error) {
-                    this.log({ ...report2, ok: false, error: String(error?.code ?? "error") });
+                    this.log({ ...report3, ok: false, error: String(error?.code ?? "error") });
                     throw error;
                 }
             }
@@ -15416,11 +17464,11 @@ var init_web_credentials = __esm({
 });
 function createQzoneService(transport, { isCurrent, loadImage, log = () => {
 }, fetchImpl = fetch }) {
-    const http7 = new WebHttp({ fetchImpl, hostAllowed: qqWebHost });
-    const credentials = new WebCredentials(transport, { http: http7, isCurrent, log });
+    const http8 = new WebHttp({ fetchImpl, hostAllowed: qqWebHost });
+    const credentials = new WebCredentials(transport, { http: http8, isCurrent, log });
     return new QzoneService({
         credentials,
-        http: http7,
+        http: http8,
         isCurrent,
         loadImage,
         log,
@@ -15437,7 +17485,204 @@ var init_service = __esm({
         qqWebHost = (host) => host === "qq.com" || host.endsWith(".qq.com");
     }
 });
-import fs15 from "node:fs";
+function decodeNoticeText(text2) {
+    return String(text2 ?? "").replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z]{2,6});/gi, (whole3, name) => {
+        if (name[0] !== "#")
+            return NAMED_ENTITIES[name.toLowerCase()] ?? whole3;
+        const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+        return code > 0 && code <= 1114111 && !(code >= 55296 && code <= 57343) ? String.fromCodePoint(code) : whole3;
+    });
+}
+function mapNoticeFeed(feed, forNewMembers) {
+    const images = (feed?.msg?.pics ?? []).filter((p2) => p2 && typeof p2.id === "string").map((p2) => ({ id: p2.id, url: `${NOTICE_IMAGE_CDN}/${p2.id}/`, width: Number(p2.w) || 0, height: Number(p2.h) || 0 }));
+    return {
+        notice_id: String(feed?.fid ?? ""),
+        sender_id: Number(feed?.u) || 0,
+        publish_time: Number(feed?.pubt) || 0,
+        message: { text: decodeNoticeText(feed?.msg?.text), image: images, images },
+        settings: feed?.settings ?? {},
+        read_num: Number(feed?.read_num) || 0,
+        send_to_new_members: forNewMembers,
+        type: Number(feed?.type) || (forNewMembers ? 20 : 1)
+    };
+}
+function mapNoticeList(reply) {
+    const out = [], index = new Map();
+    for (const [collection, forNew] of [[reply.feeds, false], [reply.inst, true]]) {
+        for (const feed of values(collection)) {
+            const n2 = mapNoticeFeed(feed, forNew);
+            if (!n2.notice_id)
+                continue;
+            if (!index.has(n2.notice_id)) {
+                index.set(n2.notice_id, out.length);
+                out.push(n2);
+            }
+            else if (forNew)
+                out[index.get(n2.notice_id)] = n2;
+        }
+    }
+    return out;
+}
+var NOTICE_DOMAIN, NOTICE_ENDPOINTS, NOTICE_LIMITS, NOTICE_IMAGE_CDN, REFERER, FORM2, TIMEOUT2, bad5, groupCode, flag01, values, NAMED_ENTITIES, GroupNoticeService;
+var init_group_notice = __esm({
+    "upper/web/group-notice.mjs"() {
+        init_errors();
+        init_web_credentials();
+        NOTICE_DOMAIN = "qun.qq.com";
+        NOTICE_ENDPOINTS = Object.freeze({
+            list: "https://web.qun.qq.com/cgi-bin/announce/list_announce",
+            publish: "https://web.qun.qq.com/cgi-bin/announce/add_qun_notice",
+            publishNewMembers: "https://web.qun.qq.com/cgi-bin/announce/add_qun_instruction",
+            remove: "https://web.qun.qq.com/cgi-bin/announce/del_feed"
+        });
+        NOTICE_LIMITS = Object.freeze({ maxTextChars: 4e3, maxListCount: 50 });
+        NOTICE_IMAGE_CDN = "https://gdynamic.qpic.cn/gdynamic";
+        REFERER = "https://web.qun.qq.com/mannounce/index.html?_wv=1031&_bid=148";
+        FORM2 = { "Content-Type": "application/x-www-form-urlencoded" };
+        TIMEOUT2 = Object.freeze({ read: 2e4, write: 3e4 });
+        bad5 = (detail) => webError("NERONET_GROUP_NOTICE_PARAM_INVALID", { stage: "parameters", detail });
+        groupCode = (v) => {
+            const n2 = typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v;
+            if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > 4294967295)
+                throw bad5("group_id must be a group number");
+            return String(n2);
+        };
+        flag01 = (v, name, fallback) => {
+            if (v === void 0 || v === null || v === "")
+                return fallback;
+            if (v === true || v === 1 || v === "1" || v === "true")
+                return 1;
+            if (v === false || v === 0 || v === "0" || v === "false")
+                return 0;
+            throw bad5(`${name} must be 0 or 1`);
+        };
+        values = (c) => Array.isArray(c) ? c : c && typeof c === "object" ? Object.values(c) : [];
+        NAMED_ENTITIES = Object.freeze({ nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" });
+        GroupNoticeService = class {
+            constructor({ credentials, http: http8, online, isCurrent = () => true, log = () => {
+            } }) {
+                this.credentials = credentials;
+                this.http = http8;
+                this.online = online;
+                this.isCurrent = isCurrent;
+                this.log = log;
+                this.closed = false;
+            }
+            close() {
+                this.closed = true;
+            }
+            #assertActive(stage) {
+                if (this.closed || !this.isCurrent())
+                    throw webError("NERONET_SESSION_CHANGED", { stage });
+                if (!this.online())
+                    throw webError("NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE", { stage });
+            }
+            async #call(stage, endpoint, fields2, { write = false, referer = false } = {}) {
+                this.#assertActive(stage);
+                const attempt = async (cred) => {
+                    const skey = cred.skey || "", pskey = cred.pskey || skey;
+                    const url = new URL(endpoint);
+                    url.searchParams.set("bkn", webToken(pskey));
+                    const body = new URLSearchParams({ ...fields2, bkn: webToken(skey) }).toString();
+                    let reply;
+                    try {
+                        reply = await this.http.request({ url, method: "POST", body, headers: { ...FORM2, ...referer ? { Referer: REFERER } : {} }, jar: cred.jar, timeoutMs: write ? TIMEOUT2.write : TIMEOUT2.read, maxBytes: 2 * 1024 * 1024 });
+                    }
+                    catch (error) {
+                        const sent = error?.sent !== false;
+                        if (error?.kind === "cancelled")
+                            throw webError(write && sent ? "NERONET_GROUP_NOTICE_OUTCOME_UNKNOWN" : "NERONET_SESSION_CHANGED", { stage });
+                        if (write && sent)
+                            throw webError("NERONET_GROUP_NOTICE_OUTCOME_UNKNOWN", { stage, detail: String(error?.message ?? error) });
+                        throw webError("NERONET_GROUP_NOTICE_NETWORK_FAILED", { stage, detail: String(error?.message ?? error) });
+                    }
+                    this.#assertActive(stage);
+                    if (reply.location) {
+                        if (/ptlogin|login/i.test(reply.location.hostname + reply.location.pathname))
+                            throw webError("NERONET_GROUP_NOTICE_AUTH_EXPIRED", { stage, http: reply.status });
+                        throw webError("NERONET_GROUP_NOTICE_REMOTE_ERROR", { stage, http: reply.status, detail: `unexpected redirect to ${reply.location.hostname}` });
+                    }
+                    if (reply.status >= 500 && write)
+                        throw webError("NERONET_GROUP_NOTICE_OUTCOME_UNKNOWN", { stage, http: reply.status });
+                    if (reply.status < 200 || reply.status >= 300)
+                        throw webError("NERONET_GROUP_NOTICE_REMOTE_ERROR", { stage, http: reply.status });
+                    let data;
+                    try {
+                        data = JSON.parse(reply.text);
+                    }
+                    catch {
+                        throw webError(write ? "NERONET_GROUP_NOTICE_OUTCOME_UNKNOWN" : "NERONET_GROUP_NOTICE_REMOTE_ERROR", { stage, detail: "the reply is not JSON" });
+                    }
+                    const ec = Number(data?.ec);
+                    if (ec !== 0)
+                        throw webError("NERONET_GROUP_NOTICE_REMOTE_ERROR", { stage, remoteCode: Number.isFinite(ec) ? ec : String(data?.ec), remoteMessage: data?.em });
+                    return data;
+                };
+                const started = Date.now();
+                try {
+                    let result2;
+                    try {
+                        result2 = await attempt(await this.credentials.get(NOTICE_DOMAIN));
+                    }
+                    catch (error) {
+                        if (error?.code !== "NERONET_GROUP_NOTICE_AUTH_EXPIRED")
+                            throw error;
+                        this.credentials.invalidate(NOTICE_DOMAIN);
+                        result2 = await attempt(await this.credentials.get(NOTICE_DOMAIN));
+                    }
+                    this.log({ groupNotice: stage, ok: true, ms: Date.now() - started });
+                    return result2;
+                }
+                catch (error) {
+                    const failure3 = error instanceof WebServiceError ? error : webError("NERONET_GROUP_NOTICE_REMOTE_ERROR", { stage, detail: "unexpected failure" });
+                    this.log({ groupNotice: stage, ok: false, ms: Date.now() - started, error: failure3.code });
+                    throw failure3;
+                }
+            }
+            async list({ groupId, count: count3 }) {
+                const qid = groupCode(groupId);
+                const n2 = count3 === void 0 ? 20 : Number(count3);
+                if (!Number.isInteger(n2) || n2 < 1 || n2 > NOTICE_LIMITS.maxListCount)
+                    throw bad5(`count must be 1 to ${NOTICE_LIMITS.maxListCount}`);
+                const data = await this.#call("list", NOTICE_ENDPOINTS.list, { qid, ft: "23", s: "-1", n: String(n2), i: "1", ni: "1" }, { referer: true });
+                return mapNoticeList(data);
+            }
+            async publish({ groupId, content, image, pinned, type, sendToNewMembers, showEditCard, tipWindow, confirmRequired }) {
+                const qid = groupCode(groupId);
+                const text2 = typeof content === "string" ? content : "";
+                if (!text2.trim())
+                    throw bad5("content is required");
+                if ([...text2].length > NOTICE_LIMITS.maxTextChars)
+                    throw bad5(`content is longer than ${NOTICE_LIMITS.maxTextChars} characters`);
+                if (image !== void 0 && image !== null && image !== "")
+                    throw bad5("pictures in group notices are not supported by this version");
+                const kind = type === void 0 || type === null || type === "" ? sendToNewMembers === true || sendToNewMembers === "true" || sendToNewMembers === 1 ? 20 : 1 : Number(type);
+                if (kind !== 1 && kind !== 20)
+                    throw bad5("type must be 1 (regular) or 20 (new members)");
+                const settings = JSON.stringify({
+                    is_show_edit_card: flag01(showEditCard, "is_show_edit_card", 1),
+                    tip_window_type: flag01(tipWindow, "tip_window_type", 1),
+                    confirm_required: flag01(confirmRequired, "confirm_required", 1)
+                });
+                const data = await this.#call("publish", kind === 20 ? NOTICE_ENDPOINTS.publishNewMembers : NOTICE_ENDPOINTS.publish, { qid, text: text2, pinned: String(flag01(pinned, "pinned", 0)), type: String(kind), settings }, { write: true });
+                return { notice_id: String(data?.new_fid ?? "") };
+            }
+            async remove({ groupId, noticeId }) {
+                const qid = groupCode(groupId);
+                const fid = String(noticeId ?? "").trim();
+                if (!fid || fid.length > 200)
+                    throw bad5("notice_id is required");
+                await this.#call("remove", NOTICE_ENDPOINTS.remove, { fid, qid }, { write: true });
+            }
+            async cookies(domain) {
+                this.#assertActive("cookies");
+                const cred = await this.credentials.get(domain);
+                return { cookies: cred.jar.header(new URL(`https://${domain}/`)), bkn: webToken(cred.skey || ""), gtk: cred.gtk };
+            }
+        };
+    }
+});
+import fs19 from "node:fs";
 import crypto11 from "node:crypto";
 import { EventEmitter as EventEmitter2 } from "node:events";
 function treeHas(nodes, pred) {
@@ -15476,7 +17721,7 @@ function fileSegmentPlan(seg) {
         fileHash: String(d.file_hash ?? d.fileHash ?? "").trim()
     };
 }
-var MEDIA_URL_WAIT_MS, DELIVERY_DRAIN_MS, within, UpperCore, FORWARD_NODE_TYPES, PREVIEW, hexOf2;
+var MEDIA_URL_WAIT_MS, DELIVERY_DRAIN_MS, REQUEST_PREPARE_MS, within, UpperCore, FORWARD_NODE_TYPES, PREVIEW, hexOf2;
 var init_core = __esm({
     "upper/core.mjs"() {
         init_inbound();
@@ -15491,6 +17736,9 @@ var init_core = __esm({
         init_interaction();
         init_media_urls();
         init_notices();
+        init_requests();
+        init_group_admin();
+        init_contacts();
         init_faces();
         init_custom_faces();
         init_file_upload();
@@ -15504,8 +17752,10 @@ var init_core = __esm({
         init_elements();
         init_av();
         init_service();
+        init_group_notice();
         MEDIA_URL_WAIT_MS = 5e3;
         DELIVERY_DRAIN_MS = 2e3;
+        REQUEST_PREPARE_MS = 4e3;
         within = (p2, ms) => {
             let t;
             return Promise.race([p2, new Promise((_, rej) => {
@@ -15549,6 +17799,13 @@ var init_core = __esm({
                     log: (e) => this.log.write(e),
                     loadImage: (source, maxBytes) => loadMediaSource(source, { what: "image", maxBytes, fetchImpl: this.fetchImpl })
                 });
+                this.groupNotices = new GroupNoticeService({
+                    credentials: this.qzone.credentials,
+                    http: this.qzone.http,
+                    log: (e) => this.log.write(e),
+                    online: () => this.online,
+                    isCurrent: () => !this.closed && this.deliveries.accepting !== false
+                });
             }
             get deliveryQueue() {
                 return this.deliveries.idle();
@@ -15591,6 +17848,10 @@ var init_core = __esm({
                 if (!ev)
                     return;
                 if (ev.kind === "unhandled") {
+                    if (isRequestPush(ev.msgType, ev.subType)) {
+                        this.#handleRequest(ev);
+                        return;
+                    }
                     if (NOTICE_MSG_TYPES.has(ev.msgType)) {
                         this.#handleNotice(ev);
                         return;
@@ -15637,6 +17898,65 @@ var init_core = __esm({
                                 emit();
                         } });
                 }
+            }
+            #handleRequest(ev) {
+                let requests;
+                try {
+                    requests = decodeRequest(ev.msg);
+                }
+                catch (error) {
+                    this.log.limited(`request:${ev.msgType}:${ev.subType}`, { upperRequestDecodeFailed: `${ev.msgType}/${ev.subType}`, error: String(error?.message ?? error).slice(0, 120) });
+                    return;
+                }
+                for (const r of requests) {
+                    const n2 = r.kind === "friend_request" ? { kind: "friend_request", time: r.time, userUin: "0", comment: r.comment, flag: friendFlag(r.uid) } : { kind: "group_request", time: r.time, groupId: r.groupId, subType: r.subType, userUin: "0", invitorUin: "0", comment: "", flag: "" };
+                    this.deliveries.push({
+                        prepare: (signal) => within(this.#prepareRequest(r, n2, signal), REQUEST_PREPARE_MS).catch((error) => this.log.limited("requestPrepare", { upperRequestPrepare: r.kind, error: String(error?.message ?? error).slice(0, 120) })),
+                        commit: ({ cancelled }) => {
+                            if (cancelled)
+                                return;
+                            if (n2.kind === "group_request" && !n2.flag)
+                                n2.flag = pendingGroupFlag(n2.groupId, r.role, n2.userUin);
+                            this.stats.requests = (this.stats.requests ?? 0) + 1;
+                            this.emit("notice", n2);
+                        }
+                    });
+                }
+            }
+            async #prepareRequest(r, n2, signal) {
+                n2.userUin = await this.#uinOfAnyone(r.uid, r.groupId);
+                if (r.invitorUid)
+                    n2.invitorUin = await this.#uinOfAnyone(r.invitorUid, r.groupId);
+                if (r.kind !== "group_request" || n2.userUin === "0")
+                    return;
+                const want = { groupId: r.groupId, role: r.role, uin: n2.userUin, invitorUin: r.invitorUid ? n2.invitorUin : "" };
+                for (let attempt = 0; attempt < 2 && !signal?.aborted; attempt++) {
+                    if (attempt)
+                        await new Promise((resolve) => setTimeout(resolve, 1e3));
+                    const entry = matchInbox(await fetchAllGroupRequests(this.transport), want);
+                    if (entry) {
+                        n2.flag = groupFlag(entry);
+                        n2.comment = entry.comment;
+                        return;
+                    }
+                }
+            }
+            async #uinOfAnyone(uid2, groupId) {
+                if (!uid2)
+                    return "0";
+                const known = this.#uinOf(uid2, groupId);
+                if (known)
+                    return known;
+                try {
+                    const p2 = await fetchUserProfileByUid(this.transport, uid2);
+                    if (p2.uin && p2.uin !== "0") {
+                        this.index.learnUid(p2.uin, uid2);
+                        return p2.uin;
+                    }
+                }
+                catch {
+                }
+                return "0";
             }
             #uinOf(uid2, groupId) {
                 if (!uid2)
@@ -15829,7 +18149,7 @@ var init_core = __esm({
                         continue;
                     }
                     let source = pickMediaSource(seg.data ?? {});
-                    const known = source && !/[\\/:]/.test(source) && !fs15.existsSync(source) ? this.index.findMedia?.(source) : null;
+                    const known = source && !/[\\/:]/.test(source) && !fs19.existsSync(source) ? this.index.findMedia?.(source) : null;
                     if (known?.url)
                         source = known.url;
                     if (/^https:\/\//i.test(source))
@@ -15860,7 +18180,7 @@ var init_core = __esm({
                 }
                 const local = source && !/^(base64:\/\/|data:|https?:\/\/)/i.test(source) ? /^file:\/\//i.test(source) ? new URL(source) : source : null;
                 let prepared;
-                if (local && fs15.existsSync(local))
+                if (local && fs19.existsSync(local))
                     prepared = await prepareVideo({ path: typeof local === "string" ? local : local.pathname.replace(/^\/(\w:)/, "$1") }, { thumb });
                 else
                     prepared = await prepareVideo({ bytes: (await loadMediaSource(source, { what: "video", maxBytes: 200 * 1024 * 1024, fetchImpl: this.fetchImpl })).bytes }, { thumb });
@@ -16025,9 +18345,9 @@ var init_core = __esm({
                 const conversation = target ?? { kind: "private", id: String(this.selfUin) };
                 const uploadedImages = [];
                 const build = async (node) => {
-                    const bad4 = node.segments.find((s) => !FORWARD_NODE_TYPES.has(s.type));
-                    if (bad4)
-                        throw invalidForward(`segment ${bad4.type} is not supported inside a forward node`);
+                    const bad6 = node.segments.find((s) => !FORWARD_NODE_TYPES.has(s.type));
+                    if (bad6)
+                        throw invalidForward(`segment ${bad6.type} is not supported inside a forward node`);
                     const resolved2 = await this.#resolve(conversation, node.segments);
                     const images = new Map(), segments = [], media = [];
                     for (const seg2 of node.segments) {
@@ -16217,11 +18537,11 @@ var init_core = __esm({
                 return this.index.get(messageId);
             }
             async recall(messageId) {
-                const record3 = this.index.get(messageId);
-                if (!record3)
+                const record4 = this.index.get(messageId);
+                if (!record4)
                     throw Object.assign(new Error("NERONET_MESSAGE_NOT_FOUND"), { code: "NERONET_MESSAGE_NOT_FOUND" });
                 this.#requireOnline();
-                await recallMessage(this.transport, record3, (uin) => this.index.uidOf(uin));
+                await recallMessage(this.transport, record4, (uin) => this.index.uidOf(uin));
             }
             async groupHistory(groupId, messageId, count3) {
                 groupId = String(groupId);
@@ -16323,6 +18643,84 @@ var init_core = __esm({
                     throw Object.assign(new Error("NERONET_READ_GENERATION_CLOSED"), { code: "NERONET_READ_GENERATION_CLOSED" });
                 return this.readState.mark({ kind: message2.scene, id: peer, uid: uid2 });
             }
+            async #uidOf(uin, groupId) {
+                let uid2 = this.index.uidOf(String(uin));
+                if (!uid2 && groupId)
+                    uid2 = (await this.directory.member(String(groupId), String(uin)).catch(() => null))?.uid ?? "";
+                if (!uid2)
+                    uid2 = (await this.directory.profile(String(uin)).catch(() => ({}))).uid ?? "";
+                if (!uid2)
+                    throw Object.assign(new Error(`NERONET_TARGET_UNKNOWN: QQ ${uin} could not be resolved`), { code: "NERONET_TARGET_UNKNOWN" });
+                return uid2;
+            }
+            resolveUid(uin, groupId) {
+                this.#requireOnline();
+                return this.#uidOf(uin, groupId);
+            }
+            async #admin(groupId, work, { members = true } = {}) {
+                this.#requireOnline();
+                const result2 = await work();
+                if (members)
+                    this.directory.invalidate?.(`members:${groupId}`);
+                return result2;
+            }
+            kickMember(groupId, uin, { rejectAddRequest = false, reason = "" } = {}) {
+                return this.#admin(groupId, async () => kickMember(this.transport, { groupId, uid: await this.#uidOf(uin, groupId), rejectAddRequest, reason }));
+            }
+            muteMember(groupId, uin, seconds) {
+                return this.#admin(groupId, async () => muteMember(this.transport, { groupId, uid: await this.#uidOf(uin, groupId), seconds }));
+            }
+            muteAll(groupId, enable) {
+                return this.#admin(groupId, () => muteAll(this.transport, { groupId, enable }), { members: false });
+            }
+            setGroupAdmin(groupId, uin, enable) {
+                return this.#admin(groupId, async () => setAdmin(this.transport, { groupId, uid: await this.#uidOf(uin, groupId), enable }));
+            }
+            setMemberCard(groupId, uin, card) {
+                return this.#admin(groupId, async () => setMemberCard(this.transport, { groupId, uid: await this.#uidOf(uin, groupId), card }));
+            }
+            setSpecialTitle(groupId, uin, title) {
+                return this.#admin(groupId, async () => setSpecialTitle(this.transport, { groupId, uid: await this.#uidOf(uin, groupId), title }));
+            }
+            async setGroupName(groupId, name) {
+                await this.#admin(groupId, () => setGroupName(this.transport, { groupId, name }), { members: false });
+                this.directory.invalidate?.("groups");
+            }
+            async leaveGroup(groupId) {
+                await this.#admin(groupId, () => leaveGroup(this.transport, { groupId }));
+                this.directory.invalidate?.("groups");
+            }
+            async answerFriendRequest(flag, approve) {
+                const f = parseFriendFlag(flag);
+                this.#requireOnline();
+                const uid2 = f.uid ?? await this.#uidOf(f.uin);
+                await answerFriendRequest(this.transport, { uid: uid2, approve });
+                if (approve)
+                    this.directory.invalidate?.("friends");
+            }
+            async answerGroupRequest(flag, approve, reason = "") {
+                const f = parseGroupFlag(flag);
+                this.#requireOnline();
+                let entry;
+                if (f.kind === "entry") {
+                    const live = (await fetchAllGroupRequests(this.transport).catch(() => [])).find((e) => e.sequence === f.sequence && e.groupId === f.groupId);
+                    entry = live ?? f;
+                }
+                else {
+                    const inbox = await fetchAllGroupRequests(this.transport);
+                    entry = f.kind === "sequence" ? inbox.find((e) => e.sequence === f.sequence) : matchInbox(inbox, f);
+                    if (!entry)
+                        throw Object.assign(new Error("NERONET_REQUEST_NOT_FOUND: the group request is not in the inbox (answered already or expired)"), { code: "NERONET_REQUEST_NOT_FOUND" });
+                }
+                await answerGroupRequest(this.transport, { ...entry, approve, reason });
+                this.directory.invalidate?.(`members:${entry.groupId}`);
+                if (approve)
+                    this.directory.invalidate?.("groups");
+            }
+            groupRequests() {
+                this.#requireOnline();
+                return fetchAllGroupRequests(this.transport);
+            }
             async poke({ group, peer, target }) {
                 this.#requireOnline();
                 await sendPoke(this.transport, { group, peer, target });
@@ -16342,744 +18740,23 @@ var init_core = __esm({
                 if (this.closed)
                     return { drained: true, cancelled: 0 };
                 this.readState.close();
+                this.groupNotices.close();
                 this.qzone.close();
-                const result = await this.deliveries.close({ drainMs });
+                const result2 = await this.deliveries.close({ drainMs });
                 this.closed = true;
-                if (!result.drained || result.cancelled)
-                    this.log.write({ upperDeliveriesCancelledAtStop: result.cancelled, drained: result.drained });
+                if (!result2.drained || result2.cancelled)
+                    this.log.write({ upperDeliveriesCancelledAtStop: result2.cancelled, drained: result2.drained });
                 try {
                     this.index.close?.();
                 }
                 catch {
                 }
-                return result;
+                return result2;
             }
         };
         FORWARD_NODE_TYPES = new Set(["text", "face", "image", "at", "json", "xml", "forward"]);
         PREVIEW = { face: "[表情]", image: "[图片]", record: "[语音]", video: "[视频]", file: "[文件]", json: "[JSON消息]", xml: "[XML消息]", forward: "[聊天记录]", poke: "[窗口抖动]" };
         hexOf2 = (b) => b && b.length ? Buffer.from(b).toString("hex") : "";
-    }
-});
-function toCqString(segments) {
-    return segments.map((seg) => {
-        if (seg.type === "text")
-            return escapeText(String(seg.data?.text ?? ""));
-        const keys = CQ_PARAMS[seg.type];
-        const params = (keys ? keys.map((k) => [k, seg.data?.[k] ?? ""]) : Object.entries(seg.data ?? {})).filter(([, v]) => v !== void 0 && v !== null).map(([k, v]) => `,${k}=${escapeParam(String(v))}`).join("");
-        return `[CQ:${seg.type}${params}]`;
-    }).join("");
-}
-function parseCqString(text2) {
-    const segments = [];
-    const re = /\[CQ:([a-zA-Z0-9_.-]+)((?:,[^,\]]*)*)\]/g;
-    let last = 0;
-    for (const m of text2.matchAll(re)) {
-        if (m.index > last)
-            segments.push({ type: "text", data: { text: unescape(text2.slice(last, m.index)) } });
-        const data = {};
-        for (const part of m[2].split(",").slice(1)) {
-            const eq = part.indexOf("=");
-            if (eq < 0)
-                continue;
-            data[part.slice(0, eq)] = unescape(part.slice(eq + 1));
-        }
-        segments.push({ type: m[1], data });
-        last = m.index + m[0].length;
-    }
-    if (last < text2.length)
-        segments.push({ type: "text", data: { text: unescape(text2.slice(last)) } });
-    return segments;
-}
-function normalizeMessage(message2, autoEscape = false) {
-    if (typeof message2 === "string")
-        return autoEscape ? [{ type: "text", data: { text: message2 } }] : parseCqString(message2);
-    const list = Array.isArray(message2) ? message2 : message2 && typeof message2 === "object" ? [message2] : null;
-    if (!list)
-        throw new MessageFormatError("message must be a string, a segment or an array of segments");
-    return list.map((seg, i) => {
-        if (!seg || typeof seg !== "object" || typeof seg.type !== "string" || !seg.type)
-            throw new MessageFormatError(`segment ${i} has no type`);
-        const data = seg.data == null ? {} : seg.data;
-        if (typeof data !== "object" || Array.isArray(data))
-            throw new MessageFormatError(`segment ${i} data must be an object`);
-        return { type: seg.type, data: { ...data } };
-    });
-}
-var escapeText, escapeParam, unescape, CQ_PARAMS, MessageFormatError;
-var init_message_format = __esm({
-    "upper/onebot/message-format.mjs"() {
-        escapeText = (s) => s.replace(/&/g, "&amp;").replace(/\[/g, "&#91;").replace(/\]/g, "&#93;");
-        escapeParam = (s) => escapeText(s).replace(/,/g, "&#44;");
-        unescape = (s) => s.replace(/&#44;/g, ",").replace(/&#91;/g, "[").replace(/&#93;/g, "]").replace(/&amp;/g, "&");
-        CQ_PARAMS = { image: ["file", "url"], record: ["file", "url"], video: ["file", "url"] };
-        MessageFormatError = class extends Error {
-            constructor(detail) {
-                super(`NERONET_MESSAGE_INVALID: ${detail}`);
-                this.code = "NERONET_MESSAGE_INVALID";
-            }
-        };
-    }
-});
-function messageEvent(ev, selfId, { format: format2 = "array" } = {}) {
-    const message2 = format2 === "string" ? toCqString(ev.segments) : ev.segments;
-    const common = {
-        time: ev.time,
-        self_id: Number(selfId),
-        post_type: ev.self ? "message_sent" : "message",
-        message_id: ev.messageId,
-        user_id: Number(ev.sender.uin),
-        message: message2,
-        raw_message: toCqString(ev.segments),
-        font: 0
-    };
-    if (ev.kind === "group") {
-        return {
-            ...common,
-            message_type: "group",
-            sub_type: "normal",
-            group_id: Number(ev.groupId),
-            anonymous: null,
-            sender: { user_id: Number(ev.sender.uin), nickname: ev.sender.nickname || ev.sender.card || "", card: ev.sender.card ?? "", sex: "unknown", age: 0, role: ev.sender.role ?? "member", title: ev.sender.title ?? "" }
-        };
-    }
-    return {
-        ...common,
-        message_type: "private",
-        sub_type: "friend",
-        ...ev.self ? { target_id: Number(ev.peer) } : {},
-        sender: { user_id: Number(ev.sender.uin), nickname: ev.sender.nickname ?? "", sex: "unknown", age: 0 }
-    };
-}
-function lifecycleEvent(selfId, subType = "connect") {
-    return { time: now(), self_id: Number(selfId), post_type: "meta_event", meta_event_type: "lifecycle", sub_type: subType };
-}
-function heartbeatEvent(selfId, online, intervalMs) {
-    return { time: now(), self_id: Number(selfId), post_type: "meta_event", meta_event_type: "heartbeat", status: { online, good: online }, interval: intervalMs };
-}
-function noticeEvent(n2, selfId) {
-    const build = NOTICES[n2.kind];
-    return build ? { time: n2.time, self_id: Number(selfId), post_type: "notice", ...build(n2, selfId) } : null;
-}
-var now, n32, NOTICES;
-var init_events = __esm({
-    "upper/onebot/events.mjs"() {
-        init_message_format();
-        now = () => Math.floor(Date.now() / 1e3);
-        n32 = (v) => Number(v ?? 0);
-        NOTICES = {
-            group_member_join: (n2) => ({ notice_type: "group_increase", sub_type: n2.joinType, group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.userUin) }),
-            group_member_leave: (n2, self2) => ({ notice_type: "group_decrease", sub_type: n2.leaveType === "kick" && String(n2.userUin) === String(self2) ? "kick_me" : n2.leaveType, group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.userUin) }),
-            group_mute: (n2) => ({ notice_type: "group_ban", sub_type: n2.duration > 0 ? "ban" : "lift_ban", group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.userUin), duration: n2.duration }),
-            group_admin: (n2) => ({ notice_type: "group_admin", sub_type: n2.set ? "set" : "unset", group_id: n32(n2.groupId), user_id: n32(n2.userUin) }),
-            friend_recall: (n2) => ({ notice_type: "friend_recall", user_id: n32(n2.userUin), message_id: n2.messageId ?? 0 }),
-            group_recall: (n2) => ({ notice_type: "group_recall", group_id: n32(n2.groupId), operator_id: n32(n2.operatorUin), user_id: n32(n2.authorUin), message_id: n2.messageId ?? 0 }),
-            friend_poke: (n2) => ({ notice_type: "notify", sub_type: "poke", user_id: n32(n2.peerUin), sender_id: n32(n2.senderUin), target_id: n32(n2.targetUin), action: n2.action, suffix: n2.suffix, action_img_url: n2.actionImgUrl }),
-            group_poke: (n2) => ({ notice_type: "notify", sub_type: "poke", group_id: n32(n2.groupId), user_id: n32(n2.userUin), target_id: n32(n2.targetUin), action: n2.action, suffix: n2.suffix, action_img_url: n2.actionImgUrl }),
-            group_essence: (n2) => ({ notice_type: "essence", sub_type: n2.set ? "add" : "delete", group_id: n32(n2.groupId), user_id: n32(n2.senderUin), sender_id: n32(n2.senderUin), operator_id: n32(n2.operatorUin), message_id: n2.messageId ?? 0, message_seq: n2.sequence, random: n2.random }),
-            friend_add: (n2) => ({ notice_type: "friend_add", user_id: n32(n2.userUin) }),
-            group_title_change: (n2) => ({ notice_type: "notify", sub_type: "title", group_id: n32(n2.groupId), user_id: n32(n2.userUin), title: n2.title }),
-            group_name_change: (n2) => ({ notice_type: "notify", sub_type: "group_name", group_id: n32(n2.groupId), user_id: n32(n2.operatorUin), name_new: n2.name }),
-            group_msg_emoji_like: (n2) => ({ notice_type: "group_msg_emoji_like", sub_type: n2.isAdd ? "add" : "remove", group_id: n32(n2.groupId), user_id: n32(n2.operatorUin), operator_id: n32(n2.operatorUin), message_id: n2.messageId ?? 0, message_seq: n2.sequence, likes: [{ emoji_id: n2.emojiId, count: n2.count }] })
-        };
-    }
-});
-function hasSignature(fmt, b) {
-    if (!b || b.length < 12)
-        return false;
-    const s = (from, to) => b.toString("latin1", from, to);
-    switch (fmt) {
-        case "wav":
-            return s(0, 4) === "RIFF" && s(8, 12) === "WAVE";
-        case "mp3":
-            return s(0, 3) === "ID3" || b[0] === 255 && (b[1] & 224) === 224;
-        case "ogg":
-            return s(0, 4) === "OggS" && b.includes(Buffer.from("vorbis"));
-        case "spx":
-            return s(0, 4) === "OggS" && b.includes(Buffer.from("Speex   "));
-        case "flac":
-            return s(0, 4) === "fLaC";
-        case "m4a":
-            return s(4, 8) === "ftyp";
-        case "amr":
-            return s(0, 6) === "#!AMR\n";
-        case "wma":
-            return b.subarray(0, 16).equals(ASF_GUID);
-        default:
-            return false;
-    }
-}
-async function convertRecord(bytes, fmt, { find = findFfmpeg, run = runFfmpeg, decode: decode3 = toPcm } = {}) {
-    fmt = String(fmt ?? "").toLowerCase();
-    if (!RECORD_FORMATS.includes(fmt))
-        throw err("NERONET_RECORD_FORMAT_UNSUPPORTED", `out_format must be one of ${RECORD_FORMATS.join(", ")}`);
-    if (fmt !== "wav" && !find())
-        throw err("NERONET_RECORD_CONVERTER_MISSING", `out_format ${fmt} needs ffmpeg (optional, not bundled): ${FFMPEG_HINT}; wav works without it`);
-    let pcm, rate;
-    try {
-        ({ pcm, rate } = await decode3(Buffer.from(bytes)));
-    }
-    catch (e) {
-        throw err("NERONET_RECORD_CONVERT_FAILED", `cannot decode the voice (${String(e?.message ?? e).slice(0, 160)})`);
-    }
-    if (!pcm?.length)
-        throw err("NERONET_RECORD_CONVERT_FAILED", "the voice has no samples");
-    let out;
-    if (fmt === "wav")
-        out = s16ToWav(pcm, rate);
-    else {
-        try {
-            out = await run(["-f", "s16le", "-ar", String(rate), "-ac", "1", "-i", "pipe:0", ...ENCODERS[fmt], "pipe:1"], Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
-        }
-        catch (e) {
-            throw err("NERONET_RECORD_CONVERT_FAILED", `ffmpeg could not produce ${fmt} (the installed ffmpeg may lack the ${ENCODERS[fmt][1]} encoder): ${String(e?.message ?? e).slice(-200)}`);
-        }
-    }
-    if (!hasSignature(fmt, out))
-        throw err("NERONET_RECORD_CONVERT_FAILED", `the converter output is not a ${fmt} file`);
-    return out;
-}
-var RECORD_FORMATS, ENCODERS, ASF_GUID, err;
-var init_record_convert = __esm({
-    "upper/media/record-convert.mjs"() {
-        init_audio_addon();
-        RECORD_FORMATS = Object.freeze(["mp3", "amr", "wma", "m4a", "spx", "ogg", "wav", "flac"]);
-        ENCODERS = {
-            mp3: ["-c:a", "libmp3lame", "-f", "mp3"],
-            ogg: ["-c:a", "libvorbis", "-f", "ogg"],
-            flac: ["-c:a", "flac", "-f", "flac"],
-            m4a: ["-c:a", "aac", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod"],
-            wma: ["-c:a", "wmav2", "-f", "asf"],
-            amr: ["-ar", "8000", "-c:a", "libopencore_amrnb", "-b:a", "12.2k", "-f", "amr"],
-            spx: ["-c:a", "libspeex", "-f", "ogg"]
-        };
-        ASF_GUID = Buffer.from("3026b2758e66cf11a6d900aa0062ce6c", "hex");
-        err = (code, detail) => Object.assign(new Error(`${code}: ${detail}`), { code });
-    }
-});
-function checkMeta(data, i) {
-    for (const [k, v] of Object.entries(data)) {
-        if (k === "content" || k === "message" || v === void 0)
-            continue;
-        if (k === "news") {
-            if (Array.isArray(v) && v.every((x) => typeof obj(x)?.text === "string"))
-                continue;
-            throw bad2(`forward messages[${i}].news must be an array of {text}`);
-        }
-        if (["title", "source", "summary", "prompt"].includes(k)) {
-            if (typeof v === "string")
-                continue;
-            throw bad2(`forward messages[${i}].${k} must be a string`);
-        }
-        if (v === null || ["string", "number", "boolean"].includes(typeof v))
-            continue;
-        throw bad2(`forward messages[${i}].${k} must be a scalar value`);
-    }
-}
-function forwardMeta(p2) {
-    for (const k of ["source", "summary", "prompt"])
-        if (p2[k] != null && typeof p2[k] !== "string")
-            throw bad2(`${k} must be a string`);
-    if (p2.news != null && !(Array.isArray(p2.news) && p2.news.every((x) => typeof x === "string" || typeof obj(x)?.text === "string")))
-        throw bad2("news must be an array of strings or {text}");
-    const news = Array.isArray(p2.news) ? p2.news.map((x) => typeof x === "string" ? { text: x } : obj(x) && x.text != null ? { text: String(x.text) } : null).filter((x) => x?.text) : void 0;
-    return { source: p2.source || void 0, summary: p2.summary || void 0, prompt: p2.prompt || void 0, news: news?.length ? news : void 0 };
-}
-function parseForwardNodes(messages, ctx, depth = 0) {
-    if (depth >= FORWARD.maxDepth)
-        throw bad2(`forward nesting depth exceeds ${FORWARD.maxDepth}`);
-    if (!Array.isArray(messages))
-        throw bad2("forward messages must be an array of node segments");
-    if (!messages.length)
-        throw bad2("forward messages must contain at least one node");
-    const nodes = [];
-    messages.forEach((item, i) => {
-        const seg = obj(item);
-        if (!seg)
-            throw bad2(`forward messages[${i}] must be an object`);
-        if (seg.type !== void 0 && seg.type !== "node")
-            throw bad2(`forward messages[${i}] has type ${String(seg.type)}; only node is allowed`);
-        const data = seg.type === "node" ? obj(seg.data) : seg;
-        if (!data)
-            throw bad2(`forward messages[${i}].data must be an object`);
-        if (seg.type !== "node" && data.content === void 0 && data.message === void 0)
-            throw bad2(`forward messages[${i}] needs type:"node" data or content`);
-        checkMeta(data, i);
-        const refId = posInt(data.id ?? data.message_id);
-        if (refId) {
-            const r = ctx.getMessage(refId);
-            if (!r)
-                throw bad2(`forward node message_id not found: ${refId}`);
-            const userUin2 = String(r.sender?.uin ?? "");
-            if (!/^\d+$/.test(userUin2) || userUin2 === "0")
-                throw bad2(`forward node message_id ${refId} has no sender`);
-            const segments = (r.segments ?? []).filter((s) => s.type !== "reply");
-            if (!segments.length)
-                throw bad2(`forward node message_id ${refId} has no content besides a reply`);
-            nodes.push({
-                userUin: userUin2,
-                nickname: String(r.sender?.card || r.sender?.nickname || data.nickname || data.name || userUin2),
-                time: r.time,
-                segments,
-                scene: r.scene,
-                ...r.scene === "group" ? { groupId: r.peer, senderCard: r.sender?.card ?? "" } : {}
-            });
-            return;
-        }
-        const rawUin = data.user_id ?? data.uin;
-        const n2 = posInt(rawUin);
-        if (rawUin != null && rawUin !== "" && (n2 < 1 || n2 > 4294967295))
-            throw bad2(`forward messages[${i}].user_id must be a QQ number`);
-        const userUin = String(n2 || ctx.selfUin);
-        const nickname = String(data.nickname ?? data.name ?? userUin);
-        const t = posInt(data.time);
-        const content = data.content ?? data.message ?? "";
-        const node = { userUin, nickname, ...t > 0 && t < 4294967295 ? { time: t } : {} };
-        if (data.news !== void 0)
-            node.news = data.news.map((x) => ({ text: x.text }));
-        for (const k of ["source", "summary", "prompt"])
-            if (data[k] !== void 0)
-                node[k] = data[k];
-        if (isNodeArray(content))
-            node.innerForward = parseForwardNodes(content, ctx, depth + 1);
-        else {
-            node.segments = normalizeMessage(content);
-            if (node.segments.some((s) => s.type === "node"))
-                throw bad2(`forward messages[${i}] mixes node segments with other content`);
-            if (!node.segments.length || node.segments.every((s) => s.type === "text" && !String(s.data.text ?? "")))
-                throw bad2(`forward node content is empty: ${userUin}`);
-        }
-        nodes.push(node);
-    });
-    if (!nodes.length)
-        throw bad2("forward node list is empty");
-    return nodes;
-}
-function forwardNodeEvent(node, selfUin) {
-    const isGroup = node.scene === "group" || Number(node.groupId) > 0;
-    const sender = { user_id: Number(node.userUin), nickname: node.nickname ?? "", ...isGroup ? { card: node.senderCard ?? "" } : {} };
-    return {
-        self_id: Number(selfUin),
-        user_id: Number(node.userUin),
-        time: node.time ?? Math.floor(Date.now() / 1e3),
-        message_id: node.msgId ?? 0,
-        message_seq: node.msgSeq ?? node.msgId ?? 0,
-        real_id: node.msgId ?? 0,
-        message_type: isGroup ? "group" : "private",
-        sender,
-        raw_message: "",
-        font: 14,
-        sub_type: isGroup ? "normal" : "friend",
-        message: node.segments,
-        message_format: "array",
-        post_type: "message",
-        ...isGroup && Number(node.groupId) > 0 ? { group_id: Number(node.groupId) } : {}
-    };
-}
-var bad2, obj, posInt, isNodeArray;
-var init_forward_nodes = __esm({
-    "upper/onebot/forward-nodes.mjs"() {
-        init_message_format();
-        init_forward();
-        bad2 = (detail) => Object.assign(new Error(`NERONET_SEGMENT_INVALID: ${detail}`), { code: "NERONET_SEGMENT_INVALID" });
-        obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-        posInt = (v) => {
-            const n2 = typeof v === "string" && v.trim() ? Number(v) : v;
-            return typeof n2 === "number" && Number.isFinite(n2) ? Math.max(0, Math.trunc(n2)) : 0;
-        };
-        isNodeArray = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => obj(x)?.type === "node");
-    }
-});
-function createQzoneActions(core2, fail3) {
-    const run = async (work) => {
-        try {
-            return await work();
-        }
-        catch (error) {
-            if (error instanceof WebServiceError)
-                throw fail3(error.retcode, error.message);
-            throw error;
-        }
-    };
-    const images = (p2) => typeof p2.images === "string" ? [p2.images] : p2.images;
-    return {
-        send_qzone_msg: (p2) => run(() => core2.qzone.publish({ content: p2.content, images: images(p2), ugcRight: p2.ugc_right ?? 1, targetUins: p2.target_uins })),
-        delete_qzone_msg: (p2) => run(() => core2.qzone.remove({ tid: p2.tid })),
-        get_qzone_msg_list: (p2) => run(() => core2.qzone.list({ targetUin: p2.target_uin, pos: p2.pos, num: p2.num })),
-        get_qzone_msg_detail: (p2) => run(() => core2.qzone.detail({ tid: p2.tid, targetUin: p2.target_uin, pos: p2.pos, num: p2.num })),
-        set_qzone_msg_right: (p2) => run(() => core2.qzone.setRight({ tid: p2.tid, ugcRight: p2.ugc_right, targetUins: p2.target_uins }))
-    };
-}
-var init_qzone_actions = __esm({
-    "upper/onebot/qzone-actions.mjs"() {
-        init_errors();
-    }
-});
-function codeOf(e) {
-    if (typeof e?.code === "string" && NERONET_CODE.test(e.code))
-        return e.code;
-    const m = String(e?.message ?? "").match(NERONET_CODE);
-    return m ? m[0] : null;
-}
-function asActionError(e, fallback) {
-    if (e instanceof ActionError)
-        return e;
-    if (e instanceof MessageFormatError)
-        return bad3(e.message);
-    const code = codeOf(e);
-    if (code && BAD_REQUEST_CODES.has(code))
-        return bad3(e.message);
-    return new ActionError(RETCODE.FAILED, code ? String(e.message).slice(0, 200) : fallback);
-}
-function qqId(value, name) {
-    const n2 = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
-    if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > MAX_UIN)
-        throw bad3(`${name} is required and must be a QQ number`);
-    return String(n2);
-}
-function messageIdParam(value) {
-    const n2 = typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : value;
-    if (!Number.isSafeInteger(n2) || n2 <= 0 || n2 > 2147483647)
-        throw bad3("message_id is required");
-    return n2;
-}
-async function wrap(fn) {
-    try {
-        return await fn();
-    }
-    catch (e) {
-        throw asActionError(e, "NERONET_ACTION_FAILED");
-    }
-}
-function createActions(core2, { appVersion, fileUploads = () => true }) {
-    const forward = async (target, p2) => {
-        const messages = p2.messages ?? p2.message;
-        if (messages === void 0)
-            throw bad3("message/messages is required");
-        const nodes = parseForwardNodes(messages, { selfUin: String(core2.selfUin), getMessage: (id) => core2.getMessage(id) });
-        const r = await core2.sendForward(target, nodes, forwardMeta(p2));
-        return { message_id: r.messageId, res_id: r.resId, forward_id: r.resId };
-    };
-    const send2 = async (kind, id, params) => {
-        if (params.message === void 0)
-            throw bad3("message is required");
-        let segments;
-        try {
-            segments = normalizeMessage(params.message, truthy(params.auto_escape));
-            if (segments.some((s) => s.type === "file") && !fileUploads(kind)) {
-                throw Object.assign(new Error(`NERONET_SEGMENT_UNSUPPORTED: file (enable ${kind === "group" ? "upload_group_file" : "upload_private_file"} in the action policy to send files)`), { code: "NERONET_SEGMENT_UNSUPPORTED" });
-            }
-            const r = await core2.sendMessage({ kind, id }, segments);
-            return { message_id: r.messageId };
-        }
-        catch (e) {
-            throw asActionError(e, "NERONET_SEND_FAILED");
-        }
-    };
-    const markRead = (p2, kind, target) => wrap(async () => {
-        await core2.markMessageRead(messageIdParam(p2.message_id), { kind, ...p2[target] !== void 0 ? { targetId: qqId(p2[target], target) } : {} });
-        return null;
-    });
-    return {
-        ...createQzoneActions(core2, (retcode, wording) => new ActionError(retcode, wording)),
-        mark_msg_as_read: async (p2) => markRead(p2, void 0, "target_id"),
-        mark_group_msg_as_read: async (p2) => markRead(p2, "group", "group_id"),
-        mark_private_msg_as_read: async (p2) => markRead(p2, "private", "user_id"),
-        get_login_info: async () => ({ user_id: Number(core2.selfUin), nickname: core2.nickname ?? "" }),
-        get_status: async () => ({ online: core2.online, good: core2.online }),
-        get_version_info: async () => ({ app_name: "NeroNet", app_version: appVersion, protocol_version: "v11" }),
-        send_private_msg: async (p2) => send2("private", qqId(p2.user_id, "user_id"), p2),
-        send_group_msg: async (p2) => send2("group", qqId(p2.group_id, "group_id"), p2),
-        send_msg: async (p2) => {
-            const type = p2.message_type ?? (p2.group_id != null ? "group" : p2.user_id != null ? "private" : null);
-            if (type === "group")
-                return send2("group", qqId(p2.group_id, "group_id"), p2);
-            if (type === "private")
-                return send2("private", qqId(p2.user_id, "user_id"), p2);
-            throw bad3("user_id or group_id is required");
-        },
-        get_msg: async (p2) => {
-            const r = core2.getMessage(messageIdParam(p2.message_id));
-            if (!r)
-                throw new ActionError(RETCODE.FAILED, "NERONET_MESSAGE_NOT_FOUND");
-            const nick = r.sender?.nickname || (String(r.sender?.uin ?? "") === String(core2.selfUin) ? core2.nickname ?? "" : "");
-            const sender = { user_id: Number(r.sender?.uin ?? 0), nickname: nick, ...r.scene === "group" ? { card: r.sender?.card ?? "" } : {} };
-            const message2 = core2.refreshMessageMedia ? await core2.refreshMessageMedia(r.segments, r.scene === "group", r.peer) : r.segments;
-            return {
-                time: r.time,
-                message_type: r.scene,
-                message_id: r.messageId,
-                real_id: r.sequence,
-                ...r.scene === "group" ? { group_id: Number(r.peer) } : {},
-                user_id: sender.user_id,
-                sender,
-                message: message2,
-                raw_message: toCqString(message2)
-            };
-        },
-        send_forward_msg: async (p2) => wrap(async () => {
-            const type = p2.message_type ?? (p2.group_id != null && Number(p2.group_id) > 0 ? "group" : p2.user_id != null && Number(p2.user_id) > 0 ? "private" : null);
-            const target = type === "group" ? { kind: "group", id: String(qqId(p2.group_id, "group_id")) } : type === "private" ? { kind: "private", id: String(qqId(p2.user_id, "user_id")) } : null;
-            return forward(target, p2);
-        }),
-        send_group_forward_msg: async (p2) => wrap(async () => forward({ kind: "group", id: String(qqId(p2.group_id, "group_id")) }, p2)),
-        send_private_forward_msg: async (p2) => wrap(async () => forward({ kind: "private", id: String(qqId(p2.user_id, "user_id")) }, p2)),
-        get_forward_msg: async (p2) => wrap(async () => {
-            let id = String(p2.id ?? "").trim();
-            if (!id && p2.message_id !== void 0 && p2.message_id !== null && p2.message_id !== "") {
-                const n2 = Number(p2.message_id);
-                const r = Number.isSafeInteger(n2) && n2 > 0 ? core2.getMessage(n2) : null;
-                const seg = r?.segments?.find((s) => s.type === "forward");
-                id = String(seg?.data?.id ?? seg?.data?.res_id ?? seg?.data?.forward_id ?? p2.message_id);
-            }
-            if (!id)
-                throw bad3("id or message_id is required");
-            const nodes = await core2.getForward(id);
-            return { messages: nodes.map((n2) => forwardNodeEvent(n2, core2.selfUin)) };
-        }),
-        get_image: async (p2) => wrap(async () => {
-            const file = String(p2.file || p2.file_id || "");
-            if (!file)
-                throw bad3("file is required");
-            let r;
-            try {
-                r = core2.imageContent ? await core2.imageContent(file) : { info: await core2.imageInfo(file), bytes: null };
-            }
-            catch (e) {
-                throw new ActionError(RETCODE.FAILED, /^NERONET_IMAGE_[A-Z0-9_]+$/.test(e?.code ?? "") ? e.code : "NERONET_IMAGE_DOWNLOAD_FAILED");
-            }
-            if (!r?.info)
-                throw new ActionError(RETCODE.FAILED, "NERONET_IMAGE_NOT_FOUND");
-            if (r.bytes)
-                return { file: "base64://" + r.bytes.toString("base64"), url: "", file_size: r.bytes.length, file_name: r.info.file };
-            return { file: r.info.url || r.info.file, url: r.info.url, file_size: String(r.info.fileSize ?? 0), file_name: r.info.file };
-        }),
-        get_record: async (p2) => wrap(async () => {
-            const file = String(p2.file || p2.file_id || "");
-            if (!file)
-                throw bad3("file is required");
-            if (p2.out_format !== void 0 && p2.out_format !== null && p2.out_format !== "") {
-                const fmt = String(p2.out_format).toLowerCase();
-                if (!RECORD_FORMATS.includes(fmt))
-                    throw bad3(`NERONET_RECORD_FORMAT_UNSUPPORTED: out_format must be one of ${RECORD_FORMATS.join(", ")}`);
-                const r = await core2.recordContent(file);
-                if (!r)
-                    throw new ActionError(RETCODE.FAILED, "NERONET_RECORD_NOT_FOUND");
-                let out;
-                try {
-                    out = await convertRecord(r.bytes, fmt);
-                }
-                catch (e) {
-                    throw new ActionError(RETCODE.FAILED, String(e?.message ?? e).slice(0, 300));
-                }
-                return { file: r.info.url, url: r.info.url, file_size: String(r.info.fileSize ?? 0), file_name: r.info.fileName, out_format: fmt, base64: out.toString("base64") };
-            }
-            const info = await core2.mediaInfo(file, "record");
-            if (!info)
-                throw new ActionError(RETCODE.FAILED, "NERONET_RECORD_NOT_FOUND");
-            return { file: info.url, url: info.url, file_size: String(info.fileSize ?? 0), file_name: info.fileName };
-        }),
-        get_group_file_url: async (p2) => wrap(async () => {
-            const fileId = String(p2.file_id ?? "").trim();
-            if (!fileId)
-                throw bad3("file_id is required");
-            const bus = Number(p2.busid ?? 102);
-            return { url: await core2.groupFileUrl(qqId(p2.group_id, "group_id"), fileId, Number.isInteger(bus) && bus > 0 ? bus : 102) };
-        }),
-        get_private_file_url: async (p2) => wrap(async () => {
-            const fileId = String(p2.file_id ?? "").trim();
-            if (!fileId)
-                throw bad3("file_id is required");
-            return { url: await core2.privateFileUrl(fileId, String(p2.file_hash ?? "")) };
-        }),
-        upload_group_file: async (p2) => wrap(async () => {
-            const gid2 = qqId(p2.group_id, "group_id");
-            const file = String(p2.file ?? "").trim();
-            if (!file)
-                throw bad3("file is required");
-            const folder = String(p2.folder || p2.folder_id || "/");
-            return { file_id: await core2.uploadGroupFile(gid2, file, { name: String(p2.name ?? ""), folder, upload: p2.upload_file === void 0 ? true : truthy(p2.upload_file) }) };
-        }),
-        upload_private_file: async (p2) => wrap(async () => {
-            const uid2 = qqId(p2.user_id, "user_id");
-            const file = String(p2.file ?? "").trim();
-            if (!file)
-                throw bad3("file is required");
-            return { file_id: await core2.uploadPrivateFile(uid2, file, { name: String(p2.name ?? ""), upload: p2.upload_file === void 0 ? true : truthy(p2.upload_file) }) };
-        }),
-        get_group_list: async (p2) => wrap(async () => (await core2.directory.groups({ fresh: truthy(p2.no_cache) })).map(groupInfo)),
-        get_group_info: async (p2) => wrap(async () => {
-            const g = await core2.directory.group(qqId(p2.group_id, "group_id"), { fresh: truthy(p2.no_cache) });
-            if (!g)
-                throw new ActionError(RETCODE.FAILED, "NERONET_GROUP_NOT_FOUND");
-            return groupInfo(g);
-        }),
-        get_group_member_list: async (p2) => wrap(async () => {
-            const gid2 = qqId(p2.group_id, "group_id");
-            return (await core2.directory.members(gid2, { fresh: truthy(p2.no_cache) })).map((m) => memberInfo(gid2, m));
-        }),
-        get_group_member_info: async (p2) => wrap(async () => {
-            const gid2 = qqId(p2.group_id, "group_id");
-            const m = await core2.directory.member(gid2, qqId(p2.user_id, "user_id"), { fresh: truthy(p2.no_cache) });
-            if (!m)
-                throw new ActionError(RETCODE.FAILED, "NERONET_MEMBER_NOT_FOUND");
-            return memberInfo(gid2, m);
-        }),
-        get_friend_list: async (p2) => wrap(async () => (await core2.directory.friends({ fresh: truthy(p2.no_cache) })).map((f) => ({ user_id: Number(f.uin), nickname: f.nickname, remark: f.remark }))),
-        get_stranger_info: async (p2) => wrap(async () => {
-            const u = await core2.directory.profile(qqId(p2.user_id, "user_id"), { fresh: truthy(p2.no_cache) });
-            return { user_id: Number(u.uin), uid: u.uid, nickname: u.nickname, remark: u.remark, sex: u.sex, age: u.age, qid: u.qid, level: u.level, qq_level: u.level, long_nick: u.sign };
-        }),
-        get_group_msg_history: async (p2) => wrap(async () => {
-            const gid2 = qqId(p2.group_id, "group_id");
-            const anchor = p2.message_id === void 0 || p2.message_id === null || Number(p2.message_id) === 0 ? 0 : messageIdParam(p2.message_id);
-            const events = await core2.groupHistory(gid2, anchor, p2.count);
-            return { messages: events.map((ev) => messageEvent(ev, core2.selfUin)) };
-        }),
-        get_friend_msg_history: async (p2) => wrap(async () => {
-            const uid2 = qqId(p2.user_id, "user_id");
-            const anchor = p2.message_id === void 0 || p2.message_id === null || Number(p2.message_id) === 0 ? 0 : messageIdParam(p2.message_id);
-            const events = await core2.friendHistoryOf(uid2, anchor, p2.count, p2.reverse_order === void 0 ? true : truthy(p2.reverse_order));
-            return { messages: events.map((ev) => messageEvent(ev, core2.selfUin)) };
-        }),
-        friend_poke: async (p2) => wrap(async () => {
-            await core2.poke({ group: false, peer: qqId(p2.user_id, "user_id"), target: p2.target_id != null && p2.target_id !== "" ? qqId(p2.target_id, "target_id") : void 0 });
-            return null;
-        }),
-        group_poke: async (p2) => wrap(async () => {
-            await core2.poke({ group: true, peer: qqId(p2.group_id, "group_id"), target: qqId(p2.user_id, "user_id") });
-            return null;
-        }),
-        send_poke: async (p2) => wrap(async () => {
-            const user = qqId(p2.user_id, "user_id");
-            if (p2.group_id != null && p2.group_id !== "" && Number(p2.group_id) !== 0)
-                await core2.poke({ group: true, peer: qqId(p2.group_id, "group_id"), target: user });
-            else
-                await core2.poke({ group: false, peer: user });
-            return null;
-        }),
-        set_msg_emoji_like: async (p2) => wrap(async () => {
-            const emoji = String(p2.emoji_id ?? "").trim();
-            if (!emoji)
-                throw bad3("emoji_id is required");
-            await core2.setEmojiLike(messageIdParam(p2.message_id), emoji, p2.set === void 0 ? true : truthy(p2.set));
-            return null;
-        }),
-        fetch_custom_face: async (p2) => wrap(async () => {
-            const count3 = p2.count === void 0 ? 10 : Number(p2.count);
-            if (!Number.isInteger(count3) || count3 < 0)
-                throw bad3("count must be a non-negative integer");
-            const ids = await core2.customFaceIds(count3);
-            return (p2.return_type ?? "url") === "id" ? ids : ids.map((id) => `https://p.qpic.cn/qq_expression/${core2.selfUin}/${id}/0`);
-        }),
-        fetch_custom_face_detail: async (p2) => wrap(async () => {
-            const count3 = p2.count === void 0 ? 48 : Number(p2.count);
-            if (!Number.isInteger(count3) || count3 < 0)
-                throw bad3("count must be a non-negative integer");
-            return (await core2.customFaceDetails(count3)).map((d) => ({ emoji_id: d.emojiId, resId: d.emojiId, url: d.url, md5: d.md5, desc: d.desc }));
-        }),
-        modify_custom_face: async (p2) => wrap(async () => {
-            const id = String(p2.emoji_id ?? "").trim();
-            if (!id)
-                throw bad3("emoji_id is required");
-            await core2.modifyCustomFace(id, String(p2.desc ?? ""));
-            return null;
-        }),
-        add_custom_face: async (p2) => wrap(async () => {
-            const file = String(p2.file ?? "").trim();
-            if (!file)
-                throw bad3("file is required");
-            return { emoji_id: await core2.addCustomFace(file) };
-        }),
-        fetch_face_entity: async (p2) => wrap(async () => {
-            const id = Number(p2.face_id);
-            if (!Number.isInteger(id) || id < 0 || id > 65535)
-                throw bad3("face_id must be a face number");
-            return core2.faceEntity(id, truthy(p2.refresh));
-        }),
-        can_send_image: async () => ({ yes: true }),
-        can_send_record: async () => ({ yes: true }),
-        delete_msg: async (p2) => {
-            const id = messageIdParam(p2.message_id);
-            try {
-                await core2.recall(id);
-                return null;
-            }
-            catch (e) {
-                throw asActionError(e, "NERONET_RECALL_FAILED");
-            }
-        }
-    };
-}
-function createDispatcher(actions, allowed, { log = () => {
-} } = {}) {
-    const logs = new RateLimitedLog(log);
-    return async function dispatch(action, params, echo) {
-        const withEcho = (r) => echo === void 0 ? r : { ...r, echo };
-        try {
-            if (typeof action !== "string" || !action)
-                return withEcho(failed5(RETCODE.BAD_REQUEST, "action is required"));
-            const handler = Object.hasOwn(actions, action) ? actions[action] : null;
-            if (!handler || !allowed.has(action)) {
-                logs.limited(`actionRejected:${action}`, { actionRejected: action, implemented: !!handler });
-                return withEcho(failed5(RETCODE.NOT_SUPPORTED, "NERONET_ACTION_NOT_SUPPORTED"));
-            }
-            if (params != null && (typeof params !== "object" || Array.isArray(params)))
-                return withEcho(failed5(RETCODE.BAD_REQUEST, "params must be an object"));
-            return withEcho(ok(await handler(params ?? {})));
-        }
-        catch (e) {
-            if (e instanceof ActionError)
-                return withEcho(failed5(e.retcode, e.wording));
-            logs.write({ actionInternalError: action, error: String(e?.message ?? e).slice(0, 160) });
-            return withEcho(failed5(RETCODE.INTERNAL, "NERONET_INTERNAL_ERROR"));
-        }
-    };
-}
-var RETCODE, MAX_UIN, ActionError, bad3, ok, failed5, BAD_REQUEST_CODES, NERONET_CODE, truthy, groupInfo, memberInfo;
-var init_actions = __esm({
-    "upper/onebot/actions.mjs"() {
-        init_message_format();
-        init_log();
-        init_events();
-        init_record_convert();
-        init_forward_nodes();
-        init_qzone_actions();
-        RETCODE = Object.freeze({ OK: 0, FAILED: 100, INTERNAL: 1200, BAD_REQUEST: 1400, NOT_SUPPORTED: 1404 });
-        MAX_UIN = 4294967295;
-        ActionError = class extends Error {
-            constructor(retcode, wording) {
-                super(wording);
-                this.retcode = retcode;
-                this.wording = wording;
-            }
-        };
-        bad3 = (w) => new ActionError(RETCODE.BAD_REQUEST, w);
-        ok = (data = null) => ({ status: "ok", retcode: 0, data });
-        failed5 = (retcode, wording) => ({ status: "failed", retcode, data: null, message: wording, wording });
-        BAD_REQUEST_CODES = new Set(["NERONET_SEGMENT_UNSUPPORTED", "NERONET_SEGMENT_INVALID", "NERONET_MESSAGE_EMPTY", "NERONET_MESSAGE_INVALID", "NERONET_MEDIA_SOURCE_INVALID", "NERONET_MEDIA_TOO_LARGE", "NERONET_READ_TARGET_INVALID"]);
-        NERONET_CODE = /^NERONET_[A-Z0-9_]+/;
-        truthy = (v) => v === true || v === "true" || v === 1 || v === "1";
-        groupInfo = (g) => ({ group_id: Number(g.groupId), group_name: g.name, group_remark: g.remark ?? "", member_count: g.memberCount, max_member_count: g.maxMemberCount, group_all_shut: 0 });
-        memberInfo = (groupId, m) => ({
-            group_id: Number(groupId),
-            user_id: Number(m.uin),
-            nickname: m.nickname,
-            card: m.card,
-            sex: "unknown",
-            age: 0,
-            area: "",
-            join_time: m.joinTime,
-            last_sent_time: m.lastSentTime,
-            level: String(m.level),
-            qq_level: 0,
-            role: m.role,
-            unfriendly: false,
-            title: m.title,
-            title_expire_time: 0,
-            card_changeable: false,
-            shut_up_timestamp: m.shutUpUntil,
-            is_robot: false
-        });
     }
 });
 function formatUptime(ms) {
@@ -17426,17 +19103,17 @@ var require_permessage_deflate = __commonJS({
             }
             decompress(data, fin, callback) {
                 zlibLimiter.add((done) => {
-                    this._decompress(data, fin, (err2, result) => {
+                    this._decompress(data, fin, (err2, result2) => {
                         done();
-                        callback(err2, result);
+                        callback(err2, result2);
                     });
                 });
             }
             compress(data, fin, callback) {
                 zlibLimiter.add((done) => {
-                    this._compress(data, fin, (err2, result) => {
+                    this._compress(data, fin, (err2, result2) => {
                         done();
-                        callback(err2, result);
+                        callback(err2, result2);
                     });
                 });
             }
@@ -18683,7 +20360,7 @@ var require_extension = __commonJS({
             let inQuotes = false;
             let extensionName;
             let paramName;
-            let start = -1;
+            let start2 = -1;
             let code = -1;
             let end = -1;
             let i = 0;
@@ -18691,20 +20368,20 @@ var require_extension = __commonJS({
                 code = header2.charCodeAt(i);
                 if (extensionName === void 0) {
                     if (end === -1 && tokenChars[code] === 1) {
-                        if (start === -1)
-                            start = i;
+                        if (start2 === -1)
+                            start2 = i;
                     }
                     else if (i !== 0 && (code === 32 || code === 9)) {
-                        if (end === -1 && start !== -1)
+                        if (end === -1 && start2 !== -1)
                             end = i;
                     }
                     else if (code === 59 || code === 44) {
-                        if (start === -1) {
+                        if (start2 === -1) {
                             throw new SyntaxError(`Unexpected character at index ${i}`);
                         }
                         if (end === -1)
                             end = i;
-                        const name = header2.slice(start, end);
+                        const name = header2.slice(start2, end);
                         if (code === 44) {
                             push(offers, name, params);
                             params = Object.create(null);
@@ -18712,7 +20389,7 @@ var require_extension = __commonJS({
                         else {
                             extensionName = name;
                         }
-                        start = end = -1;
+                        start2 = end = -1;
                     }
                     else {
                         throw new SyntaxError(`Unexpected character at index ${i}`);
@@ -18720,30 +20397,30 @@ var require_extension = __commonJS({
                 }
                 else if (paramName === void 0) {
                     if (end === -1 && tokenChars[code] === 1) {
-                        if (start === -1)
-                            start = i;
+                        if (start2 === -1)
+                            start2 = i;
                     }
                     else if (code === 32 || code === 9) {
-                        if (end === -1 && start !== -1)
+                        if (end === -1 && start2 !== -1)
                             end = i;
                     }
                     else if (code === 59 || code === 44) {
-                        if (start === -1) {
+                        if (start2 === -1) {
                             throw new SyntaxError(`Unexpected character at index ${i}`);
                         }
                         if (end === -1)
                             end = i;
-                        push(params, header2.slice(start, end), true);
+                        push(params, header2.slice(start2, end), true);
                         if (code === 44) {
                             push(offers, extensionName, params);
                             params = Object.create(null);
                             extensionName = void 0;
                         }
-                        start = end = -1;
+                        start2 = end = -1;
                     }
-                    else if (code === 61 && start !== -1 && end === -1) {
-                        paramName = header2.slice(start, i);
-                        start = end = -1;
+                    else if (code === 61 && start2 !== -1 && end === -1) {
+                        paramName = header2.slice(start2, i);
+                        start2 = end = -1;
                     }
                     else {
                         throw new SyntaxError(`Unexpected character at index ${i}`);
@@ -18754,18 +20431,18 @@ var require_extension = __commonJS({
                         if (tokenChars[code] !== 1) {
                             throw new SyntaxError(`Unexpected character at index ${i}`);
                         }
-                        if (start === -1)
-                            start = i;
+                        if (start2 === -1)
+                            start2 = i;
                         else if (!mustUnescape)
                             mustUnescape = true;
                         isEscaping = false;
                     }
                     else if (inQuotes) {
                         if (tokenChars[code] === 1) {
-                            if (start === -1)
-                                start = i;
+                            if (start2 === -1)
+                                start2 = i;
                         }
-                        else if (code === 34 && start !== -1) {
+                        else if (code === 34 && start2 !== -1) {
                             inQuotes = false;
                             end = i;
                         }
@@ -18780,20 +20457,20 @@ var require_extension = __commonJS({
                         inQuotes = true;
                     }
                     else if (end === -1 && tokenChars[code] === 1) {
-                        if (start === -1)
-                            start = i;
+                        if (start2 === -1)
+                            start2 = i;
                     }
-                    else if (start !== -1 && (code === 32 || code === 9)) {
+                    else if (start2 !== -1 && (code === 32 || code === 9)) {
                         if (end === -1)
                             end = i;
                     }
                     else if (code === 59 || code === 44) {
-                        if (start === -1) {
+                        if (start2 === -1) {
                             throw new SyntaxError(`Unexpected character at index ${i}`);
                         }
                         if (end === -1)
                             end = i;
-                        let value = header2.slice(start, end);
+                        let value = header2.slice(start2, end);
                         if (mustUnescape) {
                             value = value.replace(/\\/g, "");
                             mustUnescape = false;
@@ -18805,19 +20482,19 @@ var require_extension = __commonJS({
                             extensionName = void 0;
                         }
                         paramName = void 0;
-                        start = end = -1;
+                        start2 = end = -1;
                     }
                     else {
                         throw new SyntaxError(`Unexpected character at index ${i}`);
                     }
                 }
             }
-            if (start === -1 || inQuotes || code === 32 || code === 9) {
+            if (start2 === -1 || inQuotes || code === 32 || code === 9) {
                 throw new SyntaxError("Unexpected end of input");
             }
             if (end === -1)
                 end = i;
-            const token = header2.slice(start, end);
+            const token = header2.slice(start2, end);
             if (extensionName === void 0) {
                 push(offers, token, params);
             }
@@ -18842,10 +20519,10 @@ var require_extension = __commonJS({
                     configurations = [configurations];
                 return configurations.map((params) => {
                     return [extension].concat(Object.keys(params).map((k) => {
-                        let values = params[k];
-                        if (!Array.isArray(values))
-                            values = [values];
-                        return values.map((v) => v === true ? k : `${k}=${v}`).join("; ");
+                        let values2 = params[k];
+                        if (!Array.isArray(values2))
+                            values2 = [values2];
+                        return values2.map((v) => v === true ? k : `${k}=${v}`).join("; ");
                     })).join("; ");
                 }).join(", ");
             }).join(", ");
@@ -18858,10 +20535,10 @@ var require_websocket = __commonJS({
         "use strict";
         var EventEmitter3 = __require("events");
         var https3 = __require("https");
-        var http7 = __require("http");
+        var http8 = __require("http");
         var net5 = __require("net");
         var tls4 = __require("tls");
-        var { randomBytes, createHash: createHash2 } = __require("crypto");
+        var { randomBytes, createHash: createHash3 } = __require("crypto");
         var { Duplex, Readable } = __require("stream");
         var { URL: URL2 } = __require("url");
         var PerMessageDeflate = require_permessage_deflate();
@@ -19270,7 +20947,7 @@ var require_websocket = __commonJS({
             }
             const defaultPort = isSecure ? 443 : 80;
             const key = randomBytes(16).toString("base64");
-            const request = isSecure ? https3.request : http7.request;
+            const request = isSecure ? https3.request : http8.request;
             const protocolSet = new Set();
             let perMessageDeflate;
             opts.createConnection = opts.createConnection || (isSecure ? tlsConnect : netConnect);
@@ -19397,7 +21074,7 @@ var require_websocket = __commonJS({
                     abortHandshake(websocket, socket, "Invalid Upgrade header");
                     return;
                 }
-                const digest2 = createHash2("sha1").update(key + GUID).digest("base64");
+                const digest2 = createHash3("sha1").update(key + GUID).digest("base64");
                 if (res.headers["sec-websocket-accept"] !== digest2) {
                     abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
                     return;
@@ -19735,40 +21412,40 @@ var require_subprotocol = __commonJS({
         var { tokenChars } = require_validation();
         function parse(header2) {
             const protocols = new Set();
-            let start = -1;
+            let start2 = -1;
             let end = -1;
             let i = 0;
             for (i; i < header2.length; i++) {
                 const code = header2.charCodeAt(i);
                 if (end === -1 && tokenChars[code] === 1) {
-                    if (start === -1)
-                        start = i;
+                    if (start2 === -1)
+                        start2 = i;
                 }
                 else if (i !== 0 && (code === 32 || code === 9)) {
-                    if (end === -1 && start !== -1)
+                    if (end === -1 && start2 !== -1)
                         end = i;
                 }
                 else if (code === 44) {
-                    if (start === -1) {
+                    if (start2 === -1) {
                         throw new SyntaxError(`Unexpected character at index ${i}`);
                     }
                     if (end === -1)
                         end = i;
-                    const protocol2 = header2.slice(start, end);
+                    const protocol2 = header2.slice(start2, end);
                     if (protocols.has(protocol2)) {
                         throw new SyntaxError(`The "${protocol2}" subprotocol is duplicated`);
                     }
                     protocols.add(protocol2);
-                    start = end = -1;
+                    start2 = end = -1;
                 }
                 else {
                     throw new SyntaxError(`Unexpected character at index ${i}`);
                 }
             }
-            if (start === -1 || end !== -1) {
+            if (start2 === -1 || end !== -1) {
                 throw new SyntaxError("Unexpected end of input");
             }
-            const protocol = header2.slice(start, i);
+            const protocol = header2.slice(start2, i);
             if (protocols.has(protocol)) {
                 throw new SyntaxError(`The "${protocol}" subprotocol is duplicated`);
             }
@@ -19782,9 +21459,9 @@ var require_websocket_server = __commonJS({
     "vendor/ws/lib/websocket-server.js"(exports2, module2) {
         "use strict";
         var EventEmitter3 = __require("events");
-        var http7 = __require("http");
+        var http8 = __require("http");
         var { Duplex } = __require("stream");
-        var { createHash: createHash2 } = __require("crypto");
+        var { createHash: createHash3 } = __require("crypto");
         var extension = require_extension();
         var PerMessageDeflate = require_permessage_deflate();
         var subprotocol = require_subprotocol();
@@ -19819,8 +21496,8 @@ var require_websocket_server = __commonJS({
                     throw new TypeError('One and only one of the "port", "server", or "noServer" options must be specified');
                 }
                 if (options.port != null) {
-                    this._server = http7.createServer((req, res) => {
-                        const body = http7.STATUS_CODES[426];
+                    this._server = http8.createServer((req, res) => {
+                        const body = http8.STATUS_CODES[426];
                         res.writeHead(426, {
                             "Content-Length": body.length,
                             "Content-Type": "text/plain"
@@ -19997,7 +21674,7 @@ var require_websocket_server = __commonJS({
                 }
                 if (this._state > RUNNING)
                     return abortHandshake(socket, 503);
-                const digest2 = createHash2("sha1").update(key + GUID).digest("base64");
+                const digest2 = createHash3("sha1").update(key + GUID).digest("base64");
                 const headers2 = [
                     "HTTP/1.1 101 Switching Protocols",
                     "Upgrade: websocket",
@@ -20058,7 +21735,7 @@ var require_websocket_server = __commonJS({
             this.destroy();
         }
         function abortHandshake(socket, code, message2, headers2) {
-            message2 = message2 || http7.STATUS_CODES[code];
+            message2 = message2 || http8.STATUS_CODES[code];
             headers2 = {
                 Connection: "close",
                 "Content-Type": "text/html",
@@ -20066,7 +21743,7 @@ var require_websocket_server = __commonJS({
                 ...headers2
             };
             socket.once("finish", socket.destroy);
-            socket.end(`HTTP/1.1 ${code} ${http7.STATUS_CODES[code]}\r
+            socket.end(`HTTP/1.1 ${code} ${http8.STATUS_CODES[code]}\r
 ` + Object.keys(headers2).map((h) => `${h}: ${headers2[h]}`).join("\r\n") + "\r\n\r\n" + message2);
         }
         function abortHandshakeOrEmitwsClientError(server, req, socket, code, message2, headers2) {
@@ -20808,14 +22485,14 @@ var init_servers = __esm({
         };
     }
 });
-import fs16 from "node:fs";
-import path15 from "node:path";
+import fs20 from "node:fs";
+import path20 from "node:path";
 import crypto14 from "node:crypto";
 function localToken(configDir) {
-    const file = path15.join(configDir, "local-token");
-    if (!fs16.existsSync(file))
-        fs16.writeFileSync(file, crypto14.randomBytes(32).toString("base64url"), { flag: "wx" });
-    const token = fs16.readFileSync(file, "utf8").trim();
+    const file = path20.join(configDir, "local-token");
+    if (!fs20.existsSync(file))
+        fs20.writeFileSync(file, crypto14.randomBytes(32).toString("base64url"), { flag: "wx" });
+    const token = fs20.readFileSync(file, "utf8").trim();
     if (token.length < 32)
         throw new Error("NERONET_LOCAL_TOKEN_INVALID");
     return token;
@@ -20855,16 +22532,16 @@ function applyPortOverrides(config, env) {
 function loadOrCreateOneBotConfig(configDir, uin, env = process.env) {
     if (!/^\d{5,12}$/.test(String(uin)))
         throw new Error("NERONET_ACCOUNT_UNKNOWN");
-    const file = path15.join(configDir, `onebot_${uin}.json`);
+    const file = path20.join(configDir, `onebot_${uin}.json`);
     const notes = [];
     let config, created = false;
-    if (!fs16.existsSync(file)) {
+    if (!fs20.existsSync(file)) {
         config = defaultOneBotConfig(localToken(configDir));
-        fs16.writeFileSync(file, JSON.stringify(config, null, 2) + "\n", { flag: "wx" });
+        fs20.writeFileSync(file, JSON.stringify(config, null, 2) + "\n", { flag: "wx" });
         created = true;
     }
     else {
-        config = JSON.parse(fs16.readFileSync(file, "utf8"));
+        config = JSON.parse(fs20.readFileSync(file, "utf8"));
     }
     const n2 = config.networks;
     if (!n2 || typeof n2 !== "object")
@@ -20883,7 +22560,7 @@ function loadOrCreateOneBotConfig(configDir, uin, env = process.env) {
     }
     for (const s of [...n2.httpServers, ...n2.wsServers])
         port(s.port, s.name ?? "server");
-    if (config.mode !== void 0 && config.mode !== "snapshot" && fs16.existsSync(path15.join(configDir, "onebot.json")))
+    if (config.mode !== void 0 && config.mode !== "snapshot" && fs20.existsSync(path20.join(configDir, "onebot.json")))
         notes.push("global config/onebot.json overlay is not applied by the independent upper layer");
     applyPortOverrides(config, env);
     return { config, created, notes };
@@ -20892,8 +22569,8 @@ var init_config = __esm({
     "upper/onebot/config.mjs"() {
     }
 });
-import fs17 from "node:fs";
-import path16 from "node:path";
+import fs21 from "node:fs";
+import path21 from "node:path";
 import crypto15 from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 var MAX_ID, SCHEMA_VERSION, SqliteMessageStore;
@@ -20905,7 +22582,7 @@ var init_message_store = __esm({
         SqliteMessageStore = class {
             constructor(file, { maxRows = 2e5, firstId } = {}) {
                 if (file !== ":memory:")
-                    fs17.mkdirSync(path16.dirname(file), { recursive: true });
+                    fs21.mkdirSync(path21.dirname(file), { recursive: true });
                 this.db = new DatabaseSync(file);
                 this.maxRows = maxRows;
                 this.db.exec(`
@@ -20967,20 +22644,20 @@ var init_message_store = __esm({
             #setMeta(key, value) {
                 this.db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)").run(key, value);
             }
-            remember(record3) {
-                const peer = String(record3.peer), sequence = Number(record3.sequence) || 0;
-                const key = identityKey({ ...record3, peer });
+            remember(record4) {
+                const peer = String(record4.peer), sequence = Number(record4.sequence) || 0;
+                const key = identityKey({ ...record4, peer });
                 const found = this.sql.byKey.get(key);
                 if (found) {
-                    if (found.stub && !record3.stub)
-                        this.sql.replaceStub.run(Number(record3.clientSequence) || 0, Number(record3.random) || 0, Number(record3.time) || 0, String(record3.sender?.uin ?? ""), JSON.stringify(record3.sender ?? {}), record3.self ? 1 : 0, JSON.stringify(record3.segments ?? []), Number(found.message_id));
+                    if (found.stub && !record4.stub)
+                        this.sql.replaceStub.run(Number(record4.clientSequence) || 0, Number(record4.random) || 0, Number(record4.time) || 0, String(record4.sender?.uin ?? ""), JSON.stringify(record4.sender ?? {}), record4.self ? 1 : 0, JSON.stringify(record4.segments ?? []), Number(found.message_id));
                     return Number(found.message_id);
                 }
                 this.db.exec("BEGIN IMMEDIATE");
                 try {
                     const id = Number(this.#meta("next_id"));
                     this.#setMeta("next_id", String(id >= MAX_ID ? 1 : id + 1));
-                    this.sql.insert.run(id, record3.scene, peer, sequence, Number(record3.clientSequence) || 0, Number(record3.random) || 0, Number(record3.time) || 0, String(record3.sender?.uin ?? ""), JSON.stringify(record3.sender ?? {}), record3.self ? 1 : 0, JSON.stringify(record3.segments ?? []), key, record3.stub ? 1 : 0);
+                    this.sql.insert.run(id, record4.scene, peer, sequence, Number(record4.clientSequence) || 0, Number(record4.random) || 0, Number(record4.time) || 0, String(record4.sender?.uin ?? ""), JSON.stringify(record4.sender ?? {}), record4.self ? 1 : 0, JSON.stringify(record4.segments ?? []), key, record4.stub ? 1 : 0);
                     this.db.exec("COMMIT");
                     if (++this.inserts % 1e3 === 0)
                         this.#prune();
@@ -21070,23 +22747,23 @@ var init_message_store = __esm({
         };
     }
 });
-import fs18 from "node:fs";
-import path17 from "node:path";
+import fs22 from "node:fs";
+import path22 from "node:path";
 function listLogFiles(root) {
     const out = [];
     const scan = (dir) => {
         let entries;
         try {
-            entries = fs18.readdirSync(dir, { withFileTypes: true });
+            entries = fs22.readdirSync(dir, { withFileTypes: true });
         }
         catch {
             return;
         }
         for (const e of entries) {
-            const full = path17.join(dir, e.name);
+            const full = path22.join(dir, e.name);
             if (e.isFile() && FILE_RE.test(e.name)) {
                 try {
-                    const st = fs18.statSync(full);
+                    const st = fs22.statSync(full);
                     out.push({ path: full, date: FILE_RE.exec(e.name)[1], size: st.size, mtimeMs: st.mtimeMs });
                 }
                 catch {
@@ -21121,8 +22798,8 @@ var init_file_transport = __esm({
                     this.date = date;
                     this.index = 0;
                     for (const f of listLogFiles(this.dir))
-                        if (path17.dirname(f.path) === this.dir && f.date === date) {
-                            const n2 = Number(FILE_RE.exec(path17.basename(f.path))[2] ?? 0);
+                        if (path22.dirname(f.path) === this.dir && f.date === date) {
+                            const n2 = Number(FILE_RE.exec(path22.basename(f.path))[2] ?? 0);
                             if (n2 >= this.index)
                                 this.index = n2;
                         }
@@ -21135,10 +22812,10 @@ var init_file_transport = __esm({
                 return this.path;
             }
             open() {
-                fs18.mkdirSync(this.dir, { recursive: true });
-                this.path = path17.join(this.dir, `neronet-${this.date}${this.index ? `.${this.index}` : ""}.log`);
+                fs22.mkdirSync(this.dir, { recursive: true });
+                this.path = path22.join(this.dir, `neronet-${this.date}${this.index ? `.${this.index}` : ""}.log`);
                 try {
-                    this.size = fs18.statSync(this.path).size;
+                    this.size = fs22.statSync(this.path).size;
                 }
                 catch {
                     this.size = 0;
@@ -21147,13 +22824,13 @@ var init_file_transport = __esm({
             write(line, date) {
                 const file = this.target(date);
                 const data = line + "\n";
-                fs18.appendFileSync(file, data, "utf8");
+                fs22.appendFileSync(file, data, "utf8");
                 this.size += Buffer.byteLength(data);
             }
         };
         FileTransport = class {
             constructor({ directory, maxFileMb = 50, maxTotalMb = 1024, retainDays = 7, perUinEnabled = false, enabled = true, now: now2 = () => new Date() } = {}) {
-                this.dir = path17.resolve(directory);
+                this.dir = path22.resolve(directory);
                 this.maxFileBytes = maxFileMb * MiB2;
                 this.now = now2;
                 this.enabled = enabled;
@@ -21167,7 +22844,7 @@ var init_file_transport = __esm({
                 this.day = "";
                 if (enabled) {
                     try {
-                        fs18.mkdirSync(this.dir, { recursive: true });
+                        fs22.mkdirSync(this.dir, { recursive: true });
                         this.maintain();
                     }
                     catch (e) {
@@ -21209,7 +22886,7 @@ var init_file_transport = __esm({
                     if (this.perUinEnabled && uin !== void 0) {
                         let w = this.perUin.get(uin);
                         if (!w) {
-                            w = new Writer(path17.join(this.dir, String(uin)), this.maxFileBytes);
+                            w = new Writer(path22.join(this.dir, String(uin)), this.maxFileBytes);
                             this.perUin.set(uin, w);
                         }
                         w.write(line, date);
@@ -21238,7 +22915,7 @@ var init_file_transport = __esm({
                     for (const f of listLogFiles(this.dir))
                         if (dated(f.date) < cutoff && !this.active().has(f.path)) {
                             try {
-                                fs18.unlinkSync(f.path);
+                                fs22.unlinkSync(f.path);
                             }
                             catch {
                             }
@@ -21256,7 +22933,7 @@ var init_file_transport = __esm({
                     if (active.has(f.path))
                         continue;
                     try {
-                        fs18.unlinkSync(f.path);
+                        fs22.unlinkSync(f.path);
                         total -= f.size;
                     }
                     catch {
@@ -21271,12 +22948,12 @@ var init_file_transport = __esm({
                     if (active.has(f.path))
                         continue;
                     try {
-                        fs18.unlinkSync(f.path);
+                        fs22.unlinkSync(f.path);
                         deletedFiles++;
                         freedBytes += f.size;
                     }
                     catch (e) {
-                        failures.push({ path: path17.relative(this.dir, f.path), message: String(e?.code ?? e?.message ?? e) });
+                        failures.push({ path: path22.relative(this.dir, f.path), message: String(e?.code ?? e?.message ?? e) });
                     }
                 }
                 return { deletedFiles, freedBytes, failures };
@@ -21447,8 +23124,8 @@ var init_logger = __esm({
         };
     }
 });
-import fs19 from "node:fs";
-import path18 from "node:path";
+import fs23 from "node:fs";
+import path23 from "node:path";
 function bool(v, fallback) {
     if (typeof v === "boolean")
         return v;
@@ -21545,12 +23222,12 @@ var init_runtime_config = __esm({
         isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
         RuntimeConfig = class {
             constructor(configDir, env = process.env) {
-                this.file = path18.join(configDir, "runtime.json");
+                this.file = path23.join(configDir, "runtime.json");
                 this.env = env;
             }
             readRaw() {
                 try {
-                    const v = JSON.parse(fs19.readFileSync(this.file, "utf8"));
+                    const v = JSON.parse(fs23.readFileSync(this.file, "utf8"));
                     return isObj(v) ? v : null;
                 }
                 catch {
@@ -21580,16 +23257,16 @@ var init_runtime_config = __esm({
                 return next;
             }
             write(value) {
-                fs19.mkdirSync(path18.dirname(this.file), { recursive: true });
+                fs23.mkdirSync(path23.dirname(this.file), { recursive: true });
                 const tmp = `${this.file}.tmp-${process.pid}`;
-                fs19.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
-                fs19.renameSync(tmp, this.file);
+                fs23.writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
+                fs23.renameSync(tmp, this.file);
             }
         };
     }
 });
-import fs20 from "node:fs";
-import path19 from "node:path";
+import fs24 from "node:fs";
+import path24 from "node:path";
 function compile(pattern) {
     if (pattern === "*")
         return { re: /^.*$/, names: [] };
@@ -21613,14 +23290,14 @@ function parseMultipart(body, contentType) {
     const parts = [];
     let pos = body.indexOf(boundary);
     while (pos >= 0) {
-        const start = pos + boundary.length;
-        if (body.subarray(start, start + 2).toString() === "--")
+        const start2 = pos + boundary.length;
+        if (body.subarray(start2, start2 + 2).toString() === "--")
             break;
-        const headerEnd = body.indexOf("\r\n\r\n", start);
+        const headerEnd = body.indexOf("\r\n\r\n", start2);
         const next = body.indexOf(boundary, headerEnd + 4);
         if (headerEnd < 0 || next < 0)
             throw new HttpError(400, "上传解析失败");
-        const headers2 = body.subarray(start + 2, headerEnd).toString("utf8");
+        const headers2 = body.subarray(start2 + 2, headerEnd).toString("utf8");
         const disp = /content-disposition:[^\r\n]*/i.exec(headers2)?.[0] ?? "";
         parts.push({
             name: /\bname="([^"]*)"/i.exec(disp)?.[1] ?? "",
@@ -21669,7 +23346,7 @@ var init_http = __esm({
             ".map": "application/json; charset=utf-8",
             ".wasm": "application/wasm"
         };
-        mimeOf = (file) => MIME[path19.extname(file).toLowerCase()] ?? "application/octet-stream";
+        mimeOf = (file) => MIME[path24.extname(file).toLowerCase()] ?? "application/octet-stream";
         Context = class {
             constructor(req, res, url) {
                 this.req = req;
@@ -21741,7 +23418,7 @@ var init_http = __esm({
             text(status, text2, type = "text/plain; charset=utf-8") {
                 this.send(status, text2, { "Content-Type": type });
             }
-            sse(start, shutdownSignal) {
+            sse(start2, shutdownSignal) {
                 this.done = true;
                 const res = this.res;
                 res.writeHead(200, { ...SECURITY_HEADERS, ...this.headers, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
@@ -21798,7 +23475,7 @@ var init_http = __esm({
                     return teardown();
                 shutdownSignal?.addEventListener("abort", teardown, { once: true });
                 try {
-                    start(channel2);
+                    start2(channel2);
                 }
                 catch (e) {
                     teardown();
@@ -21806,20 +23483,20 @@ var init_http = __esm({
                 }
             }
             file(root, rel, headers2 = {}) {
-                const base = path19.resolve(root);
-                const full = path19.resolve(base, "." + path19.posix.normalize("/" + rel));
-                if (full !== base && !full.startsWith(base + path19.sep))
+                const base = path24.resolve(root);
+                const full = path24.resolve(base, "." + path24.posix.normalize("/" + rel));
+                if (full !== base && !full.startsWith(base + path24.sep))
                     return false;
                 let st;
                 try {
-                    st = fs20.statSync(full);
+                    st = fs24.statSync(full);
                 }
                 catch {
                     return false;
                 }
                 if (!st.isFile())
                     return false;
-                this.send(200, fs20.readFileSync(full), { "Content-Type": mimeOf(full), "Content-Length": st.size, ...headers2 });
+                this.send(200, fs24.readFileSync(full), { "Content-Type": mimeOf(full), "Content-Length": st.size, ...headers2 });
                 return true;
             }
         };
@@ -22051,8 +23728,8 @@ var init_totp = __esm({
         HEX = /^[0-9a-f]+$/i;
     }
 });
-import fs21 from "node:fs";
-import path20 from "node:path";
+import fs25 from "node:fs";
+import path25 from "node:path";
 import crypto17 from "node:crypto";
 function checkCredentialState(v) {
     if (!v || typeof v !== "object" || Array.isArray(v))
@@ -22081,7 +23758,7 @@ function fresh(password, mustChange) {
 function storedPasswordMatches(configDir, password) {
     let state;
     try {
-        const { totp, ...rest } = JSON.parse(fs21.readFileSync(path20.join(configDir, "webui.json"), "utf8"));
+        const { totp, ...rest } = JSON.parse(fs25.readFileSync(path25.join(configDir, "webui.json"), "utf8"));
         state = checkCredentialState(rest);
     }
     catch {
@@ -22121,13 +23798,13 @@ var init_credentials = __esm({
             }
             static load(configDir, { env = process.env, log = () => {
             } } = {}) {
-                const file = path20.join(configDir, "webui.json");
-                fs21.mkdirSync(configDir, { recursive: true });
+                const file = path25.join(configDir, "webui.json");
+                fs25.mkdirSync(configDir, { recursive: true });
                 const write = (s2) => _Credentials.write(file, s2);
-                if (fs21.existsSync(file)) {
+                if (fs25.existsSync(file)) {
                     let parsed = null, broken = false;
                     try {
-                        const raw = JSON.parse(fs21.readFileSync(file, "utf8"));
+                        const raw = JSON.parse(fs25.readFileSync(file, "utf8"));
                         const { totp, ...rest } = raw && typeof raw === "object" ? raw : {};
                         parsed = checkCredentialState(rest);
                         if (totp !== void 0) {
@@ -22152,7 +23829,7 @@ var init_credentials = __esm({
                         return new _Credentials(file, parsed, null, log);
                     if (broken) {
                         try {
-                            fs21.renameSync(file, `${file}.bak.${Date.now()}`);
+                            fs25.renameSync(file, `${file}.bak.${Date.now()}`);
                             log("error", "webui.json is invalid; the previous file was backed up and new credentials were generated");
                         }
                         catch {
@@ -22172,13 +23849,13 @@ var init_credentials = __esm({
             }
             static write(file, state) {
                 const tmp = file + ".tmp";
-                fs21.writeFileSync(tmp, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 384 });
+                fs25.writeFileSync(tmp, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 384 });
                 try {
-                    fs21.chmodSync(tmp, 384);
+                    fs25.chmodSync(tmp, 384);
                 }
                 catch {
                 }
-                fs21.renameSync(tmp, file);
+                fs25.renameSync(tmp, file);
             }
             takeInitialPassword() {
                 const p2 = this.initial;
@@ -22199,12 +23876,12 @@ var init_credentials = __esm({
                     return false;
                 }
             }
-            setPassword(next, current2) {
+            setPassword(next, current3) {
                 if (!strongPassword(next))
                     throw new Error("密码不符合强度要求");
                 let totp = this.state.totp;
                 if (totp) {
-                    const secret = unwrapSecret(current2 ?? "", totp);
+                    const secret = unwrapSecret(current3 ?? "", totp);
                     if (secret === null)
                         throw new Error("无法使用当前密码解开 2FA 密钥");
                     totp = { ...totp, ...wrapSecret(next, secret) };
@@ -22236,8 +23913,8 @@ var init_credentials = __esm({
         };
     }
 });
-import fs22 from "node:fs";
-import path21 from "node:path";
+import fs26 from "node:fs";
+import path26 from "node:path";
 import crypto18 from "node:crypto";
 function envAccept(env, name) {
     const raw = env[`NERONET_${name}`];
@@ -22256,12 +23933,12 @@ var init_agreements = __esm({
         FILES = [{ id: "eula", file: "EULA.md" }, { id: "privacy", file: "PRIVACY.md" }];
         Agreements = class {
             constructor({ noticesDir, configDir, env = process.env }) {
-                this.consentFile = path21.join(configDir, "consent.json");
+                this.consentFile = path26.join(configDir, "consent.json");
                 this.env = env;
                 const docs = FILES.map(({ id, file }) => {
                     let text2 = "";
                     try {
-                        text2 = fs22.readFileSync(path21.join(noticesDir, file), "utf8");
+                        text2 = fs26.readFileSync(path26.join(noticesDir, file), "utf8");
                     }
                     catch {
                     }
@@ -22288,7 +23965,7 @@ var init_agreements = __esm({
             }
             record() {
                 try {
-                    const v = JSON.parse(fs22.readFileSync(this.consentFile, "utf8"));
+                    const v = JSON.parse(fs26.readFileSync(this.consentFile, "utf8"));
                     return typeof v?.version === "string" && v.version && typeof v.acceptedAt === "string" ? v : null;
                 }
                 catch {
@@ -22307,18 +23984,18 @@ var init_agreements = __esm({
             }
             accept(version) {
                 const rec = { version, acceptedAt: (new Date()).toISOString() };
-                fs22.mkdirSync(path21.dirname(this.consentFile), { recursive: true });
+                fs26.mkdirSync(path26.dirname(this.consentFile), { recursive: true });
                 const tmp = this.consentFile + ".tmp";
-                fs22.writeFileSync(tmp, JSON.stringify(rec, null, 2), "utf8");
-                fs22.renameSync(tmp, this.consentFile);
+                fs26.writeFileSync(tmp, JSON.stringify(rec, null, 2), "utf8");
+                fs26.renameSync(tmp, this.consentFile);
                 return rec;
             }
         };
     }
 });
-import fs23 from "node:fs";
+import fs27 from "node:fs";
 import net3 from "node:net";
-import path22 from "node:path";
+import path27 from "node:path";
 function validBindHost(value) {
     const h = String(value).trim();
     if (!h || h !== value || h.length > 253 || /[\s/?#@]/u.test(h))
@@ -22531,7 +24208,7 @@ function checkTokenChanges(previous, next, { clientIp, uin }) {
 function readOneBotConfig(configDir, uin) {
     let raw = {};
     try {
-        raw = JSON.parse(fs23.readFileSync(path22.join(configDir, `onebot_${uin}.json`), "utf8"));
+        raw = JSON.parse(fs27.readFileSync(path27.join(configDir, `onebot_${uin}.json`), "utf8"));
     }
     catch {
     }
@@ -22544,9 +24221,9 @@ function readOneBotConfig(configDir, uin) {
     };
 }
 function writeOneBotConfig(configDir, uin, config) {
-    const file = path22.join(configDir, `onebot_${uin}.json`), tmp = `${file}.tmp-${process.pid}`;
-    fs23.writeFileSync(tmp, JSON.stringify(canonicalOneBotConfig(config), null, 2) + "\n", "utf8");
-    fs23.renameSync(tmp, file);
+    const file = path27.join(configDir, `onebot_${uin}.json`), tmp = `${file}.tmp-${process.pid}`;
+    fs27.writeFileSync(tmp, JSON.stringify(canonicalOneBotConfig(config), null, 2) + "\n", "utf8");
+    fs27.renameSync(tmp, file);
 }
 var ConfigValidationError, invalid8, isObj2, TIMER_MAX, loopbackHost, loopbackClient, GlobalSettings;
 var init_onebot_config = __esm({
@@ -22569,7 +24246,7 @@ var init_onebot_config = __esm({
         loopbackClient = (ip) => loopbackHost(ip);
         GlobalSettings = class _GlobalSettings {
             constructor(configDir) {
-                this.file = path22.join(configDir, "neronet.json");
+                this.file = path27.join(configDir, "neronet.json");
             }
             static normalize(v) {
                 const urls = (a) => {
@@ -22598,7 +24275,7 @@ var init_onebot_config = __esm({
             }
             load() {
                 try {
-                    return _GlobalSettings.normalize(JSON.parse(fs23.readFileSync(this.file, "utf8")));
+                    return _GlobalSettings.normalize(JSON.parse(fs27.readFileSync(this.file, "utf8")));
                 }
                 catch {
                     return _GlobalSettings.normalize({});
@@ -22606,25 +24283,25 @@ var init_onebot_config = __esm({
             }
             save(incoming) {
                 const cur = this.load(), n2 = _GlobalSettings.normalize({ ...cur, ...isObj2(incoming) ? incoming : {}, rkey: isObj2(incoming?.rkey) ? incoming.rkey : cur.rkey });
-                fs23.mkdirSync(path22.dirname(this.file), { recursive: true });
-                fs23.writeFileSync(this.file + ".tmp", JSON.stringify(n2, null, 2), "utf8");
-                fs23.renameSync(this.file + ".tmp", this.file);
+                fs27.mkdirSync(path27.dirname(this.file), { recursive: true });
+                fs27.writeFileSync(this.file + ".tmp", JSON.stringify(n2, null, 2), "utf8");
+                fs27.renameSync(this.file + ".tmp", this.file);
                 return n2;
             }
         };
     }
 });
-import fs24 from "node:fs";
-import path23 from "node:path";
+import fs28 from "node:fs";
+import path28 from "node:path";
 function imageState(bg) {
     const v = isObj3(bg) ? bg : {};
-    const version = Math.trunc(T3.range(0, Number.MAX_SAFE_INTEGER)(v.imageVersion, 0));
+    const version = Math.trunc(T5.range(0, Number.MAX_SAFE_INTEGER)(v.imageVersion, 0));
     const mime = v.hasImage === true && MIMES.includes(v.imageMime) ? v.imageMime : "";
     return { hasImage: !!mime, imageMime: mime, imageVersion: version };
 }
 function appearance(v, img) {
     const a = isObj3(v) ? v : {}, bg = isObj3(a.background) ? a.background : {};
-    let type = T3.oneOf(["none", "solid", "gradient", "image"])(bg.type, "none");
+    let type = T5.oneOf(["none", "solid", "gradient", "image"])(bg.type, "none");
     if (type === "image" && !img.hasImage)
         type = "none";
     return {
@@ -22641,13 +24318,13 @@ function layoutItems(v, fallback) {
     for (const raw of v) {
         if (!isObj3(raw))
             continue;
-        const id = T3.id()(raw.id, "");
+        const id = T5.id()(raw.id, "");
         if (!id || seen.has(id))
             continue;
         seen.add(id);
-        const it = { id, visible: T3.bool(raw.visible, true) };
+        const it = { id, visible: T5.bool(raw.visible, true) };
         if (["x", "y", "w", "h"].some((k) => present(raw[k])))
-            Object.assign(it, { x: T3.int(0, 50)(raw.x, 0), y: T3.int(0, 1e3)(raw.y, 0), w: T3.int(1, 12)(raw.w, 1), h: T3.int(1, 100)(raw.h, 1) });
+            Object.assign(it, { x: T5.int(0, 50)(raw.x, 0), y: T5.int(0, 1e3)(raw.y, 0), w: T5.int(1, 12)(raw.w, 1), h: T5.int(1, 100)(raw.h, 1) });
         if (isObj3(raw.config)) {
             try {
                 if (JSON.stringify(raw.config).length <= 4096)
@@ -22672,16 +24349,16 @@ function pages(v) {
             break;
     }
     return {
-        defaultRoute: T3.id()(p2.defaultRoute, "/"),
+        defaultRoute: T5.id()(p2.defaultRoute, "/"),
         logs: {
             visibleLevels: levels.length ? levels : [...LEVELS],
-            maxLines: T3.int(100, 5e3)(l.maxLines, 1e3),
-            autoScroll: T3.bool(l.autoScroll, true),
-            wrap: T3.bool(l.wrap, true),
+            maxLines: T5.int(100, 5e3)(l.maxLines, 1e3),
+            autoScroll: T5.bool(l.autoScroll, true),
+            wrap: T5.bool(l.wrap, true),
             highlightRules: rules,
-            preset: T3.oneOf(["dev", "ops", "minimal", "custom"])(l.preset, "custom")
+            preset: T5.oneOf(["dev", "ops", "minimal", "custom"])(l.preset, "custom")
         },
-        processesSort: T3.id()(p2.processesSort, "pid"),
+        processesSort: T5.id()(p2.processesSort, "pid"),
         configTab: typeof p2.configTab === "string" ? p2.configTab.slice(0, 64) : ""
     };
 }
@@ -22698,13 +24375,13 @@ function sniffImage(bytes) {
         return "image/webp";
     return null;
 }
-var isObj3, num, present, T3, PALETTES, APPEARANCE, APPEARANCE_2, BACKGROUND, CSS_VARS, cssColor, items, LAYOUT, LEVELS, MIMES, fields, layout, UiConfig;
+var isObj3, num, present, T5, PALETTES, APPEARANCE, APPEARANCE_2, BACKGROUND, CSS_VARS, cssColor, items, LAYOUT, LEVELS, MIMES, fields, layout, UiConfig;
 var init_ui_config = __esm({
     "upper/management/ui-config.mjs"() {
         isObj3 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
         num = (v) => typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
         present = (v) => typeof v === "number" ? Number.isFinite(v) : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
-        T3 = {
+        T5 = {
             oneOf: (list) => (v, d) => typeof v === "string" && list.includes(v) ? v : d,
             hex: (v, d) => typeof v === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim()) ? v.trim() : d,
             id: (max = 64) => (v, d) => {
@@ -22734,34 +24411,34 @@ var init_ui_config = __esm({
         };
         PALETTES = ["default", "catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha", "rose-pine", "rose-pine-moon", "rose-pine-dawn", "nord", "everforest-dark", "everforest-light"];
         APPEARANCE = {
-            mode: [T3.oneOf(["light", "dark", "system"]), "system"],
-            accentMode: [T3.oneOf(["preset", "custom"]), "preset"],
-            accentPreset: [T3.id(32), "sky"],
-            accentCustom: [T3.hex, "#38bdf8"],
-            accentScope: [T3.oneOf(["sidebar", "global"]), "global"],
-            darkIntensity: [T3.oneOf(["soft", "black"]), "soft"],
-            palette: [T3.oneOf(PALETTES), "default"],
-            sidebarStyle: [T3.oneOf(["follow", "panel", "accent"]), "follow"]
+            mode: [T5.oneOf(["light", "dark", "system"]), "system"],
+            accentMode: [T5.oneOf(["preset", "custom"]), "preset"],
+            accentPreset: [T5.id(32), "sky"],
+            accentCustom: [T5.hex, "#38bdf8"],
+            accentScope: [T5.oneOf(["sidebar", "global"]), "global"],
+            darkIntensity: [T5.oneOf(["soft", "black"]), "soft"],
+            palette: [T5.oneOf(PALETTES), "default"],
+            sidebarStyle: [T5.oneOf(["follow", "panel", "accent"]), "follow"]
         };
         APPEARANCE_2 = {
-            fontSans: [T3.id(), "default"],
-            fontSansCustom: [T3.font, ""],
-            fontMono: [T3.id(), "default"],
-            fontMonoCustom: [T3.font, ""],
-            uiScale: [T3.range(0.9, 1.2), 1],
-            radius: [T3.range(0, 2), 0.75],
-            density: [T3.oneOf(["cozy", "compact"]), "cozy"],
-            reduceMotion: [T3.bool, false],
-            disableMotion: [T3.bool, false],
-            customPointerSystem: [T3.bool, false],
-            customContextMenu: [T3.bool, true],
-            highContrast: [T3.bool, false],
-            sidebarPinned: [T3.bool, false],
-            timeFormat: [T3.oneOf(["12h", "24h"]), "24h"],
-            pollInterval: [T3.range(0, 6e4), 3e3],
-            customCss: [T3.text(5e4), ""]
+            fontSans: [T5.id(), "default"],
+            fontSansCustom: [T5.font, ""],
+            fontMono: [T5.id(), "default"],
+            fontMonoCustom: [T5.font, ""],
+            uiScale: [T5.range(0.9, 1.2), 1],
+            radius: [T5.range(0, 2), 0.75],
+            density: [T5.oneOf(["cozy", "compact"]), "cozy"],
+            reduceMotion: [T5.bool, false],
+            disableMotion: [T5.bool, false],
+            customPointerSystem: [T5.bool, false],
+            customContextMenu: [T5.bool, true],
+            highContrast: [T5.bool, false],
+            sidebarPinned: [T5.bool, false],
+            timeFormat: [T5.oneOf(["12h", "24h"]), "24h"],
+            pollInterval: [T5.range(0, 6e4), 3e3],
+            customCss: [T5.text(5e4), ""]
         };
-        BACKGROUND = { color: [T3.hex, "#0ea5e9"], gradient: [T3.id(), "none"], imageOpacity: [T3.range(0, 1), 0.15], imageBlur: [T3.range(0, 40), 0] };
+        BACKGROUND = { color: [T5.hex, "#0ea5e9"], gradient: [T5.id(), "none"], imageOpacity: [T5.range(0, 1), 0.15], imageBlur: [T5.range(0, 40), 0] };
         CSS_VARS = new Set([
             "background",
             "foreground",
@@ -22814,14 +24491,14 @@ var init_ui_config = __esm({
         layout = (v) => Object.fromEntries(Object.entries(LAYOUT).map(([k, d]) => [k, layoutItems(isObj3(v) ? v[k] : void 0, d)]));
         UiConfig = class {
             constructor(configDir) {
-                this.file = path23.join(configDir, "ui.json");
-                this.image = path23.join(configDir, "ui-assets", "background");
+                this.file = path28.join(configDir, "ui.json");
+                this.image = path28.join(configDir, "ui-assets", "background");
                 this.cached = null;
             }
             write(c) {
-                fs24.mkdirSync(path23.dirname(this.file), { recursive: true });
-                fs24.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), "utf8");
-                fs24.renameSync(this.file + ".tmp", this.file);
+                fs28.mkdirSync(path28.dirname(this.file), { recursive: true });
+                fs28.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), "utf8");
+                fs28.renameSync(this.file + ".tmp", this.file);
                 this.cached = c;
             }
             load() {
@@ -22829,7 +24506,7 @@ var init_ui_config = __esm({
                     return this.cached;
                 let parsed = null;
                 try {
-                    parsed = JSON.parse(fs24.readFileSync(this.file, "utf8"));
+                    parsed = JSON.parse(fs28.readFileSync(this.file, "utf8"));
                 }
                 catch {
                 }
@@ -22860,9 +24537,9 @@ var init_ui_config = __esm({
                 return { ...this.load().appearance, customCss: "" };
             }
             setBackground(bytes, mime) {
-                fs24.mkdirSync(path23.dirname(this.image), { recursive: true });
-                fs24.writeFileSync(this.image + ".tmp", bytes);
-                fs24.renameSync(this.image + ".tmp", this.image);
+                fs28.mkdirSync(path28.dirname(this.image), { recursive: true });
+                fs28.writeFileSync(this.image + ".tmp", bytes);
+                fs28.renameSync(this.image + ".tmp", this.image);
                 const c = this.load();
                 const next = { ...c, appearance: { ...c.appearance, background: { ...c.appearance.background, type: "image", hasImage: true, imageMime: mime, imageVersion: c.appearance.background.imageVersion + 1 } } };
                 this.write(next);
@@ -22870,7 +24547,7 @@ var init_ui_config = __esm({
             }
             clearBackground() {
                 try {
-                    fs24.rmSync(this.image, { force: true });
+                    fs28.rmSync(this.image, { force: true });
                 }
                 catch {
                 }
@@ -22884,7 +24561,7 @@ var init_ui_config = __esm({
                 if (!bg.hasImage)
                     return null;
                 try {
-                    return { bytes: fs24.readFileSync(this.image), mime: bg.imageMime };
+                    return { bytes: fs28.readFileSync(this.image), mime: bg.imageMime };
                 }
                 catch {
                     return null;
@@ -22893,15 +24570,15 @@ var init_ui_config = __esm({
         };
     }
 });
-import fs25 from "node:fs";
-import path24 from "node:path";
+import fs29 from "node:fs";
+import path29 from "node:path";
 import tls from "node:tls";
 function tlsPair(configDir) {
-    const cert = path24.join(configDir, "cert.pem"), key = path24.join(configDir, "key.pem");
-    if (!fs25.existsSync(cert) || !fs25.existsSync(key))
+    const cert = path29.join(configDir, "cert.pem"), key = path29.join(configDir, "key.pem");
+    if (!fs29.existsSync(cert) || !fs29.existsSync(key))
         return { ok: false, reason: "cert.pem or key.pem missing in config dir" };
     try {
-        const pair = { cert: fs25.readFileSync(cert), key: fs25.readFileSync(key) };
+        const pair = { cert: fs29.readFileSync(cert), key: fs29.readFileSync(key) };
         tls.createSecureContext(pair);
         return { ok: true, ...pair };
     }
@@ -22932,7 +24609,7 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
         }
         try {
             validateOneBotConfig(body);
-            checkTokenChanges(fs25.existsSync(path24.join(configDir, `onebot_${uin}.json`)) ? readOneBotConfig(configDir, uin) : null, body, { clientIp: clientIp(ctx), uin });
+            checkTokenChanges(fs29.existsSync(path29.join(configDir, `onebot_${uin}.json`)) ? readOneBotConfig(configDir, uin) : null, body, { clientIp: clientIp(ctx), uin });
             writeOneBotConfig(configDir, uin, body);
         }
         catch (e) {
@@ -23021,7 +24698,7 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
         ctx.send(200, a.bytes, { "Content-Type": a.mime, "Cache-Control": "public, max-age=31536000, immutable" });
     });
     const view = (s) => ({ webuiPort: s.webuiPort, webuiHost: s.webuiHost, tlsEnabled: s.webuiTls?.enabled ?? false, trustProxy: s.trustProxy ?? "" });
-    const hasCert = () => fs25.existsSync(path24.join(configDir, "cert.pem")) && fs25.existsSync(path24.join(configDir, "key.pem"));
+    const hasCert = () => fs29.existsSync(path29.join(configDir, "cert.pem")) && fs29.existsSync(path29.join(configDir, "key.pem"));
     router.get("/api/system/settings", (ctx) => ctx.reply(200, { settings: view(app.runtime.saved()), hasCert: hasCert(), envOverrides: app.runtime.overrideKeys(), listeningPort: listeningPort(), restartRequiredToApply: true }));
     router.post("/api/system/settings", async (ctx) => {
         const body = await ctx.json();
@@ -23072,11 +24749,11 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
             return ctx.reply(400, { success: false, message: `invalid cert/key: ${e.message}` });
         }
         try {
-            fs25.mkdirSync(configDir, { recursive: true });
-            fs25.writeFileSync(path24.join(configDir, "cert.pem"), body.cert.endsWith("\n") ? body.cert : body.cert + "\n", "utf8");
-            fs25.writeFileSync(path24.join(configDir, "key.pem"), body.key.endsWith("\n") ? body.key : body.key + "\n", { encoding: "utf8", mode: 384 });
+            fs29.mkdirSync(configDir, { recursive: true });
+            fs29.writeFileSync(path29.join(configDir, "cert.pem"), body.cert.endsWith("\n") ? body.cert : body.cert + "\n", "utf8");
+            fs29.writeFileSync(path29.join(configDir, "key.pem"), body.key.endsWith("\n") ? body.key : body.key + "\n", { encoding: "utf8", mode: 384 });
             try {
-                fs25.chmodSync(path24.join(configDir, "key.pem"), 384);
+                fs29.chmodSync(path29.join(configDir, "key.pem"), 384);
             }
             catch {
             }
@@ -23091,8 +24768,8 @@ function registerConfigRoutes(router, app, { log, clientIp, listeningPort }) {
         if (app.runtime.saved().webuiTls.enabled)
             return ctx.reply(400, { success: false, message: "请先关闭 TLS 再删除证书" });
         try {
-            fs25.rmSync(path24.join(configDir, "cert.pem"), { force: true });
-            fs25.rmSync(path24.join(configDir, "key.pem"), { force: true });
+            fs29.rmSync(path29.join(configDir, "cert.pem"), { force: true });
+            fs29.rmSync(path29.join(configDir, "key.pem"), { force: true });
         }
         catch (e) {
             log.warn("remove cert/key failed: %s", e.message);
@@ -23132,15 +24809,15 @@ function notificationConfigView(config) {
             return out;
         }) };
 }
-function mergeNotificationConfig(input, current2) {
-    if (input?.revision !== void 0 && input.revision !== notificationConfigView(current2).revision)
+function mergeNotificationConfig(input, current3) {
+    if (input?.revision !== void 0 && input.revision !== notificationConfigView(current3).revision)
         throw new NotificationConfigConflict();
     if (!input || !Array.isArray(input.channels))
         return input;
     return { ...input, channels: input.channels.map((ch) => {
             if (!ch || typeof ch !== "object")
                 return ch;
-            const prior = current2.channels.find((x) => x.id === ch.id && (x.type ?? "webhook") === (ch.type ?? "webhook"));
+            const prior = current3.channels.find((x) => x.id === ch.id && (x.type ?? "webhook") === (ch.type ?? "webhook"));
             const out = { ...ch };
             delete out.retained;
             delete out.endpointHint;
@@ -23172,8 +24849,8 @@ var init_notification_config_view = __esm({
         };
     }
 });
-import fs26 from "node:fs";
-import path25 from "node:path";
+import fs30 from "node:fs";
+import path30 from "node:path";
 function emailAddress(value) {
     const t = String(value ?? "").trim();
     if (!t)
@@ -23322,15 +24999,15 @@ QQ号：{uin}
         normalizeNotifications = (v) => ({ version: 1, debounceSeconds: debounce(isObj4(v) ? v.debounceSeconds : void 0, 30), channels: channels(isObj4(v) ? v.channels : void 0) });
         NotificationStore = class {
             constructor(configDir) {
-                this.file = path25.join(configDir, "notifications.json");
+                this.file = path30.join(configDir, "notifications.json");
                 this.cached = null;
             }
             write(c) {
-                fs26.mkdirSync(path25.dirname(this.file), { recursive: true });
-                fs26.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), { encoding: "utf8", mode: 384 });
+                fs30.mkdirSync(path30.dirname(this.file), { recursive: true });
+                fs30.writeFileSync(this.file + ".tmp", JSON.stringify(c, null, 2), { encoding: "utf8", mode: 384 });
                 if (process.platform !== "win32")
-                    fs26.chmodSync(this.file + ".tmp", 384);
-                fs26.renameSync(this.file + ".tmp", this.file);
+                    fs30.chmodSync(this.file + ".tmp", 384);
+                fs30.renameSync(this.file + ".tmp", this.file);
                 this.cached = c;
             }
             load() {
@@ -23338,10 +25015,10 @@ QQ号：{uin}
                     return this.cached;
                 let parsed = null;
                 try {
-                    parsed = JSON.parse(fs26.readFileSync(this.file, "utf8"));
+                    parsed = JSON.parse(fs30.readFileSync(this.file, "utf8"));
                 }
                 catch (e) {
-                    if (e.code !== "ENOENT" && fs26.existsSync(this.file)) {
+                    if (e.code !== "ENOENT" && fs30.existsSync(this.file)) {
                         this.cached = normalizeNotifications({});
                         return this.cached;
                     }
@@ -23366,26 +25043,26 @@ QQ号：{uin}
         };
     }
 });
-import fs27 from "node:fs";
-import path26 from "node:path";
+import fs31 from "node:fs";
+import path31 from "node:path";
 import tls2 from "node:tls";
 import crypto20 from "node:crypto";
 function safePath(configDir, name) {
-    const dir = path26.resolve(configDir);
-    const st = fs27.lstatSync(dir, { throwIfNoEntry: false });
+    const dir = path31.resolve(configDir);
+    const st = fs31.lstatSync(dir, { throwIfNoEntry: false });
     if (st && (!st.isDirectory() || st.isSymbolicLink()))
         throw new UnsafeConfigPath(dir);
     if (!name)
         return dir;
-    const file = path26.resolve(dir, name);
-    if (!file.startsWith(dir + path26.sep))
+    const file = path31.resolve(dir, name);
+    if (!file.startsWith(dir + path31.sep))
         throw new UnsafeConfigPath(name);
-    for (let p2 = path26.dirname(file); p2 !== dir; p2 = path26.dirname(p2)) {
-        const s2 = fs27.lstatSync(p2, { throwIfNoEntry: false });
+    for (let p2 = path31.dirname(file); p2 !== dir; p2 = path31.dirname(p2)) {
+        const s2 = fs31.lstatSync(p2, { throwIfNoEntry: false });
         if (s2 && (!s2.isDirectory() || s2.isSymbolicLink()))
             throw new UnsafeConfigPath(name);
     }
-    const s = fs27.lstatSync(file, { throwIfNoEntry: false });
+    const s = fs31.lstatSync(file, { throwIfNoEntry: false });
     if (s && (!s.isFile() || s.isSymbolicLink()))
         throw new UnsafeConfigPath(name);
     return file;
@@ -23394,7 +25071,7 @@ function exportBackup(configDir, { includeCredentials = false, now: now2 = new D
     safePath(configDir);
     let names = [];
     try {
-        names = fs27.readdirSync(configDir).filter((n2) => PER_UIN.test(n2)).sort();
+        names = fs31.readdirSync(configDir).filter((n2) => PER_UIN.test(n2)).sort();
     }
     catch (e) {
         if (e.code !== "ENOENT")
@@ -23582,7 +25259,7 @@ function restoreBackup(configDir, bundle, opts = {}) {
     }
     if (!plan.restore.length)
         return { transactionId, restored: [], skipped: plan.skipped, migrated: plan.migrated, restartRequiredToApply: false };
-    const tx = path26.join(configDir, `.restore-transaction-${transactionId}`), snap = path26.join(tx, "snapshot"), staged = path26.join(tx, "staged");
+    const tx = path31.join(configDir, `.restore-transaction-${transactionId}`), snap = path31.join(tx, "snapshot"), staged = path31.join(tx, "staged");
     const existed = new Map(), committed = [];
     let phase = "snapshot", active;
     try {
@@ -23591,23 +25268,23 @@ function restoreBackup(configDir, bundle, opts = {}) {
             const cur = readOrNull(configDir, f.name);
             existed.set(f.name, cur !== null);
             if (cur !== null) {
-                fs27.mkdirSync(path26.dirname(path26.join(snap, f.name)), { recursive: true });
-                fs27.writeFileSync(path26.join(snap, f.name), cur);
+                fs31.mkdirSync(path31.dirname(path31.join(snap, f.name)), { recursive: true });
+                fs31.writeFileSync(path31.join(snap, f.name), cur);
             }
         }
         phase = "stage";
         for (const f of plan.restore) {
             active = f.name;
-            const p2 = path26.join(staged, f.name);
-            fs27.mkdirSync(path26.dirname(p2), { recursive: true });
-            fs27.writeFileSync(p2, f.data, { mode: f.mode });
+            const p2 = path31.join(staged, f.name);
+            fs31.mkdirSync(path31.dirname(p2), { recursive: true });
+            fs31.writeFileSync(p2, f.data, { mode: f.mode });
         }
         phase = "commit";
         for (const f of plan.restore) {
             active = f.name;
             const target = safePath(configDir, f.name);
-            fs27.mkdirSync(path26.dirname(target), { recursive: true });
-            (opts.renameImpl ?? fs27.renameSync)(path26.join(staged, f.name), target);
+            fs31.mkdirSync(path31.dirname(target), { recursive: true });
+            (opts.renameImpl ?? fs31.renameSync)(path31.join(staged, f.name), target);
             committed.push(f.name);
         }
     }
@@ -23616,11 +25293,11 @@ function restoreBackup(configDir, bundle, opts = {}) {
         const failedFiles = [active].filter(Boolean);
         for (const name of committed.reverse()) {
             try {
-                const target = path26.join(configDir, name);
+                const target = path31.join(configDir, name);
                 if (existed.get(name))
-                    fs27.copyFileSync(path26.join(snap, name), target);
+                    fs31.copyFileSync(path31.join(snap, name), target);
                 else
-                    fs27.rmSync(target, { force: true });
+                    fs31.rmSync(target, { force: true });
             }
             catch {
                 rollbackSucceeded = false;
@@ -23629,7 +25306,7 @@ function restoreBackup(configDir, bundle, opts = {}) {
         }
         if (rollbackSucceeded) {
             try {
-                fs27.rmSync(tx, { recursive: true, force: true });
+                fs31.rmSync(tx, { recursive: true, force: true });
             }
             catch {
             }
@@ -23637,7 +25314,7 @@ function restoreBackup(configDir, bundle, opts = {}) {
         throw new RestoreError({ phase, transactionId, message: `restore ${phase} failed: ${e.message}`, cause: e, rollbackSucceeded: committed.length || phase === "commit" ? rollbackSucceeded : void 0, snapshotDir: rollbackSucceeded ? void 0 : snap, failedFiles });
     }
     try {
-        fs27.rmSync(tx, { recursive: true, force: true });
+        fs31.rmSync(tx, { recursive: true, force: true });
     }
     catch (e) {
         throw new RestoreError({ phase: "cleanup", transactionId, message: "restore cleanup failed", committed: true, snapshotDir: tx, cause: e, failedFiles: [] });
@@ -23698,7 +25375,7 @@ var init_backup = __esm({
         readOrNull = (configDir, name) => {
             const f = safePath(configDir, name);
             try {
-                return fs27.readFileSync(f);
+                return fs31.readFileSync(f);
             }
             catch (e) {
                 if (e.code === "ENOENT")
@@ -23729,8 +25406,8 @@ var init_backup = __esm({
         serialize = (v) => Buffer.from(JSON.stringify(v, null, 2), "utf8");
     }
 });
-import fs28 from "node:fs";
-import path27 from "node:path";
+import fs32 from "node:fs";
+import path32 from "node:path";
 function parseCleanup(body) {
     const exact = (keys) => {
         const k = Object.keys(body);
@@ -23769,12 +25446,12 @@ var init_storage = __esm({
     "upper/management/storage.mjs"() {
         sizeOf = (p2) => {
             try {
-                const st = fs28.statSync(p2);
+                const st = fs32.statSync(p2);
                 if (st.isFile())
                     return st.size;
                 if (!st.isDirectory())
                     return 0;
-                return fs28.readdirSync(p2).reduce((s, n2) => s + sizeOf(path27.join(p2, n2)), 0);
+                return fs32.readdirSync(p2).reduce((s, n2) => s + sizeOf(path32.join(p2, n2)), 0);
             }
             catch {
                 return 0;
@@ -23782,10 +25459,10 @@ var init_storage = __esm({
         };
         countFiles = (p2) => {
             try {
-                const st = fs28.statSync(p2);
+                const st = fs32.statSync(p2);
                 if (st.isFile())
                     return 1;
-                return st.isDirectory() ? fs28.readdirSync(p2).reduce((s, n2) => s + countFiles(path27.join(p2, n2)), 0) : 0;
+                return st.isDirectory() ? fs32.readdirSync(p2).reduce((s, n2) => s + countFiles(path32.join(p2, n2)), 0) : 0;
             }
             catch {
                 return 0;
@@ -23802,8 +25479,8 @@ var init_storage = __esm({
             }
         };
         Storage = class {
-            constructor({ home: home3, boundUin, online, logs, inUse = () => false }) {
-                this.home = home3;
+            constructor({ home: home4, boundUin, online, logs, inUse = () => false }) {
+                this.home = home4;
                 this.boundUin = String(boundUin);
                 this.online = online;
                 this.logs = logs;
@@ -23816,18 +25493,18 @@ var init_storage = __esm({
                 return [...on];
             }
             paths(uin, category) {
-                const d = path27.join(this.home, "data"), legacy = path27.join(d, uin);
-                const upper = uin === this.boundUin ? ["", "-wal", "-shm"].map((s) => path27.join(d, "upper", `messages.sqlite${s}`)) : [];
+                const d = path32.join(this.home, "data"), legacy = path32.join(d, uin);
+                const upper = uin === this.boundUin ? ["", "-wal", "-shm"].map((s) => path32.join(d, "upper", `messages.sqlite${s}`)) : [];
                 if (category === "messages")
-                    return [...upper, path27.join(legacy, "messages.json")];
+                    return [...upper, path32.join(legacy, "messages.json")];
                 if (category === "media")
-                    return [...uin === this.boundUin ? [path27.join(d, "neronet-images")] : [], path27.join(legacy, "messages.db"), path27.join(legacy, "messages.db-wal"), path27.join(legacy, "messages.db-shm")];
-                return [path27.join(legacy, "reactions.db"), path27.join(legacy, "reactions.db-wal"), path27.join(legacy, "reactions.db-shm")];
+                    return [...uin === this.boundUin ? [path32.join(d, "neronet-images")] : [], path32.join(legacy, "messages.db"), path32.join(legacy, "messages.db-wal"), path32.join(legacy, "messages.db-shm")];
+                return [path32.join(legacy, "reactions.db"), path32.join(legacy, "reactions.db-wal"), path32.join(legacy, "reactions.db-shm")];
             }
             uins() {
                 const set = new Set([this.boundUin, ...this.online().map((a) => String(a.uin))]);
                 try {
-                    for (const n2 of fs28.readdirSync(path27.join(this.home, "data")))
+                    for (const n2 of fs32.readdirSync(path32.join(this.home, "data")))
                         if (UIN2.test(n2))
                             set.add(n2);
                 }
@@ -23841,7 +25518,7 @@ var init_storage = __esm({
                     const [m, me, r] = ["messages", "media", "reactions"].map((c) => this.paths(uin, c).reduce((s, p2) => s + sizeOf(p2), 0));
                     return { uin, ...online.has(uin) ? { nickname: online.get(uin) } : {}, online: online.has(uin), messagesBytes: m, mediaBytes: me, reactionsBytes: r, totalBytes: m + me + r };
                 });
-                const tmp = path27.join(this.home, "data", "upper", "tmp");
+                const tmp = path32.join(this.home, "data", "upper", "tmp");
                 const temporary = { totalBytes: sizeOf(tmp), fileCount: countFiles(tmp), activeItemCount: 0 };
                 const logs = this.logs.status();
                 const accountDataBytes = accounts.reduce((s, a) => s + a.totalBytes, 0);
@@ -23851,16 +25528,16 @@ var init_storage = __esm({
                 let deletedFiles = 0, freedBytes = 0;
                 const failures = [];
                 for (const p2 of paths) {
-                    if (!fs28.existsSync(p2))
+                    if (!fs32.existsSync(p2))
                         continue;
                     const size = sizeOf(p2), files = countFiles(p2);
                     try {
-                        fs28.rmSync(p2, { recursive: true, force: true });
+                        fs32.rmSync(p2, { recursive: true, force: true });
                         deletedFiles += files;
                         freedBytes += size;
                     }
                     catch (e) {
-                        failures.push({ ...uin ? { uin } : {}, file: path27.relative(this.home, p2), message: String(e.code ?? e.message) });
+                        failures.push({ ...uin ? { uin } : {}, file: path32.relative(this.home, p2), message: String(e.code ?? e.message) });
                     }
                 }
                 return { deletedFiles, freedBytes, failures };
@@ -23869,7 +25546,7 @@ var init_storage = __esm({
                 return this.logs.clear();
             }
             clearTemporary() {
-                const r = this.remove([path27.join(this.home, "data", "upper", "tmp")]);
+                const r = this.remove([path32.join(this.home, "data", "upper", "tmp")]);
                 return { ...r, skippedActiveItems: 0 };
             }
             clearAccount(category, uin) {
@@ -24073,14 +25750,15 @@ var init_routes_system = __esm({
         init_storage();
     }
 });
-function actionCatalog(enabled) {
-    const actions = ACTION_DOCS.map((d) => ({ ...d, enabled: enabled ? enabled.has(d.name) : void 0 }));
+function actionCatalog(enabled, custom = []) {
+    const extra = custom.map((c) => ({ ...D(c.name, CUSTOM_CATEGORY, `${c.summary || "自定义动作"}（${c.file}；命令 ${c.commands.join("、")}）`, []), custom: true }));
+    const actions = [...ACTION_DOCS, ...extra].map((d) => ({ ...d, enabled: enabled ? enabled.has(d.name) : void 0 }));
     const counts = new Map();
     for (const d of actions)
         counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
     return { actions, categories: [...counts].map(([category, count3]) => ({ category, count: count3 })) };
 }
-var p, gid, uid, mid, message, forwardNodes, D, ACTION_DOCS;
+var p, gid, uid, mid, message, forwardNodes, D, ACTION_DOCS, CUSTOM_CATEGORY;
 var init_action_docs = __esm({
     "upper/onebot/action-docs.mjs"() {
         init_record_convert();
@@ -24135,19 +25813,37 @@ var init_action_docs = __esm({
             D("get_qzone_msg_list", "QQ 空间", "说说列表（需启用 qzone）", [p("target_uin", "number", false, { role: "user_id", desc: "省略为机器人自己" }), p("pos", "number", false, { default: 0 }), p("num", "number", false, { default: 20, desc: "1 到 40" })], { readOnly: true, returns: "{ total, pos, num, msglist }" }),
             D("get_qzone_msg_detail", "QQ 空间", "说说详情和一页评论（需启用 qzone）", [p("tid", "string", true), p("target_uin", "number", false, { role: "user_id" }), p("pos", "number", false, { default: 0 }), p("num", "number", false, { default: 20 })], { readOnly: true, returns: "{ tid, uin, content, time, images, comment_num, comments, ugc_right? }" }),
             D("set_qzone_msg_right", "QQ 空间", "修改自己说说的查看权限（需启用 qzone）", [p("tid", "string", true), p("ugc_right", "number", true, { values: [1, 4, 16, 64, 128] }), p("target_uins", "array", false, { desc: "ugc_right 为 16 或 128 时必填" })], { returns: "{ tid, ugc_right, target_uins, confirmed }" }),
+            D("set_group_kick", "群管理", "移出群成员（需启用 group-admin）", [gid(), p("user_id", "number", true, { role: "member_id" }), p("reject_add_request", "boolean", false, { default: false, desc: "拒绝此人再次申请" }), p("reason", "string", false)]),
+            D("set_group_ban", "群管理", "禁言群成员，0 秒为解除（需启用 group-admin）", [gid(), p("user_id", "number", true, { role: "member_id" }), p("duration", "number", false, { default: 1800, desc: "秒，0 到 2592000" })]),
+            D("set_group_whole_ban", "群管理", "全员禁言（需启用 group-admin）", [gid(), p("enable", "boolean", false, { default: true })]),
+            D("set_group_admin", "群管理", "设置或取消管理员，需群主（需启用 group-admin）", [gid(), p("user_id", "number", true, { role: "member_id" }), p("enable", "boolean", false, { default: true })]),
+            D("set_group_card", "群管理", "修改群名片，空为清除（需启用 group-admin）", [gid(), p("user_id", "number", true, { role: "member_id" }), p("card", "string", false, { default: "" })]),
+            D("set_group_name", "群管理", "修改群名称（需启用 group-admin）", [gid(), p("group_name", "string", true)]),
+            D("set_group_special_title", "群管理", "设置专属头衔，需群主；空为取消（需启用 group-admin）", [gid(), p("user_id", "number", true, { role: "member_id" }), p("special_title", "string", false, { default: "" })]),
+            D("set_group_leave", "群管理", "退出群（需启用 group-admin；不支持解散）", [gid()]),
+            D("set_friend_add_request", "请求", "处理加好友请求（需启用 requests）", [p("flag", "string", true, { desc: "请求事件的 flag" }), p("approve", "boolean", false, { default: true })]),
+            D("set_group_add_request", "请求", "处理加群申请或邀请（需启用 requests）", [p("flag", "string", true, { desc: "请求事件的 flag" }), p("approve", "boolean", false, { default: true }), p("reason", "string", false, { desc: "拒绝理由" })]),
+            D("get_group_system_msg", "请求", "群请求列表（需启用 requests）", [], { readOnly: true, returns: "{ invited_requests, join_requests }" }),
+            D("_get_group_notice", "群公告", "群公告列表（需启用 group-notice）", [gid(), p("count", "number", false, { default: 20, desc: "1 到 50" })], { readOnly: true }),
+            D("_send_group_notice", "群公告", "发布群公告，需管理员；暂不支持图片（需启用 group-notice）", [gid(), p("content", "string", true, { desc: "正文" }), p("pinned", "number", false, { values: [0, 1], default: 0 }), p("send_to_new_members", "boolean", false, { default: false }), p("is_show_edit_card", "number", false, { values: [0, 1], default: 1 }), p("tip_window_type", "number", false, { values: [0, 1], default: 1 }), p("confirm_required", "number", false, { values: [0, 1], default: 1 })], { returns: "{ notice_id }" }),
+            D("_del_group_notice", "群公告", "删除群公告，需管理员（需启用 group-notice）", [gid(), p("notice_id", "string", true)]),
+            D("get_cookies", "网页登录态", "网页 Cookie，仅 qun.qq.com 与 qzone.qq.com（需启用 web-credentials）", [p("domain", "string", false, { default: "qun.qq.com", values: ["qun.qq.com", "qzone.qq.com"] })], { readOnly: true, returns: "{ cookies }" }),
+            D("get_csrf_token", "网页登录态", "qun.qq.com 的 CSRF Token（需启用 web-credentials）", [], { readOnly: true, returns: "{ token }" }),
+            D("get_credentials", "网页登录态", "Cookie 与 CSRF Token（需启用 web-credentials）", [p("domain", "string", false, { default: "qun.qq.com", values: ["qun.qq.com", "qzone.qq.com"] })], { readOnly: true, returns: "{ cookies, csrf_token }" }),
             D("can_send_image", "能力", "能否发送图片", [], { readOnly: true, returns: "{ yes }" }),
             D("can_send_record", "能力", "能否发送语音", [], { readOnly: true, returns: "{ yes }" })
         ]);
+        CUSTOM_CATEGORY = "自定义（未经验证）";
     }
 });
-import fs29 from "node:fs";
-import path28 from "node:path";
+import fs33 from "node:fs";
+import path33 from "node:path";
 import crypto21 from "node:crypto";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 function registerDebugRoutes(router, app, { shutdown }) {
     const d = app.debug;
-    router.get("/api/debug/actions", (ctx) => ctx.reply(200, actionCatalog(d.enabled)));
+    router.get("/api/debug/actions", (ctx) => ctx.reply(200, actionCatalog(d.enabled, d.customDocs ?? [])));
     const parse = async (ctx) => {
         const body = await ctx.jsonOr(void 0);
         if (body === void 0) {
@@ -24189,31 +25885,31 @@ function registerDebugRoutes(router, app, { shutdown }) {
     router.post("/api/debug/upload", async (ctx) => {
         const dir = d.uploadDir;
         try {
-            fs29.mkdirSync(dir, { recursive: true });
+            fs33.mkdirSync(dir, { recursive: true });
             const now2 = Date.now();
-            for (const n2 of fs29.readdirSync(dir)) {
-                const f = path28.join(dir, n2);
+            for (const n2 of fs33.readdirSync(dir)) {
+                const f = path33.join(dir, n2);
                 try {
-                    if (now2 - fs29.statSync(f).mtimeMs > 864e5)
-                        fs29.rmSync(f, { force: true, recursive: true });
+                    if (now2 - fs33.statSync(f).mtimeMs > 864e5)
+                        fs33.rmSync(f, { force: true, recursive: true });
                 }
                 catch {
                 }
             }
-            const name = path28.basename(String(ctx.query("filename") ?? "").replace(/\\/g, "/")).replace(/[^\w.-]+/g, "_").replace(/^\.+/, "").slice(0, 120) || "file";
-            const dest = path28.join(dir, `${crypto21.randomBytes(12).toString("hex")}__${name}`);
+            const name = path33.basename(String(ctx.query("filename") ?? "").replace(/\\/g, "/")).replace(/[^\w.-]+/g, "_").replace(/^\.+/, "").slice(0, 120) || "file";
+            const dest = path33.join(dir, `${crypto21.randomBytes(12).toString("hex")}__${name}`);
             let size = 0;
             const limit = new Transform({ transform(chunk2, _enc, done) {
                     size += chunk2.length;
                     done(size > 4 * 1024 ** 3 ? new Error("上传超出大小上限") : null, chunk2);
                 } });
             try {
-                await pipeline(ctx.req, limit, fs29.createWriteStream(dest, { mode: 384 }));
+                await pipeline(ctx.req, limit, fs33.createWriteStream(dest, { mode: 384 }));
                 if (!size)
                     throw new Error("empty body");
             }
             catch (e) {
-                fs29.rmSync(dest, { force: true });
+                fs33.rmSync(dest, { force: true });
                 throw e;
             }
             ctx.reply(200, { status: "ok", path: dest, size });
@@ -24224,7 +25920,7 @@ function registerDebugRoutes(router, app, { shutdown }) {
     });
     router.get("/api/debug/stream", (ctx) => ctx.sse((ch) => {
         let dropped = 0;
-        const push = (frame) => {
+        const push = (frame2) => {
             if (ch.closed)
                 return;
             if (ctx.res.writableNeedDrain) {
@@ -24235,7 +25931,7 @@ function registerDebugRoutes(router, app, { shutdown }) {
                 ch.send({ kind: "dropped", count: dropped });
                 dropped = 0;
             }
-            ch.send(frame);
+            ch.send(frame2);
         };
         push({ kind: "ready" });
         ch.onClose(d.subscribe((rec) => push({ ...rec, uin: String(d.uin) })));
@@ -24248,11 +25944,113 @@ var init_routes_debug = __esm({
         UIN3 = /^\d{5,10}$/;
     }
 });
+import fs34 from "node:fs";
+import path34 from "node:path";
+function registerActionRoutes(router, app, { log }) {
+    const file = path34.join(app.configDir, FILE);
+    const effective = app.actionPolicy.effective;
+    const implemented = ACTION_DOCS.map((d) => d.name);
+    const covered = new Set([...DEFAULT_ACTIONS, ...Object.values(CLIENT_PROFILES).flat()]);
+    const candidates = implemented.filter((name) => !covered.has(name)).sort();
+    const restartHint = process.platform === "win32" ? "先运行 stop.bat，再运行 start.bat。" : "先运行 ./stop.sh，再运行 ./start.sh；Docker 部署请重启容器。";
+    const read = () => {
+        if (!fs34.existsSync(file))
+            return { exists: false, spec: {} };
+        let spec2;
+        try {
+            spec2 = JSON.parse(fs34.readFileSync(file, "utf8").replace(/^﻿/, ""));
+        }
+        catch {
+            return { error: `${FILE} 不是有效的 JSON` };
+        }
+        if (!isObject(spec2))
+            return { error: `${FILE} 的内容必须是对象` };
+        return { exists: true, spec: spec2 };
+    };
+    const strings = (v) => Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+    const savedView = (r) => ({
+        exists: r.exists,
+        profiles: strings(r.spec.profiles),
+        extraActions: strings(r.spec.extraActions),
+        unknownKeys: Object.keys(r.spec).filter((k) => k !== "profiles" && k !== "extraActions")
+    });
+    const effectiveView = () => ({ profiles: [...effective.profiles ?? []], extraActions: [...effective.extraActionNames ?? []], enabled: [...effective.actions].sort() });
+    const differs = (saved) => !sameSet(saved.profiles, effectiveView().profiles) || !sameSet(saved.extraActions, effectiveView().extraActions);
+    router.get("/api/system/actions", (ctx) => {
+        ctx.set("Cache-Control", "no-store");
+        const r = read();
+        const saved = r.error ? null : savedView(r);
+        ctx.reply(200, {
+            file: FILE,
+            defaults: [...DEFAULT_ACTIONS],
+            profiles: Object.entries(CLIENT_PROFILES).map(([name, actions]) => ({ name, title: PROFILE_INFO[name]?.title ?? name, description: PROFILE_INFO[name]?.description ?? "", highRisk: PROFILE_INFO[name]?.highRisk === true, actions: [...actions] })),
+            candidates,
+            saved,
+            ...r.error ? { fileError: r.error } : {},
+            effective: effectiveView(),
+            restartRequired: saved ? differs(saved) : false,
+            restartHint
+        });
+    });
+    router.post("/api/system/actions", async (ctx) => {
+        const body = await ctx.jsonOr(void 0);
+        if (!isObject(body))
+            return ctx.reply(400, { success: false, message: "请求格式错误" });
+        const { profiles, extraActions } = body;
+        if (!Array.isArray(profiles) || !Array.isArray(extraActions))
+            return ctx.reply(400, { success: false, message: "profiles 和 extraActions 必须是数组" });
+        const badProfile = profiles.find((p2) => typeof p2 !== "string" || !Object.hasOwn(CLIENT_PROFILES, p2));
+        if (badProfile !== void 0)
+            return ctx.reply(400, { success: false, message: `未知的动作档案：${String(badProfile)}` });
+        const r = read();
+        if (r.error)
+            return ctx.reply(409, { success: false, message: `${r.error}，请先手动修复或删除这个文件` });
+        const kept = new Set(strings(r.spec.extraActions));
+        const badAction = extraActions.find((a) => typeof a !== "string" || !(implemented.includes(a) || kept.has(a)));
+        if (badAction !== void 0)
+            return ctx.reply(400, { success: false, message: `未知的动作：${String(badAction)}` });
+        const next = { ...r.spec, profiles: [...new Set(profiles)], extraActions: [...new Set(extraActions)] };
+        try {
+            fs34.mkdirSync(app.configDir, { recursive: true });
+            const tmp = `${file}.tmp-${process.pid}`;
+            fs34.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
+            fs34.renameSync(tmp, file);
+        }
+        catch (e) {
+            log.error("write %s failed: %s", FILE, e.message);
+            return ctx.reply(500, { success: false, message: "保存失败，请检查服务器日志" });
+        }
+        const saved = savedView({ exists: true, spec: next });
+        log.info("action profiles saved via WebUI: profiles=%s extraActions=%d (restart required)", saved.profiles.join(",") || "-", saved.extraActions.length);
+        ctx.reply(200, { success: true, saved, effective: effectiveView(), restartRequiredToApply: true, restartRequired: differs(saved), restartHint, message: "已保存，重启 NeroNet 后生效。" });
+    });
+}
+var FILE, PROFILE_INFO, isObject, sameSet;
+var init_routes_actions = __esm({
+    "upper/management/routes-actions.mjs"() {
+        init_action_policy();
+        init_action_docs();
+        FILE = "neronet-actions.json";
+        PROFILE_INFO = Object.freeze({
+            astrbot: { title: "AstrBot", description: "AstrBot 及常用插件需要的读取、转发、文件和戳一戳等动作。" },
+            qqbridge: { title: "qq-bridge", description: "qq-bridge 读取群成员、聊天记录、表情和发送戳一戳需要的动作。" },
+            "qqbridge-stickers": { title: "qq-bridge 表情收藏", description: "允许客户端添加和修改账号收藏的表情。" },
+            "message-read": { title: "标记已读", description: "允许客户端把 QQ 会话标记为已读。" },
+            qzone: { title: "QQ 空间", description: "发布、删除、读取说说并修改可见范围；发布默认公开。" },
+            "group-admin": { title: "群管理", description: "踢人、禁言、设置管理员、改群名片和头衔、退群。作用于真实成员，无法撤销。", highRisk: true },
+            requests: { title: "好友与加群申请", description: "同意或拒绝好友申请和加群申请，读取群通知。", highRisk: true },
+            "group-notice": { title: "群公告", description: "读取、发布和删除群公告。" },
+            "web-credentials": { title: "网页登录凭据", description: "把账号的网页登录 Cookie 交给客户端，持有者在过期前可以用这个账号操作 QQ 群和 QQ 空间网页。", highRisk: true }
+        });
+        isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+        sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    }
+});
 import http4 from "node:http";
 import https from "node:https";
-import fs30 from "node:fs";
-import os2 from "node:os";
-import path29 from "node:path";
+import fs35 from "node:fs";
+import os4 from "node:os";
+import path35 from "node:path";
 import crypto22 from "node:crypto";
 function trustProxy(raw) {
     const v = String(raw ?? "").trim().toLowerCase();
@@ -24447,7 +26245,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
         if (creds.totpEnabled())
             return ctx.reply(409, { success: false, message: "2FA 已开启" });
         const body = await ctx.jsonOr({});
-        const issuer = labelPart(body?.issuer, app.product.name), accountName = labelPart(body?.accountName, os2.hostname().trim() || "admin");
+        const issuer = labelPart(body?.issuer, app.product.name), accountName = labelPart(body?.accountName, os4.hostname().trim() || "admin");
         const now2 = Date.now(), existing = enrollments.get(ctx.state.token);
         const secret = existing && existing.expiresAt > now2 ? existing.secret : newSecret();
         enrollments.set(ctx.state.token, { secret, issuer, accountName, expiresAt: now2 + ENROLL_TTL_MS });
@@ -24556,7 +26354,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
     });
     let lastCpu = null;
     const cpuLoad = () => {
-        const cur = os2.cpus().map((c) => {
+        const cur = os4.cpus().map((c) => {
             const t = c.times;
             return { idle: t.idle, total: t.user + t.nice + t.sys + t.idle + t.irq };
         });
@@ -24571,18 +26369,18 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
     };
     const ARCH = { arm64: "ARM64", x64: "x86_64", ia32: "x86", arm: "ARM" };
     router.get("/api/system", async (ctx) => {
-        const cpus = os2.cpus(), usage = cpuLoad(), total = os2.totalmem(), free = os2.freemem(), mem = process.memoryUsage();
+        const cpus = os4.cpus(), usage = cpuLoad(), total = os4.totalmem(), free = os4.freemem(), mem = process.memoryUsage();
         ctx.reply(200, {
-            hostname: os2.hostname(),
-            platform: os2.platform(),
-            arch: os2.arch(),
-            archLabel: ARCH[os2.arch()] ?? os2.arch(),
-            release: os2.release(),
-            distro: app.distro ?? (os2.platform() === "win32" ? `Windows ${os2.release()}` : os2.platform()),
-            uptime: os2.uptime(),
+            hostname: os4.hostname(),
+            platform: os4.platform(),
+            arch: os4.arch(),
+            archLabel: ARCH[os4.arch()] ?? os4.arch(),
+            release: os4.release(),
+            distro: app.distro ?? (os4.platform() === "win32" ? `Windows ${os4.release()}` : os4.platform()),
+            uptime: os4.uptime(),
             processUptime: process.uptime(),
             nodeVersion: process.version,
-            cpu: { model: cpus[0]?.model ?? "unknown", cores: cpus.length, speedMHz: cpus[0]?.speed ?? 0, loadAvg: os2.loadavg(), perCore: usage, average: usage.length ? usage.reduce((s, v) => s + v, 0) / usage.length : 0 },
+            cpu: { model: cpus[0]?.model ?? "unknown", cores: cpus.length, speedMHz: cpus[0]?.speed ?? 0, loadAvg: os4.loadavg(), perCore: usage, average: usage.length ? usage.reduce((s, v) => s + v, 0) / usage.length : 0 },
             memory: { total, free, used: total - free, usagePercent: total ? (total - free) / total * 100 : 0 },
             runtime: { pid: process.pid, lowIntegrity: await app.lowIntegrity?.() ?? false, rss: mem.rss, heapTotal: mem.heapTotal, heapUsed: mem.heapUsed, external: mem.external, arrayBuffers: mem.arrayBuffers }
         });
@@ -24683,7 +26481,7 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
     });
     router.get("/api/logs/export/trace", (ctx) => {
         const exportedAt = (new Date()).toISOString();
-        const body = traceExport(app.logger.snapshot(), { version: app.product.version, operatingSystem: os2.platform(), architecture: os2.arch(), nodeVersion: process.version, logLevel: app.logger.getLevel(), exportedAt });
+        const body = traceExport(app.logger.snapshot(), { version: app.product.version, operatingSystem: os4.platform(), architecture: os4.arch(), nodeVersion: process.version, logLevel: app.logger.getLevel(), exportedAt });
         ctx.send(200, body, { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": `attachment; filename="neronet-trace-${exportedAt.slice(0, 19).replace(/[:.]/g, "-")}.log"`, "Cache-Control": "no-store" });
     });
     router.get("/api/logs/stream", (ctx) => ctx.sse((ch) => {
@@ -24717,14 +26515,16 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
     registerSystemRoutes(router, app, { log, afterRestore });
     if (app.debug)
         registerDebugRoutes(router, app, { shutdown: shutdown.signal });
+    if (app.actionPolicy)
+        registerActionRoutes(router, app, { log });
     router.post("/api/update/*", (ctx) => ctx.reply(409, { success: false, code: "NERONET_MANAGED_RELEASE", message: "不提供在线更新；请下载完整的新版本包后重新安装。" }));
     router.get("/api/update/*", (ctx) => ctx.reply(409, { success: false, code: "NERONET_MANAGED_RELEASE", message: "不提供在线更新；请下载完整的新版本包后重新安装。" }));
     app.extraRoutes?.(router, { log, bus, sessions, shutdown: shutdown.signal });
-    const index = path29.join(app.clientRoot, "index.html");
+    const index = path35.join(app.clientRoot, "index.html");
     const documentPage = (ctx) => {
-        if (!fs30.existsSync(index))
+        if (!fs35.existsSync(index))
             return ctx.text(404, "WebUI client bundle not found.");
-        ctx.send(200, fs30.readFileSync(index), { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+        ctx.send(200, fs35.readFileSync(index), { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
     };
     router.get("/", documentPage);
     router.get("/index.html", documentPage);
@@ -24764,11 +26564,11 @@ async function startManagement(app, { port: port3, host, tls: tls4 = null, signa
                 enrollments.delete(t);
     }, 6e4);
     janitor.unref();
-    let stopping2;
+    let stopping3;
     return {
         port: server.address().port,
         publish: (r) => bus.publish(r),
-        stop: () => stopping2 ??= new Promise((resolve) => {
+        stop: () => stopping3 ??= new Promise((resolve) => {
             clearInterval(janitor);
             clearInterval(pollTimer);
             shutdown.abort();
@@ -24789,6 +26589,7 @@ var init_server = __esm({
         init_routes_config();
         init_routes_system();
         init_routes_debug();
+        init_routes_actions();
         TOKEN_TTL_MS = 24 * 36e5;
         LOGIN_MAX = 5;
         LOCKOUT_MS = 15 * 6e4;
@@ -25030,7 +26831,7 @@ function send(url, body, headers2, signal, method, redirects) {
         const transport = target.protocol === "https:" ? https2 : http5;
         const agent = new transport.Agent({ keepAlive: false, proxyEnv: transport.globalAgent.options.proxyEnv });
         const sockets = new Set();
-        const own = (socket) => {
+        const own2 = (socket) => {
             if (!socket || sockets.has(socket))
                 return;
             sockets.add(socket);
@@ -25041,10 +26842,10 @@ function send(url, body, headers2, signal, method, redirects) {
         const connect2 = agent.createConnection;
         agent.createConnection = function (options, callback) {
             const socket = connect2.call(this, options, (error2, ready) => {
-                own(ready);
+                own2(ready);
                 callback(error2, ready);
             });
-            own(socket);
+            own2(socket);
             return socket;
         };
         const abort = () => {
@@ -25071,12 +26872,12 @@ function send(url, body, headers2, signal, method, redirects) {
             cleanup();
             throw error2;
         }
-        let result, error, location;
+        let result2, error, location;
         request.once("response", (response) => {
             const status = response.statusCode;
             if ([301, 302, 303, 307, 308].includes(status) && response.headers.location)
                 location = response.headers.location;
-            result = { ok: status >= 200 && status < 300, status, error: status >= 200 && status < 300 ? void 0 : `HTTP ${status}` };
+            result2 = { ok: status >= 200 && status < 300, status, error: status >= 200 && status < 300 ? void 0 : `HTTP ${status}` };
             response.destroy();
         });
         request.on("error", (err2) => {
@@ -25089,7 +26890,7 @@ function send(url, body, headers2, signal, method, redirects) {
                     if (redirects >= 20)
                         throw new Error("Too many notification redirects");
                     const next = new URL(location, target), nextHeaders = { ...headers2 };
-                    const asGet = statusToGet(result.status, method);
+                    const asGet = statusToGet(result2.status, method);
                     for (const name of Object.keys(nextHeaders)) {
                         const lower = name.toLowerCase();
                         if (next.origin !== target.origin && ["authorization", "cookie", "proxy-authorization", "host"].includes(lower) || asGet && ["content-type", "content-length", "content-encoding", "content-language", "content-location"].includes(lower))
@@ -25102,8 +26903,8 @@ function send(url, body, headers2, signal, method, redirects) {
                 }
                 return;
             }
-            if (result)
-                resolve(result);
+            if (result2)
+                resolve(result2);
             else
                 reject(signal?.aborted ? signal.reason : error ?? Object.assign(new Error("Notification connection closed"), { code: "ECONNRESET" }));
         });
@@ -25116,7 +26917,7 @@ var init_notification_http = __esm({
         statusToGet = (status, method) => (status === 301 || status === 302) && method === "POST" || status === 303 && method !== "HEAD";
     }
 });
-function failure(err2) {
+function failure2(err2) {
     const seen = new Set();
     for (let cur = err2, n2 = 0; cur && n2 < 8 && !seen.has(cur); n2++, cur = cur.cause) {
         seen.add(cur);
@@ -25163,7 +26964,7 @@ var init_manager = __esm({
                 return await postNotification(url, body, headers2, signal);
             }
             catch (e) {
-                return failure(e);
+                return failure2(e);
             }
         };
         defaultSendMail = (timeoutMs = 15e3) => async (mail, signal) => {
@@ -25172,7 +26973,7 @@ var init_manager = __esm({
                 return { ok: true };
             }
             catch (e) {
-                return failure(e);
+                return failure2(e);
             }
         };
         NotificationManager = class {
@@ -25278,7 +27079,7 @@ var init_manager = __esm({
             }
             deliver(ch, vars) {
                 if (this.disposed)
-                    return Promise.resolve(failure(this.life.signal.reason));
+                    return Promise.resolve(failure2(this.life.signal.reason));
                 const task = (async () => {
                     try {
                         if (ch.type === "email")
@@ -25296,7 +27097,7 @@ var init_manager = __esm({
                         return await this.deps.post(ch.url, renderTemplate(ch.bodyTemplate, vars), ch.headers, this.life.signal);
                     }
                     catch (e) {
-                        return failure(e);
+                        return failure2(e);
                     }
                 })().finally(() => this.active.delete(task));
                 this.active.add(task);
@@ -25304,7 +27105,7 @@ var init_manager = __esm({
             }
             async testSend(channelId) {
                 if (this.disposed)
-                    return { ...failure(this.life.signal.reason), found: false };
+                    return { ...failure2(this.life.signal.reason), found: false };
                 let ch;
                 try {
                     ch = this.deps.loadConfig().channels.find((c) => c.id === channelId);
@@ -25341,17 +27142,17 @@ var init_manager = __esm({
         };
     }
 });
-import fs31 from "node:fs";
-import path30 from "node:path";
+import fs36 from "node:fs";
+import path36 from "node:path";
 function readJson(file, max = 16384) {
     let fd;
     try {
-        fd = fs31.openSync(file, "r");
-        const size = fs31.fstatSync(fd).size;
+        fd = fs36.openSync(file, "r");
+        const size = fs36.fstatSync(fd).size;
         if (size > max)
             return { state: "oversize" };
         const b = Buffer.alloc(size);
-        fs31.readSync(fd, b, 0, size, 0);
+        fs36.readSync(fd, b, 0, size, 0);
         return { state: "available", value: JSON.parse(b.toString("utf8").replace(/^\uFEFF/, "")) };
     }
     catch (e) {
@@ -25359,21 +27160,21 @@ function readJson(file, max = 16384) {
     }
     finally {
         if (fd !== void 0)
-            fs31.closeSync(fd);
+            fs36.closeSync(fd);
     }
 }
-function readSupervisorTail(home3, max = 262144) {
+function readSupervisorTail(home4, max = 262144) {
     let fd;
     try {
-        fd = fs31.openSync(path30.join(home3, "supervisor-metadata.jsonl"), "r");
-        const size = fs31.fstatSync(fd).size, start = Math.max(0, size - max), b = Buffer.alloc(size - start);
-        fs31.readSync(fd, b, 0, b.length, start);
-        let rows = b.toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/);
-        if (start)
-            rows.shift();
+        fd = fs36.openSync(path36.join(home4, "supervisor-metadata.jsonl"), "r");
+        const size = fs36.fstatSync(fd).size, start2 = Math.max(0, size - max), b = Buffer.alloc(size - start2);
+        fs36.readSync(fd, b, 0, b.length, start2);
+        let rows2 = b.toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/);
+        if (start2)
+            rows2.shift();
         let invalid9 = 0;
         const events = [];
-        for (const line of rows) {
+        for (const line of rows2) {
             if (!line.trim())
                 continue;
             try {
@@ -25387,18 +27188,18 @@ function readSupervisorTail(home3, max = 262144) {
                 invalid9++;
             }
         }
-        return { state: "available", bounded: start > 0, partial: invalid9 > 0, events };
+        return { state: "available", bounded: start2 > 0, partial: invalid9 > 0, events };
     }
     catch (e) {
         return { state: e.code === "ENOENT" ? "absent" : "unreadable", bounded: false, partial: false, events: [] };
     }
     finally {
         if (fd !== void 0)
-            fs31.closeSync(fd);
+            fs36.closeSync(fd);
     }
 }
-function summarize(home3, runtime = {}) {
-    const tail = readSupervisorTail(home3), guard2 = readJson(path30.join(home3, "native-startup-unresolved.json"));
+function summarize(home4, runtime = {}) {
+    const tail = readSupervisorTail(home4), guard2 = readJson(path36.join(home4, "native-startup-unresolved.json"));
     const latest = tail.events.findLast((x) => x.nativeStart === true), closed = tail.events.findLast((x) => x.nativeCloseResult === true);
     let worker;
     for (const e of tail.events) {
@@ -25410,17 +27211,17 @@ function summarize(home3, runtime = {}) {
     }
     const guarded = guard2.state !== "absent";
     const lastStart = latest ? { at: stamp(latest.utc), classification: startKinds.has(latest.classification) ? latest.classification : "legacy-or-unknown", pid: u32(latest.pid) ? latest.pid : null } : null;
-    const current2 = { observed: typeof runtime.applicationReady === "boolean", ready: runtime.applicationReady === true, connected: runtime.connected === true, accountValid: runtime.accountValid === true, paused: runtime.businessPaused === true, networkState: u32(runtime.networkState) ? runtime.networkState : null, pendingRequests: u32(runtime.pendingRequests) ? runtime.pendingRequests : null };
+    const current3 = { observed: typeof runtime.applicationReady === "boolean", ready: runtime.applicationReady === true, connected: runtime.connected === true, accountValid: runtime.accountValid === true, paused: runtime.businessPaused === true, networkState: u32(runtime.networkState) ? runtime.networkState : null, pendingRequests: u32(runtime.pendingRequests) ? runtime.pendingRequests : null };
     let code = "STATUS_NOT_OBSERVED", advice = "通过运行中的管理界面检查当前连接；磁盘记录仅代表历史观察。";
     if (guarded) {
         code = "STARTUP_REVIEW_REQUIRED";
         advice = "启动或排空结果未确认。核对记录中的 QQ 进程与运行状态；不要删除启动保护记录后直接重试。必要时正常退出机器人 QQ 再登录。";
     }
-    else if (current2.ready) {
+    else if (current3.ready) {
         code = "READY";
         advice = "应用当前可用；历史关闭记录不代表当前故障。";
     }
-    else if (current2.paused) {
+    else if (current3.paused) {
         code = "BUSINESS_PAUSED";
         advice = "业务已暂停，可通过管理页面恢复。";
     }
@@ -25432,14 +27233,14 @@ function summarize(home3, runtime = {}) {
         code = "STARTUP_FAILED";
         advice = "检查启动记录；定位失败原因后再按部署说明恢复。";
     }
-    else if (current2.observed) {
+    else if (current3.observed) {
         code = "APPLICATION_NOT_READY";
         advice = "核对 QQ 登录、网络及应用连接状态。";
     }
-    return { code, advice, current: current2, history: { source: tail.state, bounded: tail.bounded, partial: tail.partial, lastStart, lastClose: closed ? { at: stamp(closed.utc), drained: closed.closed === true } : null, lastWorker: worker ? { at: stamp(worker.utc), reason: exitReasons.has(worker.reason) ? worker.reason : "unknown", operation: workerOperations.has(worker.operation) ? worker.operation : "unknown", systemError: u32(worker.systemError) ? worker.systemError : null, parseError: u32(worker.parseError) ? worker.parseError : null } : null }, guard: { present: guarded, readState: guard2.state, reason: guardReasons.has(guard2.value?.reason) ? guard2.value.reason : guarded ? "unclassified" : "none", pid: u32(guard2.value?.target?.pid) ? guard2.value.target.pid : null }, automaticActions: false };
+    return { code, advice, current: current3, history: { source: tail.state, bounded: tail.bounded, partial: tail.partial, lastStart, lastClose: closed ? { at: stamp(closed.utc), drained: closed.closed === true } : null, lastWorker: worker ? { at: stamp(worker.utc), reason: exitReasons.has(worker.reason) ? worker.reason : "unknown", operation: workerOperations.has(worker.operation) ? worker.operation : "unknown", systemError: u32(worker.systemError) ? worker.systemError : null, parseError: u32(worker.parseError) ? worker.parseError : null } : null }, guard: { present: guarded, readState: guard2.state, reason: guardReasons.has(guard2.value?.reason) ? guard2.value.reason : guarded ? "unclassified" : "none", pid: u32(guard2.value?.target?.pid) ? guard2.value.target.pid : null }, automaticActions: false };
 }
-function createDiagnostics({ home: home3 = process.cwd(), readRuntime = () => ({}) } = {}) {
-    return async () => ({ schema: 2, observedAt: (new Date()).toISOString(), ...summarize(home3, readRuntime()), mediaNetwork: describeMediaNetwork() });
+function createDiagnostics({ home: home4 = process.cwd(), readRuntime = () => ({}) } = {}) {
+    return async () => ({ schema: 2, observedAt: (new Date()).toISOString(), ...summarize(home4, readRuntime()), mediaNetwork: describeMediaNetwork() });
 }
 var u32, object, startKinds, exitReasons, workerOperations, guardReasons, stamp;
 var init_diagnostics = __esm({
@@ -25462,40 +27263,40 @@ __export(bootstrap_password_exports, {
     initialPasswordFile: () => initialPasswordFile,
     main: () => main3
 });
-import fs32 from "node:fs";
-import path31 from "node:path";
-function bootstrapState(home3) {
-    const file = initialPasswordFile(home3);
+import fs37 from "node:fs";
+import path37 from "node:path";
+function bootstrapState(home4) {
+    const file = initialPasswordFile(home4);
     let password;
     try {
-        password = fs32.readFileSync(file, "utf8").trim();
+        password = fs37.readFileSync(file, "utf8").trim();
     }
     catch {
         return { file, exists: false, active: false, pending: false };
     }
-    const match = password ? storedPasswordMatches(path31.join(home3, "config"), password) : false;
+    const match = password ? storedPasswordMatches(path37.join(home4, "config"), password) : false;
     return { file, exists: true, active: match === true, pending: match === null };
 }
-function clearInitialPassword(home3) {
-    const file = initialPasswordFile(home3);
-    if (!fs32.existsSync(file))
+function clearInitialPassword(home4) {
+    const file = initialPasswordFile(home4);
+    if (!fs37.existsSync(file))
         return { removed: false, existed: false };
     try {
-        fs32.rmSync(file, { force: true });
+        fs37.rmSync(file, { force: true });
     }
     catch (error) {
         return { removed: false, existed: true, errorCode: /^[A-Z0-9_]{1,32}$/.test(error?.code ?? "") ? error.code : "REMOVE_FAILED" };
     }
-    return fs32.existsSync(file) ? { removed: false, existed: true, errorCode: "STILL_PRESENT" } : { removed: true, existed: true };
+    return fs37.existsSync(file) ? { removed: false, existed: true, errorCode: "STILL_PRESENT" } : { removed: true, existed: true };
 }
-function main3(argv2 = process.argv.slice(2)) {
-    const i = argv2.indexOf("--home"), home3 = i >= 0 ? argv2[i + 1] : null;
-    if (!home3) {
+function main3(argv3 = process.argv.slice(2)) {
+    const i = argv3.indexOf("--home"), home4 = i >= 0 ? argv3[i + 1] : null;
+    if (!home4) {
         console.error("usage: bootstrap-state --home DIR");
         process.exitCode = 2;
         return;
     }
-    const state = bootstrapState(path31.resolve(home3));
+    const state = bootstrapState(path37.resolve(home4));
     console.log(JSON.stringify({ initialPasswordActive: state.active, initialPasswordPending: state.pending, file: state.file }));
 }
 var INITIAL_PASSWORD_FILE, initialPasswordFile;
@@ -25503,12 +27304,12 @@ var init_bootstrap_password = __esm({
     "upper/management/bootstrap-password.mjs"() {
         init_credentials();
         INITIAL_PASSWORD_FILE = "webui-initial-password.txt";
-        initialPasswordFile = (home3) => path31.join(home3, INITIAL_PASSWORD_FILE);
+        initialPasswordFile = (home4) => path37.join(home4, INITIAL_PASSWORD_FILE);
     }
 });
 var gateway_exports = {};
-import fs33 from "node:fs";
-import path32 from "node:path";
+import fs38 from "node:fs";
+import path38 from "node:path";
 import http6 from "node:http";
 import crypto24 from "node:crypto";
 async function stop(reason) {
@@ -25516,15 +27317,15 @@ async function stop(reason) {
     clearInterval(stopTimer);
     networkReady = false;
     try {
-        const result = await lifecycle.stop(reason);
-        if (result.failed)
+        const result2 = await lifecycle.stop(reason);
+        if (result2.failed)
             process.exitCode = 1;
-        return result;
+        return result2;
     }
     catch (error) {
         process.exitCode = 1;
         try {
-            record2({ cleanupFailed: true, errorCode: errorCode(error) });
+            record3({ cleanupFailed: true, errorCode: errorCode(error) });
         }
         catch {
         }
@@ -25542,34 +27343,34 @@ function adapterStatuses() {
         return { name: s.name, kind: s.type ?? "httpServer", status: s.listening ? "ok" : "down", detail: s.listening ? "监听中" : "未监听" };
     });
 }
-async function startGatewayManagement({ configDir, runtimeConfig, runtime, policy, readRuntime }) {
+async function startGatewayManagement({ configDir, runtimeConfig, runtime, policy, customDocs = [], readRuntime }) {
     if (process.env.NERONET_DEV_MODE === "1")
         throw Error("NeroNet WebUI requires normal authentication");
-    const managementHosts = process.env.NERONET_DEPLOYMENT_PROFILE ? deployment2.managementHosts : ["127.0.0.1", "::1", "localhost"];
+    const managementHosts = process.env.NERONET_DEPLOYMENT_PROFILE ? deployment3.managementHosts : ["127.0.0.1", "::1", "localhost"];
     if (!managementHosts.includes(runtime.webuiHost))
         throw Error("NeroNet management address is not allowed by the deployment profile");
     const env = { ...process.env };
     const operatorPassword = typeof env.NERONET_WEBUI_BOOTSTRAP_PASSWORD === "string" && env.NERONET_WEBUI_BOOTSTRAP_PASSWORD.length >= 8;
-    if (!fs33.existsSync(path32.join(configDir, "webui.json")) && operatorPassword) {
-        clearInitialPassword(home2);
+    if (!fs38.existsSync(path38.join(configDir, "webui.json")) && operatorPassword) {
+        clearInitialPassword(home3);
     }
-    else if (!fs33.existsSync(path32.join(configDir, "webui.json"))) {
+    else if (!fs38.existsSync(path38.join(configDir, "webui.json"))) {
         const initial = crypto24.randomBytes(24).toString("base64url");
-        fs33.writeFileSync(initialPasswordFile(home2), initial + "\n", { mode: 384 });
+        fs38.writeFileSync(initialPasswordFile(home3), initial + "\n", { mode: 384 });
         env.NERONET_WEBUI_BOOTSTRAP_PASSWORD = initial;
     }
     else {
-        const boot = bootstrapState(home2);
+        const boot = bootstrapState(home3);
         if (boot.exists && !boot.active) {
-            const cleared = clearInitialPassword(home2);
-            record2(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-already-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
+            const cleared = clearInitialPassword(home3);
+            record3(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-already-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
         }
     }
-    const controlPath = path32.join(home2, "runtime-control.json");
+    const controlPath = path38.join(home3, "runtime-control.json");
     const info = () => ({
         pid,
         name: "QQ",
-        path: deployment2.qqExecutable,
+        path: deployment3.qqExecutable,
         injected: true,
         connected: !client.closed,
         loggedIn: client.isLoggedIn,
@@ -25587,17 +27388,17 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         const previous = client.businessPaused;
         client.setBusinessPaused(paused);
         try {
-            fs33.writeFileSync(controlPath, JSON.stringify({ paused }) + "\n");
+            fs38.writeFileSync(controlPath, JSON.stringify({ paused }) + "\n");
         }
         catch (e) {
             client.setBusinessPaused(previous);
             throw e;
         }
         management?.publish("processes");
-        record2({ businessPaused: paused, pendingNative: client.pending.size, callbackCodePinned: true });
+        record3({ businessPaused: paused, pendingNative: client.pending.size, callbackCodePinned: true });
         return info();
     };
-    if (fs33.existsSync(controlPath) && JSON.parse(fs33.readFileSync(controlPath, "utf8")).paused)
+    if (fs38.existsSync(controlPath) && JSON.parse(fs38.readFileSync(controlPath, "utf8")).paused)
         client.setBusinessPaused(true);
     const diagnostics = createDiagnostics({ readRuntime });
     const notificationStore = new NotificationStore(configDir);
@@ -25610,7 +27411,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
     });
     if (client.isLoggedIn)
         notifications.handleOnline(String(client.uin), core?.nickname, pid);
-    const storage = new Storage({ home: home2, boundUin: client.uin, inUse: () => true, online: () => client.isLoggedIn && !client.closed ? [{ uin: String(client.uin), nickname: core?.nickname || String(client.uin) }] : [], logs: logFiles });
+    const storage = new Storage({ home: home3, boundUin: client.uin, inUse: () => true, online: () => client.isLoggedIn && !client.closed ? [{ uin: String(client.uin), nickname: core?.nickname || String(client.uin) }] : [], logs: logFiles });
     let tls4 = null;
     if (runtime.webuiTls.enabled) {
         const pair = tlsPair(configDir);
@@ -25626,22 +27427,24 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         logFiles,
         storage,
         bootstrap: { onPasswordChanged: () => {
-                const cleared = clearInitialPassword(home2);
+                const cleared = clearInitialPassword(home3);
                 if (cleared.existed)
-                    record2(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
+                    record3(cleared.removed ? { initialPasswordFileRemoved: true, reason: "password-changed" } : { initialPasswordFileRemoveFailed: true, errorCode: cleared.errorCode ?? null });
                 return cleared;
             } },
         notifications: { store: notificationStore, manager: notifications },
         debug: {
             uin: String(client.uin),
             enabled: policy.actions,
+            customDocs,
             invoke: (a, p2) => debugInvoke(a, p2),
             subscribe: (fn) => {
                 debugObservers.add(fn);
                 return () => debugObservers.delete(fn);
             },
-            uploadDir: path32.join(home2, "data", "upper", "tmp", "webui-upload")
+            uploadDir: path38.join(home3, "data", "upper", "tmp", "webui-upload")
         },
+        actionPolicy: { effective: policy },
         noticesDir: noticesDirectory,
         clientRoot: webuiDirectory,
         runtime: runtimeConfig,
@@ -25667,7 +27470,7 @@ async function startGatewayManagement({ configDir, runtimeConfig, runtime, polic
         }
     }, { signal: lifecycle.signal, tls: tls4 });
 }
-var pidArg, homeArg2, generationStop, epochArg, qqStartedArg, pid, generationInfo, home2, deployment2, MILESTONE, metadataLog2, record2, accountFile, bound, client, core, servers, health, management, logger, logFiles, notifications, onebotApply, debugObservers, debugInvoke, stopTimer, closing2, networkReady, lifecycle, onSigint, onSigterm, checkStop, accountMismatch, transportFault;
+var pidArg, homeArg2, generationStop, epochArg, qqStartedArg, pid, generationInfo, home3, deployment3, MILESTONE, metadataLog3, record3, accountFile, bound, client, core, servers, health, management, logger, logFiles, notifications, onebotApply, debugObservers, debugInvoke, stopTimer, closing2, networkReady, lifecycle, onSigint, onSigterm, checkStop, accountMismatch, transportFault;
 var init_gateway = __esm({
     async "upper/gateway.mjs"() {
         init_product();
@@ -25678,6 +27481,7 @@ var init_gateway = __esm({
         init_metadata_log();
         init_server_lifecycle();
         init_action_policy();
+        init_custom_actions();
         init_image_cache();
         init_core();
         init_actions();
@@ -25707,39 +27511,43 @@ var init_gateway = __esm({
         generationInfo = { epoch: /^\d{1,9}$/.test(epochArg ?? "") ? Number(epochArg) : null, qqStarted: /^[\dT:.\-Z+]{10,40}$/.test(qqStartedArg ?? "") ? qqStartedArg : null };
         if (!Number.isSafeInteger(pid) || pid < 1 || !homeArg2)
             throw Error("Usage: upper/gateway QQ_PID INDEPENDENT_HOME");
-        home2 = path32.resolve(homeArg2);
-        deployment2 = validateDeploymentPaths(loadDeploymentProfile(), { home: home2 });
-        fs33.mkdirSync(home2, { recursive: true });
-        process.chdir(home2);
+        home3 = path38.resolve(homeArg2);
+        deployment3 = validateDeploymentPaths(loadDeploymentProfile(), { home: home3 });
+        fs38.mkdirSync(home3, { recursive: true });
+        process.chdir(home3);
         MILESTONE = /^(applicationStarted|stopped|oneBotConfigReloaded|businessPaused|oneBotReverseConnected|networkState)$/;
-        metadataLog2 = new BoundedJsonl(path32.join(home2, "gateway-metadata.jsonl"), { onFailure: (error) => {
+        metadataLog3 = new BoundedJsonl(path38.join(home3, "gateway-metadata.jsonl"), { onFailure: (error) => {
                 try {
                     logger?.emit("warn", "Upper", void 0, [`gateway-metadata.jsonl write failed: ${String(error?.code ?? error?.message ?? error).slice(0, 120)}`]);
                 }
                 catch {
                 }
             } });
-        record2 = (raw) => {
+        record3 = (raw) => {
             const e = secrets.size ? JSON.parse(secrets.scrub(JSON.stringify(raw))) : raw;
-            metadataLog2.append({ utc: (new Date()).toISOString(), upper: "independent", ...e });
+            metadataLog3.append({ utc: (new Date()).toISOString(), upper: "independent", ...e });
             if (!logger)
                 return;
             const key = Object.keys(e)[0] ?? "event", text2 = JSON.stringify(e);
             const level = /fail|error|unsupported|ignored|skipped/i.test(text2.slice(0, 120)) ? "warn" : MILESTONE.test(key) ? "info" : "debug";
             logger.emit(level, "Upper", client?.uin ? Number(client.uin) : void 0, [text2.length > 400 ? text2.slice(0, 400) + "…" : text2]);
         };
-        accountFile = path32.join(home2, "account-binding.json");
-        bound = fs33.existsSync(accountFile) ? JSON.parse(fs33.readFileSync(accountFile, "utf8")) : null;
-        client = new NativeClient(pid, { expectedUin: bound?.uin, timeoutMs: 3e4 });
+        accountFile = path38.join(home3, "account-binding.json");
+        bound = fs38.existsSync(accountFile) ? JSON.parse(fs38.readFileSync(accountFile, "utf8")) : null;
+        client = new NativeClient(pid, {
+            expectedUin: bound?.uin,
+            timeoutMs: 3e4,
+            ...process.platform === "linux" ? { socketPath: process.env.NERONET_NATIVE_SOCKET } : {}
+        });
         closing2 = false;
         networkReady = false;
         lifecycle = applicationLifecycle({ interruptStartup: () => client.close(), cleanup: async (reason) => {
                 try {
-                    record2({ stopping: true, reason, pendingNative: client.failure ? client.failure.pending.length : client.pending.size, pendingRequests: client.failure ? client.failure.pending : client.pendingSnapshot() });
+                    record3({ stopping: true, reason, pendingNative: client.failure ? client.failure.pending.length : client.pending.size, pendingRequests: client.failure ? client.failure.pending : client.pendingSnapshot() });
                 }
                 catch {
                 }
-                const result = await cleanupSteps([
+                const result2 = await cleanupSteps([
                     ["management", () => management?.stop()],
                     ["notifications", () => notifications?.dispose()],
                     ["onebot", () => servers?.dispose()],
@@ -25749,19 +27557,19 @@ var init_gateway = __esm({
                     ["health", () => health ? closeOwnedServer(health) : void 0],
                     ["native-transport", async () => {
                             const transportClose = await client.close();
-                            record2({ transportClose });
+                            record3({ transportClose });
                         }],
                     ["logger", () => logger?.close()]
-                ], record2);
+                ], record3);
                 process.off("SIGINT", onSigint);
                 process.off("SIGTERM", onSigterm);
                 try {
-                    record2({ stopped: true, cleanupFailed: result.failed });
+                    record3({ stopped: true, cleanupFailed: result2.failed });
                 }
                 catch {
-                    result.failed = true;
+                    result2.failed = true;
                 }
-                return result;
+                return result2;
             } });
         onSigint = () => {
             void stop("SIGINT");
@@ -25770,7 +27578,7 @@ var init_gateway = __esm({
             void stop("SIGTERM");
         };
         checkStop = () => {
-            if (fs33.existsSync(path32.join(home2, "STOP")) || generationStop && fs33.existsSync(path32.join(home2, generationStop)))
+            if (fs38.existsSync(path38.join(home3, "STOP")) || generationStop && fs38.existsSync(path38.join(home3, generationStop)))
                 void stop("STOP");
         };
         process.on("SIGINT", onSigint);
@@ -25791,7 +27599,7 @@ var init_gateway = __esm({
             if (TRANSPORT_FAULTS.has(reason) && !closing2) {
                 transportFault = true;
                 try {
-                    record2({
+                    record3({
                         nativeTransportFault: true,
                         reason,
                         pid,
@@ -25811,7 +27619,7 @@ var init_gateway = __esm({
             void stop(reason);
         });
         client.on("network", (raw) => {
-            record2({ networkState: raw });
+            record3({ networkState: raw });
             management?.publish("processes");
             if (notifications && client.uin)
                 notifications[client.isLoggedIn ? "handleOnline" : "handleOffline"](String(client.uin), core?.nickname, pid);
@@ -25825,13 +27633,13 @@ var init_gateway = __esm({
             await client.connect();
             lifecycle.checkpoint();
             if (!bound)
-                fs33.writeFileSync(accountFile, JSON.stringify({ uin: client.uin, enrolledPid: pid }) + "\n", { flag: "wx" });
-            const configDir = path32.join(home2, "config");
-            fs33.mkdirSync(configDir, { recursive: true });
+                fs38.writeFileSync(accountFile, JSON.stringify({ uin: client.uin, enrolledPid: pid }) + "\n", { flag: "wx" });
+            const configDir = path38.join(home3, "config");
+            fs38.mkdirSync(configDir, { recursive: true });
             const runtimeConfig = new RuntimeConfig(configDir);
             const runtime = runtimeConfig.effective();
             logger = createLogger({ scrub: (text2) => secrets.scrub(text2), file: logFiles = new FileTransport({
-                    directory: process.env.NERONET_LOG_DIR || process.env.NERONET_LOG_DIR || path32.join(home2, "logs"),
+                    directory: process.env.NERONET_LOG_DIR || process.env.NERONET_LOG_DIR || path38.join(home3, "logs"),
                     maxTotalMb: runtime.logMaxTotalMb,
                     retainDays: runtime.logRetainDays,
                     perUinEnabled: runtime.logPerUin,
@@ -25840,35 +27648,51 @@ var init_gateway = __esm({
             const log = logger.scope("Gateway", Number(client.uin));
             log.info("independent upper starting for pid %d", pid);
             const { config, created: configCreated, notes: configNotes } = loadOrCreateOneBotConfig(configDir, client.uin);
-            record2({ oneBotConfig: configCreated ? "created" : "existing", notes: configNotes });
+            record3({ oneBotConfig: configCreated ? "created" : "existing", notes: configNotes });
             const policy = loadActionPolicy(configDir);
             if (policy.file)
-                record2({ actionPolicy: policy.file, profiles: policy.profiles, extraActionsEnabled: policy.extraActions });
+                record3({ actionPolicy: policy.file, profiles: policy.profiles, extraActionsEnabled: policy.extraActions });
+            const custom = await loadCustomActions(configDir, { builtIn: Object.keys(createActions({}, { appVersion: "" })) });
+            for (const p2 of custom.problems)
+                record3({ customActionSkipped: p2.file, reason: p2.reason });
+            const announced = custom.definitions.length ? await client.extendPolicy(customCommands(custom.definitions)) : { accepted: [], rejected: [] };
+            for (const r of announced.rejected)
+                record3({ customCommandRefused: r.cmd, reason: r.reason });
+            lifecycle.checkpoint();
             const captureDir = process.env.NERONET_UPPER_CAPTURE_DIR;
             let captured = 0;
-            const capture = captureDir && path32.isAbsolute(captureDir) && fs33.existsSync(captureDir) ? (body, reason) => {
+            const capture = captureDir && path38.isAbsolute(captureDir) && fs38.existsSync(captureDir) ? (body, reason) => {
                 if (captured < 50)
-                    fs33.writeFileSync(path32.join(captureDir, `${Date.now()}-${++captured}-${reason}.bin`), body);
+                    fs38.writeFileSync(path38.join(captureDir, `${Date.now()}-${++captured}-${reason}.bin`), body);
             } : null;
             if (capture)
-                record2({ upperCaptureEnabled: true });
-            const index = new SqliteMessageStore(path32.join(home2, "data", "upper", "messages.sqlite"));
-            const images = new ImageCache({ dir: path32.join(home2, "data", "neronet-images"), log: (e) => record2(e) });
+                record3({ upperCaptureEnabled: true });
+            const index = new SqliteMessageStore(path38.join(home3, "data", "upper", "messages.sqlite"));
+            const images = new ImageCache({ dir: path38.join(home3, "data", "neronet-images"), log: (e) => record3(e) });
             try {
                 const removed = await images.cleanTemps();
                 if (removed)
-                    record2({ upperImageCacheTempsRemoved: removed });
+                    record3({ upperImageCacheTempsRemoved: removed });
             }
             catch (e) {
-                record2({ upperImageCacheCleanupFailed: String(e?.code ?? e?.message ?? e).slice(0, 60) });
+                record3({ upperImageCacheCleanupFailed: String(e?.code ?? e?.message ?? e).slice(0, 60) });
             }
-            core = new UpperCore(client, { index, log: record2, capture, images });
+            core = new UpperCore(client, { index, log: record3, capture, images });
             const enabled = (name) => policy.actions instanceof Set ? policy.actions.has(name) : [...policy.actions].includes(name);
             const actions = createActions(core, { appVersion: product_default.version, fileUploads: (kind) => enabled(kind === "group" ? "upload_group_file" : "upload_private_file") });
+            const customMade = createCustomActions(custom.definitions, { transport: client, core, accepted: new Set(announced.accepted), log: record3 });
+            for (const x of customMade.disabled)
+                record3({ customActionDisabled: x.name, refusedCommands: x.commands });
+            Object.assign(actions, customMade.actions);
+            for (const d of customMade.enabled)
+                policy.actions.add(d.name);
+            const customDocs = customMade.enabled.map((d) => ({ name: d.name, summary: d.summary, file: d.file, commands: d.commands }));
+            if (customDocs.length)
+                record3({ customActionsEnabled: customDocs.map((d) => d.name), unverified: true });
             const unsupported = [...policy.actions].filter((name) => !Object.hasOwn(actions, name)).sort();
             if (unsupported.length)
-                record2({ upperEnabledActionsUnsupported: unsupported });
-            const policyDispatch = createDispatcher(actions, policy.actions, { log: record2 });
+                record3({ upperEnabledActionsUnsupported: unsupported });
+            const policyDispatch = createDispatcher(actions, policy.actions, { log: record3 });
             debugObservers = new Set();
             const observe2 = (rec) => {
                 for (const fn of debugObservers) {
@@ -25894,13 +27718,13 @@ var init_gateway = __esm({
                 startedAt: Date.now(),
                 send: (target, segments) => core.sendMessage(target, segments),
                 online: () => core.online,
-                log: record2
+                log: record3
             });
             const newServers = () => new OneBotServers({
                 core,
                 dispatch,
                 selfId: client.uin,
-                log: record2,
+                log: record3,
                 filter: (ev) => statusCommand.handle(ev),
                 tap: (event) => {
                     if (debugObservers.size)
@@ -25939,7 +27763,7 @@ var init_gateway = __esm({
                         return { online: false, applied: false, errors: [], adapters: [] };
                     activeNetworks = effective;
                     log.info("OneBot adapters reloaded: %s", fresh2.getConnectionStatuses().map((s) => s.name).join(", "));
-                    record2({ oneBotConfigReloaded: true, adapters: fresh2.getConnectionStatuses().map((s) => s.name) });
+                    record3({ oneBotConfigReloaded: true, adapters: fresh2.getConnectionStatuses().map((s) => s.name) });
                     return { online: true, applied: true, errors: [], adapters: adapterStatuses() };
                 }
                 catch (e) {
@@ -25955,7 +27779,7 @@ var init_gateway = __esm({
                     if (!await adopt(back))
                         return { online: false, applied: false, errors: [], adapters: [] };
                     log.warn("OneBot reload failed, previous adapters restored: %s", e.message);
-                    record2({ oneBotConfigReloadFailed: true, error: String(e?.message ?? e).slice(0, 160) });
+                    record3({ oneBotConfigReloadFailed: true, error: String(e?.message ?? e).slice(0, 160) });
                     return { online: true, applied: false, errors: [{ name: "network-manager", phase: "apply", message: String(e?.message ?? e), at: Date.now() }], adapters: adapterStatuses() };
                 }
             };
@@ -25970,27 +27794,27 @@ var init_gateway = __esm({
             core.directory.profile(client.uin).then((p2) => {
                 core.nickname = p2.nickname;
                 management?.publish("qq-list");
-            }, (e) => record2({ upperSelfProfileFailed: true, error: String(e?.message ?? e).slice(0, 120) }));
+            }, (e) => record3({ upperSelfProfileFailed: true, error: String(e?.message ?? e).slice(0, 120) }));
             try {
-                management = await startGatewayManagement({ configDir, runtimeConfig, runtime, policy, readRuntime: () => observeRuntime(client, { pid, networkReady, closing: closing2, applicationStarted: lifecycle.ready, connectionStatuses: adapterStatuses() }) });
+                management = await startGatewayManagement({ configDir, runtimeConfig, runtime, policy, customDocs, readRuntime: () => observeRuntime(client, { pid, networkReady, closing: closing2, applicationStarted: lifecycle.ready, connectionStatuses: adapterStatuses() }) });
             }
             catch (e) {
                 if (closing2 || lifecycle.stopping)
                     throw e;
                 log.error("management server not started: %s", e.message);
-                record2({ managementStartFailed: true, error: String(e?.message ?? e).slice(0, 200) });
+                record3({ managementStartFailed: true, error: String(e?.message ?? e).slice(0, 200) });
             }
             lifecycle.checkpoint();
             lifecycle.markReady();
             log.success("independent upper started (OneBot %s, management %s)", servers.getConnectionStatuses().map((s) => s.name).join(", "), management ? `port ${management.port}` : "not running");
-            record2({ applicationStarted: true, pid, healthPort: 5100, onebot: servers.getConnectionStatuses().map((s) => s.name), webuiPort: management?.port ?? null, management: management ? "independent" : "failed" });
+            record3({ applicationStarted: true, pid, healthPort: 5100, onebot: servers.getConnectionStatuses().map((s) => s.name), webuiPort: management?.port ?? null, management: management ? "independent" : "failed" });
         }
         catch (error) {
             closing2 = true;
             if (!lifecycle.stopping)
                 process.exitCode = 1;
             try {
-                record2({ startupFailed: !lifecycle.stopping, startupStopped: lifecycle.stopping, errorCode: errorCode(error), detail: String(error?.message ?? "").slice(0, 160) });
+                record3({ startupFailed: !lifecycle.stopping, startupStopped: lifecycle.stopping, errorCode: errorCode(error), detail: String(error?.message ?? "").slice(0, 160) });
             }
             catch {
                 process.exitCode = 1;
@@ -26005,17 +27829,18 @@ var init_gateway = __esm({
 });
 var package_check_exports = {};
 __export(package_check_exports, {
+    LINUX_REQUIRED_FILES: () => LINUX_REQUIRED_FILES,
     REQUIRED_FILES: () => REQUIRED_FILES,
     SUMS_FILE: () => SUMS_FILE,
     main: () => main4,
     parseSums: () => parseSums,
     verifyPackage: () => verifyPackage
 });
-import fs34 from "node:fs";
-import path33 from "node:path";
+import fs39 from "node:fs";
+import path39 from "node:path";
 import crypto25 from "node:crypto";
 function parseSums(text2) {
-    const rows = [], seen = new Set();
+    const rows2 = [], seen = new Set();
     for (const line of text2.replace(/^\uFEFF/, "").split(/\r?\n/)) {
         if (!line)
             continue;
@@ -26026,46 +27851,46 @@ function parseSums(text2) {
         if (rel.includes("\\") || rel.includes(":") || rel.startsWith("/") || rel.split("/").some((x) => !x || x === "." || x === "..") || seen.has(rel.toLowerCase()))
             throw Error("NERONET_PACKAGE_MANIFEST_INVALID");
         seen.add(rel.toLowerCase());
-        rows.push({ path: rel, sha256: m[1] });
+        rows2.push({ path: rel, sha256: m[1] });
     }
-    if (!rows.length)
+    if (!rows2.length)
         throw Error("NERONET_PACKAGE_MANIFEST_INVALID");
-    return rows;
+    return rows2;
 }
-function verifyPackage(root, { nativeDirectory: nativeDirectory2 } = {}) {
-    root = fs34.realpathSync(root);
-    const sums = path33.join(root, SUMS_FILE);
-    if (!fs34.existsSync(sums))
+function verifyPackage(root, { nativeDirectory: nativeDirectory2, platform = process.platform } = {}) {
+    root = fs39.realpathSync(root);
+    const sums = path39.join(root, SUMS_FILE);
+    if (!fs39.existsSync(sums))
         throw Error("NERONET_PACKAGE_MANIFEST_MISSING");
-    const rows = parseSums(fs34.readFileSync(sums, "utf8"));
-    const seen = new Set(rows.map((r) => r.path.toLowerCase()));
-    for (const required of REQUIRED_FILES)
+    const rows2 = parseSums(fs39.readFileSync(sums, "utf8"));
+    const seen = new Set(rows2.map((r) => r.path.toLowerCase()));
+    for (const required of platform === "linux" ? LINUX_REQUIRED_FILES : REQUIRED_FILES)
         if (!seen.has(required))
             throw Error("NERONET_PACKAGE_REQUIRED_FILE_MISSING: " + required);
     let bytes = 0;
-    for (const row of rows) {
-        const file = path33.resolve(root, row.path);
+    for (const row of rows2) {
+        const file = path39.resolve(root, row.path);
         let real;
         try {
-            real = fs34.realpathSync(file);
+            real = fs39.realpathSync(file);
         }
         catch {
             throw Error("NERONET_PACKAGE_FILE_MISMATCH: " + row.path);
         }
-        if (!real.startsWith(root + path33.sep) || fs34.lstatSync(file).isSymbolicLink() || !fs34.statSync(file).isFile())
+        if (!real.startsWith(root + path39.sep) || fs39.lstatSync(file).isSymbolicLink() || !fs39.statSync(file).isFile())
             throw Error("NERONET_PACKAGE_UNSAFE_ENTRY");
-        const b = fs34.readFileSync(file);
+        const b = fs39.readFileSync(file);
         if (sha(b) !== row.sha256)
             throw Error("NERONET_PACKAGE_FILE_MISMATCH: " + row.path);
         bytes += b.length;
     }
-    const nativeManifest2 = loadNativeManifest(path33.join(root, "native/native-manifest.json"));
-    verifyNativeArtifacts(nativeManifest2, nativeDirectory2 ? fs34.realpathSync(nativeDirectory2) : path33.join(root, "native"));
+    const nativeManifest2 = loadNativeManifest(path39.join(root, "native/native-manifest.json"));
+    verifyNativeArtifacts(nativeManifest2, nativeDirectory2 ? fs39.realpathSync(nativeDirectory2) : path39.join(root, "native"));
     return {
         passed: true,
         product: product_default.name,
         version: product_default.version,
-        files: rows.length,
+        files: rows2.length,
         bytes,
         nativeBuildMatched: true,
         scope: "File integrity only; not a publisher signature, QQ login, or readiness"
@@ -26083,7 +27908,7 @@ function main4(args = process.argv.slice(2)) {
         process.exitCode = 1;
     }
 }
-var SUMS_FILE, REQUIRED_FILES, sha;
+var SUMS_FILE, REQUIRED_FILES, LINUX_REQUIRED_FILES, sha;
 var init_package_check = __esm({
     "package-check.mjs"() {
         init_product();
@@ -26104,6 +27929,20 @@ var init_package_check = __esm({
             "eula.md",
             "privacy.md"
         ]);
+        LINUX_REQUIRED_FILES = Object.freeze([
+            "app/index.mjs",
+            "app/silk.wasm",
+            "native/native-manifest.json",
+            "webui/index.html",
+            "start.sh",
+            "stop.sh",
+            "scripts/start-neronet.sh",
+            "scripts/stop-neronet.sh",
+            "scripts/test-neronet.sh",
+            "license",
+            "eula.md",
+            "privacy.md"
+        ]);
         sha = (b) => crypto25.createHash("sha256").update(b).digest("hex");
         if (isMainModule(import.meta.url))
             main4();
@@ -26116,50 +27955,50 @@ __export(default_profile_exports, {
     ensureDefaultProfile: () => ensureDefaultProfile,
     main: () => main5
 });
-import fs35 from "node:fs";
-import path34 from "node:path";
+import fs40 from "node:fs";
+import path40 from "node:path";
 function buildDefaultProfile({ packageRoot: packageRoot2, qqExecutable }) {
-    const root = path34.resolve(packageRoot2), parent = path34.dirname(root);
+    const root = path40.resolve(packageRoot2), parent = path40.dirname(root);
     if (parent === root)
         throw Error("NERONET_PACKAGE_AT_DRIVE_ROOT");
     return { schema: 1, generated: true, mode: "portable", allowedComputerName: null, qqExecutable, installRoot: parent, homeRoot: root, portableData: true, managementHosts: ["127.0.0.1", "::1", "localhost"] };
 }
-async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, findQQ = runningQQExecutable } = {}) {
-    const home3 = path34.join(path34.resolve(packageRoot2), PORTABLE_DATA_DIRECTORY), file = path34.join(home3, PROFILE_FILE_NAME);
+async function ensureDefaultProfile({ packageRoot: packageRoot2 = packageRoot, findQQ = runningQQExecutable2 } = {}) {
+    const home4 = path40.join(path40.resolve(packageRoot2), PORTABLE_DATA_DIRECTORY), file = path40.join(home4, PROFILE_FILE_NAME);
     const existing = readJson2(file);
     if (existing && existing.generated !== true) {
         const profile2 = validateProfile(existing);
-        return { file, home: home3, qqExecutable: profile2.qqExecutable, written: false, generated: false };
+        return { file, home: home4, qqExecutable: profile2.qqExecutable, written: false, generated: false };
     }
     let qqExecutable;
     try {
         qqExecutable = await findQQ();
     }
     catch (error) {
-        const same = existing && existing.homeRoot === path34.resolve(packageRoot2) && existing.installRoot === path34.dirname(path34.resolve(packageRoot2));
+        const same = existing && existing.homeRoot === path40.resolve(packageRoot2) && existing.installRoot === path40.dirname(path40.resolve(packageRoot2));
         if (!(same && /^NERONET_NO_QQ_PROCESS/.test(error.message)))
             throw error;
-        validateDeploymentPaths(validateProfile(existing), { packageRoot: packageRoot2, home: home3 });
-        return { file, home: home3, qqExecutable: existing.qqExecutable, written: false, generated: true };
+        validateDeploymentPaths(validateProfile(existing), { packageRoot: packageRoot2, home: home4 });
+        return { file, home: home4, qqExecutable: existing.qqExecutable, written: false, generated: true };
     }
     const profile = buildDefaultProfile({ packageRoot: packageRoot2, qqExecutable });
-    validateDeploymentPaths(validateProfile(profile), { packageRoot: packageRoot2, home: home3 });
+    validateDeploymentPaths(validateProfile(profile), { packageRoot: packageRoot2, home: home4 });
     const text2 = JSON.stringify(profile, null, 2) + "\n";
     let written = false;
     if (!existing || JSON.stringify(existing, null, 2) + "\n" !== text2) {
-        fs35.mkdirSync(home3, { recursive: true });
+        fs40.mkdirSync(home4, { recursive: true });
         const temporary = file + "." + process.pid + ".tmp";
-        fs35.writeFileSync(temporary, text2);
-        fs35.renameSync(temporary, file);
+        fs40.writeFileSync(temporary, text2);
+        fs40.renameSync(temporary, file);
         written = true;
     }
-    return { file, home: home3, qqExecutable, written, generated: true };
+    return { file, home: home4, qqExecutable, written, generated: true };
 }
 async function main5(args = process.argv.slice(2), options = {}) {
     try {
         if (args.length && (args.length !== 2 || args[0] !== "--bot-pid" || !/^[1-9]\d{0,9}$/.test(args[1])))
             throw Error("NERONET_DEFAULT_PROFILE_ARGUMENTS");
-        const named = args.length ? { findQQ: () => (options.processImage ?? qqExecutableOfProcess)(Number(args[1])) } : {};
+        const named = args.length ? { findQQ: () => (options.processImage ?? qqExecutableOfProcess2)(Number(args[1])) } : {};
         const { processImage, ...rest } = options;
         console.log(JSON.stringify(await ensureDefaultProfile({ ...named, ...rest })));
     }
@@ -26177,7 +28016,7 @@ var init_default_profile = __esm({
         PROFILE_FILE_NAME = "deployment.json";
         readJson2 = (file) => {
             try {
-                return JSON.parse(fs35.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+                return JSON.parse(fs40.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
             }
             catch (e) {
                 if (e.code === "ENOENT")
@@ -26189,11 +28028,140 @@ var init_default_profile = __esm({
             main5();
     }
 });
+var launcher_exports = {};
+__export(launcher_exports, {
+    main: () => main6
+});
+import fs41 from "node:fs";
+import path41 from "node:path";
+import http7 from "node:http";
+function readiness() {
+    return new Promise((resolve) => {
+        const request = http7.get({ host: "127.0.0.1", port: 5100, path: "/", timeout: 2e3 }, (response) => {
+            let body = "";
+            response.setEncoding("utf8");
+            response.on("data", (chunk2) => {
+                body += chunk2;
+                if (body.length > 65536)
+                    request.destroy();
+            });
+            response.on("end", () => {
+                try {
+                    resolve(JSON.parse(body));
+                }
+                catch {
+                    resolve(null);
+                }
+            });
+        });
+        request.on("timeout", () => request.destroy());
+        request.on("error", () => resolve(null));
+    });
+}
+function result(home4, runId3) {
+    try {
+        const value = JSON.parse(fs41.readFileSync(path41.join(home4, "startup-result.json"), "utf8"));
+        return value?.schema === 1 && value.runId === runId3 && Array.isArray(value.text) ? value : null;
+    }
+    catch {
+        return null;
+    }
+}
+async function main6(args = process.argv.slice(2)) {
+    const options = {};
+    for (let i = 0; i < args.length; i += 2)
+        options[args[i]] = args[i + 1];
+    const home4 = options["--home"], runId3 = options["--run-id"], pid2 = Number(options["--pid"]), seconds = Number(options["--seconds"] ?? 90);
+    if (!home4 || !runId3 || !Number.isSafeInteger(pid2) || !(seconds >= 0)) {
+        console.error("usage: wait-ready --home DIR --run-id ID --pid PID [--seconds N]");
+        process.exitCode = 2;
+        return;
+    }
+    const deadline = Date.now() + seconds * 1e3, identifyDeadline = Date.now() + 66e4;
+    let state = "starting", shown = false;
+    for (;;) {
+        await sleep4(1500);
+        if (!alive2(pid2)) {
+            state = "ended";
+            break;
+        }
+        const ready = await readiness();
+        const started2 = rows(home4, 60).some((r) => r.gatewayStarted && r.runId === runId3);
+        if (ready?.ready && started2) {
+            state = "ready";
+            break;
+        }
+        const current4 = result(home4, runId3);
+        const identifying = current4?.state === "preparing-binding";
+        if (identifying && !shown) {
+            console.error("正在识别当前 QQ。第一次遇到一个 QQ 版本时需要一些时间，请稍候 ...");
+            shown = true;
+        }
+        if (current4 && (current4.state === "guarded" || current4.state === "attach-failed" && current4.retry !== "automatic")) {
+            state = "failed";
+            break;
+        }
+        if (Date.now() >= deadline && !(identifying && Date.now() < identifyDeadline))
+            break;
+    }
+    const current3 = result(home4, runId3), last = rows(home4, 12).filter((r) => r.waiting || r.startupRejected || r.supervisorFailed || r.recoveryExhausted).at(-1);
+    let lines;
+    if (state === "ready")
+        lines = ["已就绪"];
+    else if (state === "ended" || state === "failed")
+        lines = current3 && current3.state !== "stopped" ? current3.text : [last?.recoveryExhausted ? "与 QQ 的连接多次中断，自动恢复已达到次数上限" : last?.supervisorFailed ? `内部错误（步骤 ${last.operation}）` : "原因见数据目录里的 supervisor 日志"];
+    else if (current3?.text?.length && current3.state !== "attached")
+        lines = ["还没有就绪：" + current3.text[0], ...current3.text.slice(1)];
+    else
+        lines = [WAITING[last?.waiting] ?? (last?.waiting ? "正在启动：" + last.waiting : "正在启动，还没有就绪")];
+    const named = rows(home4, 200).filter((r) => r.runId === runId3 && Number.isSafeInteger(r.pid));
+    const qqPid = (named.filter((r) => r.gatewayStarted).at(-1) ?? named.at(-1))?.pid ?? null;
+    const started = named.some((r) => r.qqStarted && r.pid === qqPid);
+    console.log(JSON.stringify({ state, lines, qqPid, started }));
+    if (state === "ended" || state === "failed")
+        process.exitCode = 1;
+}
+var sleep4, rows, alive2, WAITING;
+var init_launcher = __esm({
+    "linux/launcher.mjs"() {
+        sleep4 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        rows = (home4, tail) => {
+            try {
+                return fs41.readFileSync(path41.join(home4, "supervisor-metadata.jsonl"), "utf8").trim().split("\n").slice(-tail).map((line) => {
+                    try {
+                        return JSON.parse(line);
+                    }
+                    catch {
+                        return null;
+                    }
+                }).filter(Boolean);
+            }
+            catch {
+                return [];
+            }
+        };
+        alive2 = (pid2) => {
+            try {
+                process.kill(pid2, 0);
+                return true;
+            }
+            catch (e) {
+                return e.code === "EPERM";
+            }
+        };
+        WAITING = {
+            "account-login": "正在启动：等待 QQ 完成登录（请在 QQ 窗口里登录机器人账号）",
+            "ambiguous-bot-process": "等待中：有多个 QQ 在运行，无法确定哪个是机器人",
+            "qq-running-without-component": "等待中：正在运行的 QQ 不是由 NeroNet 启动的",
+            "other-build-loaded": "等待中：QQ 里加载的是另一个版本的 NeroNet 组件，请退出这个 QQ"
+        };
+    }
+});
 init_product();
 var [command] = process.argv.splice(2, 1);
 switch (command) {
     case "supervisor":
-        await init_supervisor().then(() => supervisor_exports);
+        await (process.platform === "linux" ? init_supervisor().then(() => supervisor_exports) : init_supervisor2().then(() => supervisor_exports2));
         break;
     case "gateway":
         await init_gateway().then(() => gateway_exports);
@@ -26213,11 +28181,14 @@ switch (command) {
     case "bootstrap-state":
         (await Promise.resolve().then(() => (init_bootstrap_password(), bootstrap_password_exports))).main();
         break;
+    case "wait-ready":
+        await (await Promise.resolve().then(() => (init_launcher(), launcher_exports))).main();
+        break;
     case "version":
         console.log(`${product_default.name} ${product_default.version}`);
         break;
     default:
         console.error(`${product_default.name} ${product_default.version}
-Start with start.bat (see README.md). Commands: supervisor, gateway, check, profile, bot-process, default-profile, version.`);
+Start with ${process.platform === "linux" ? "./start.sh" : "start.bat"} (see README.md). Commands: supervisor, gateway, check, profile, bot-process, default-profile, version.`);
         process.exitCode = 2;
 }

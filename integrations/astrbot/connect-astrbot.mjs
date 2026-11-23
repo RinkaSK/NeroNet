@@ -20,6 +20,7 @@ import {fileURLToPath} from 'node:url';
 export const CLIENT_NAME='astrbot', PLATFORM_ID='neronet';
 
 // The switch that prints the token, as the caller knows it (the PowerShell script or this tool).
+const restartNeroNet=process.platform==='win32'?'先运行 stop.bat，再运行 start.bat':'先运行 ./stop.sh，再运行 ./start.sh';
 const showTokenSwitch=()=>process.env.NERONET_TOOL_ENTRY==='powershell'?'-ShowToken':'--show-token';
 
 export function parseArgs(argv){
@@ -109,7 +110,7 @@ export function run(opts){
  return {
   check:opts.check,changes:result.changes.length?result.changes:['没有需要修改的内容'],written,
   astrbotSetup:remote?{note:'请在 AstrBot 管理界面「平台」中新增 OneBot v11（aiocqhttp），填入下面三项',ws_reverse_host:'0.0.0.0',ws_reverse_port:Number(new URL(opts.url).port||6199),ws_reverse_token:opts.showToken?result.token:`（没有显示；加 ${showTokenSwitch()} 重新运行可以显示）`}:null,
-  next:['重启 NeroNet：先运行 stop.bat，再运行 start.bat',...(astrFile&&written.includes(astrFile)?['重启 AstrBot，让它读取新的平台配置']:[])],
+  next:['重启 NeroNet：'+restartNeroNet,...(astrFile&&written.includes(astrFile)?['重启 AstrBot，让它读取新的平台配置']:[])],
  };
 }
 
