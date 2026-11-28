@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img alt="版本" src="https://img.shields.io/badge/version-2.0.0-a83650">
+  <img alt="版本" src="https://img.shields.io/badge/version-2.1.0-a83650">
   <img alt="平台" src="https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20Linux%20ARM64-555">
   <img alt="协议" src="https://img.shields.io/badge/OneBot-v11-555">
   <img alt="许可" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-555">
@@ -37,11 +37,12 @@ NeroNet 把一个已登录的 QQ 客户端变成 **OneBot v11** 实现端：收�
 - **解压即用**：带 Node 的下载包解压后双击 `start.bat` 就能运行，不用安装，不用写配置。
 - **标准协议**：HTTP、正向 WebSocket、反向 WebSocket、HTTP POST 上报，可以同时开多个，每个有自己的访问令牌。
 - **不挑 QQ 版本**：遇到没见过的 QQ 版本，第一次启动时自动识别，之后直接使用，不用等 NeroNet 更新。
-- **常用消息都能收发**：群聊和私聊的文字、@、引用、表情、图片、语音、视频、文件、合并转发，以及撤回、戳一戳、查询历史消息、标记已读（需要开启）。
+- **常用消息都能收发**：群聊和私聊的文字、@、引用、表情、图片、语音、视频、文件、合并转发，以及撤回、戳一戳、查询历史消息、标记已读。
 - **群管理和请求**（2.0 新增，需要开启）：踢人、禁言、全员禁言、设置管理员、群名片、群名、专属头衔、退群；好友和加群请求的推送与审批；群公告的发布、读取和删除。
-- **QQ 空间**：发表文字和图片说说、读取列表和详情、修改查看权限、删除（需要开启）。
+- **QQ 空间**：发表文字和图片说说、读取列表和详情、修改查看权限、删除。
+- **账号和群的更多操作**（2.1 新增）：修改机器人的资料、头像和在线状态，名片点赞，群消息的表情回应，精华消息，群文件的浏览和管理，发送收藏表情，语音转文字，群打卡，下载文件等。
 - **自定义动作**（2.0 新增）：在数据目录里放一个脚本，就能加入自己的 OneBot 动作。
-- **默认收紧**：默认只开放少量动作，按接入的客户端启用对应的动作档案；群管理、请求、网页登录态这类动作需要自己明确开启。
+- **默认可用，敏感的手动开**：NeroNet 实现的动作默认全部开放；群管理、群文件管理、好友和加群申请、群公告和网页登录凭据需要自己明确开启。
 - **管理界面**：在浏览器里查看运行状态、配置 OneBot 服务、看日志、调试动作、备份配置。默认只允许本机访问，必须登录。
 - **认准账号**：每个数据目录绑定一个机器人账号；QQ 登录的不是这个账号时，NeroNet 不会使用它。
 - **自动恢复**：机器人 QQ 重新登录、或者与 QQ 的连接意外中断后，NeroNet 会自动重新接入，不需要手动重启。
@@ -53,13 +54,13 @@ NeroNet 把一个已登录的 QQ 客户端变成 **OneBot v11** 实现端：收�
 
 | 文件 | 大小 | 适合 |
 |---|---|---|
-| `NeroNet-2.0.0-win-x64-with-node.zip` | 约 37 MB | Windows，**推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
-| `NeroNet-2.0.0-win-x64.zip` | 约 3 MB | Windows，已经安装了 Node.js 24（x64）的电脑 |
-| `NeroNet-2.0.0-linux-x64-with-node.tar.gz` | 约 47 MB | Linux x64，**推荐**。附带 Node.js 24.22.1 |
-| `NeroNet-2.0.0-linux-x64.tar.gz` | 约 4 MB | Linux x64，已经安装了 Node.js 24 的机器 |
-| `NeroNet-2.0.0-linux-arm64-with-node.tar.gz` | 约 47 MB | Linux ARM64，**推荐**。附带 Node.js 24.22.1 |
-| `NeroNet-2.0.0-linux-arm64.tar.gz` | 约 4 MB | Linux ARM64，已经安装了 Node.js 24 的机器 |
-| `NeroNet-2.0.0-docker.zip` | 很小 | Docker 构建文件（x86-64 和 ARM64 通用），不含镜像 |
+| `NeroNet-2.1.0-win-x64-with-node.zip` | 约 37 MB | Windows，**推荐**。附带官方 Node.js 24.22.1，解压即可使用 |
+| `NeroNet-2.1.0-win-x64.zip` | 约 4 MB | Windows，已经安装了 Node.js 24（x64）的电脑 |
+| `NeroNet-2.1.0-linux-x64-with-node.tar.gz` | 约 48 MB | Linux x64，**推荐**。附带 Node.js 24.22.1 |
+| `NeroNet-2.1.0-linux-x64.tar.gz` | 约 5 MB | Linux x64，已经安装了 Node.js 24 的机器 |
+| `NeroNet-2.1.0-linux-arm64-with-node.tar.gz` | 约 47 MB | Linux ARM64，**推荐**。附带 Node.js 24.22.1 |
+| `NeroNet-2.1.0-linux-arm64.tar.gz` | 约 5 MB | Linux ARM64，已经安装了 Node.js 24 的机器 |
+| `NeroNet-2.1.0-docker.zip` | 很小 | Docker 构建文件（x86-64 和 ARM64 通用），不含镜像 |
 
 同一平台的两个包只差一个 Node.js。Releases 页面列出了每个压缩包的 SHA-256；解压后包内每个文件的 SHA-256 在 `SHA256SUMS.txt` 里，启动时会自动核对。
 
@@ -67,14 +68,14 @@ NeroNet 把一个已登录的 QQ 客户端变成 **OneBot v11** 实现端：收�
 
 | 项目 | 要求 |
 |---|---|
-| 系统 | Windows x64 |
+| 系统 | Windows 10 或 Windows 11（64 位）。Windows Server 2016 及以上应该可以使用，但没有测试过。Windows 7、8.1 和 Windows Server 2012 及更早的版本不支持，Node.js 24 不能在这些系统上运行 |
 | QQ | Windows 版 QQ，需要先登录机器人账号。不随包附带 |
 | Node.js | 24（x64），本版本用 24.22.1 构建和测试。带 Node 的下载包已附带 |
 | ffmpeg | 可选。只在发送 MP3、OGG 等非 WAV/SILK 音频、生成视频封面、语音转码时需要 |
 
 ## 快速开始
 
-1. 下载 `NeroNet-2.0.0-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`（不要直接解压到磁盘根目录）。
+1. 下载 `NeroNet-2.1.0-win-x64-with-node.zip`，解压到一个文件夹，例如 `D:\NeroNet`。
 2. 登录机器人 QQ。
 3. 双击 `start.bat`。窗口里会显示接入的 QQ 进程、当前状态和管理界面地址：
 
@@ -129,7 +130,7 @@ Linux 版与 Windows 版是同一个应用：OneBot 服务、动作、管理界�
 - 组件在 QQ 启动时加载，所以接入一个已在运行的 QQ 需要把它重启一次（NeroNet 会自动进行，也可以关闭）。
 - 识别 QQ 的结果保存在 `~/.cache/NeroNet/binding-cache`。
 
-Docker 镜像不直接提供，需要用 `NeroNet-2.0.0-docker.zip` 里的构建文件自己构建，用法见其中的 README。
+Docker 镜像不直接提供，需要用 `NeroNet-2.1.0-docker.zip` 里的构建文件自己构建，用法见其中的 README。
 
 ## 接入机器人框架
 
@@ -137,7 +138,7 @@ Docker 镜像不直接提供，需要用 `NeroNet-2.0.0-docker.zip` 里的构建
 |---|---|---|
 | AstrBot | [GitHub](https://github.com/AstrBotDevs/AstrBot) · [官网](https://astrbot.app) · [文档](https://docs.astrbot.app) | [integrations/astrbot](integrations/astrbot/README.md)：一条命令写好 NeroNet 和 AstrBot 两边的配置，支持同机、跨机器和 Docker |
 | qq-bridge + DeepSeek Harness | [GitHub](https://github.com/Derpyu520/qq-bridge) | [integrations/qq-bridge](integrations/qq-bridge/README.md)：附带适配器和配置脚本，支持 DSH Web 和桌面客户端 |
-| 其他 OneBot v11 客户端 | | 连接 NeroNet 的 HTTP 或 WebSocket 服务，在数据目录的 `config\neronet-actions.json` 中开放需要的动作，见 [部署说明第 8 节](docs/DEPLOY.md) |
+| 其他 OneBot v11 客户端 | | 连接 NeroNet 的 HTTP 或 WebSocket 服务即可；需要群管理等手动开启的动作时，见 [部署说明第 8 节](docs/DEPLOY.md) |
 
 AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联，各自按自己的许可提供。
 
@@ -164,7 +165,7 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 | 提示“这个 QQ 里还留着另一个版本的 NeroNet 组件” | 换了 NeroNet 版本后没有退出过 QQ。正常退出机器人 QQ 再重新登录，NeroNet 会自动接入，不需要重新启动 NeroNet |
 | 管理界面和 OneBot 服务断开了几秒到十几秒，然后自己恢复 | NeroNet 与 QQ 之间的连接中断后会自动恢复。中断时正在发送的消息不会自动重发，见 [部署说明第 2 节](docs/DEPLOY.md) |
 | 忘记管理界面密码 | 停止 NeroNet，删除 `data\config\webui.json` 后重新启动，会生成新的初始密码（写在 `data\webui-initial-password.txt`） |
-| 客户端调用动作返回 `retcode 1404` | 这个动作没有开放：在管理界面「动作权限」中勾选对应的档案或动作（或者编辑 `data\config\neronet-actions.json`），然后重启 NeroNet。加入后仍是 1404，说明 NeroNet 还没有实现这个动作，见 [已知限制第 3 节](docs/KNOWN_LIMITS.md) |
+| 客户端调用动作返回 `retcode 1404` | 看返回的 wording：`NERONET_ACTION_DISABLED` 表示动作没有开放，在管理界面「动作权限」中勾选对应的档案或动作（或者编辑 `data\config\neronet-actions.json`），然后重启 NeroNet；`NERONET_ACTION_NOT_SUPPORTED` 表示 NeroNet 还没有实现这个动作，见 [已知限制第 3 节](docs/KNOWN_LIMITS.md)。调用 `get_supported_actions` 可以查看当前可用的动作 |
 
 ## 更新
 
@@ -180,10 +181,10 @@ AstrBot 和 qq-bridge 都是独立的第三方项目，与 NeroNet 没有关联�
 |---|---|
 | [部署说明](docs/DEPLOY.md) | 启动和停止、多个 QQ、数据目录、更新和回退、环境变量、ffmpeg、固定目录部署 |
 | [已知限制](docs/KNOWN_LIMITS.md) | QQ 版本、测试范围、没有实现的功能、运行时的表现 |
-| [AstrBot 接入](integrations/astrbot/README.md) | 同机、跨机器、Docker，动作档案，测试过的插件 |
+| [AstrBot 接入](integrations/astrbot/README.md) | 同机、跨机器、Docker，测试过的插件 |
 | [qq-bridge 接入](integrations/qq-bridge/README.md) | 适配器、DSH Web 和桌面客户端、与 AstrBot 共存 |
 | [使用须知](EULA.md)、[数据说明](PRIVACY.md) | 首次登录管理界面时需要确认 |
-| Linux 包内的 `README.md`、`docs/`；`NeroNet-2.0.0-docker.zip` 内的 `README.md` | Linux（x64 / ARM64）和 Docker 的安装、运行、部署和已知限制 |
+| Linux 包内的 `README.md`、`docs/`；`NeroNet-2.1.0-docker.zip` 内的 `README.md` | Linux（x64 / ARM64）和 Docker 的安装、运行、部署和已知限制 |
 
 ## 目录
 

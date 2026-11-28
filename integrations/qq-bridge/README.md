@@ -52,7 +52,7 @@ qq-bridge 是第三方项目，作者已声明停止维护。下面的适配由 
   - 正向 WebSocket（默认 `ws://127.0.0.1:3001/`）：收事件、发消息。
   - HTTP（默认 `http://127.0.0.1:3000`）：部分动作和 MCP 工具。
 - qq-bridge 通过本机 HTTP 调用 DSH 来运行模型回合。
-- NeroNet 只开放 `qqbridge` 动作档案中的动作。管理类动作、修改账号资料和读取凭据的动作都不在档案中；其中群管理、请求处理和读取凭据在 2.0 已经实现，但 qq-bridge 不调用它们，也不需要为它开启。QQ 空间的动作在单独的 `qzone` 档案里，`qqbridge` 档案不包含；qq-bridge 本身不调用它们，没有用 qq-bridge 测试过。
+- NeroNet 实现的动作默认全部开放，qq-bridge 用到的动作都在其中，不需要再开放；2.0 及更早版本使用的 `qqbridge`、`qqbridge-stickers` 档案已经不需要。群管理、群文件管理、好友和加群请求、群公告和读取凭据需要手动开启，qq-bridge 不调用它们，也不需要为它开启。
 
 ## 3. 准备
 
@@ -293,7 +293,7 @@ cd <NeroNet>
 配置脚本默认使用 NeroNet 文件夹里的 `node.exe`（没有时用系统中安装的 Node.js）和 `data` 目录；数据目录在别处时加 `-HomeDirectory <数据目录>`，要用别的 Node.js 时加 `-NodePath <node.exe>`。
 
 配置工具会做以下修改：
-- **NeroNet 一侧：** 在 `onebot_<QQ>.json` 中找一个 Bridge 能用的正向 WebSocket 服务和 HTTP 服务，没有时创建专用的 `qqbridge-ws` / `qqbridge-http`；在动作配置中加入 `qqbridge` 档案。
+- **NeroNet 一侧：** 在 `onebot_<QQ>.json` 中找一个 Bridge 能用的正向 WebSocket 服务和 HTTP 服务，没有时创建专用的 `qqbridge-ws` / `qqbridge-http`。2.1 起脚本不再修改动作配置：qq-bridge 用到的动作默认开放。
 - **qq-bridge 一侧：** 只写入 `config.json` 的 `onebot` 段的地址和两个令牌，其他字段（包括 `mediaProxy`、`ignoreSlashCommands`）保持不变。
 
 “能用”的条件：服务已启用、绑定在本机地址上、消息格式为数组；WebSocket 服务的角色必须是 Universal（Bridge 在同一条连接上收事件和发动作）。不满足条件的服务**不会被选用，也不会被修改**（别的客户端可能正在用它），输出里会说明原因。如果已有名为 `qqbridge-ws` / `qqbridge-http` 的服务但不满足条件，工具会报错，请修正或删除它后重试。
@@ -304,10 +304,9 @@ cd <NeroNet>
 - 输出的提示是中文，字段名保持英文（方便脚本读取）。
 - 输出中的令牌只显示长度。需要查看令牌原文时加 `-ShowToken`（直接用 `node connect-qqbridge.mjs` 运行时是 `--show-token`，提示里写的是你实际使用的那一种）。
 - 输出的 `media` 一项是识图的预检：有没有找到 ffmpeg，以及没有时哪些图片不能识别（见第 8 节）。
-- 加 `-Stickers` 会额外开放收藏表情的写入动作（`add_custom_face` 和 `modify_custom_face`）。这两个动作会修改机器人账号的收藏表情，默认不开放。**发送已有的收藏表情不需要这个选项。**
 - 配置工具不会启动或重启任何程序。
 
-完成后正常停止并重新启动 NeroNet，使新的动作档案和服务配置生效。
+完成后正常停止并重新启动 NeroNet，使新的服务配置生效。
 
 Bridge 启动后，日志中出现下面这一行说明 DSH 已连接。NeroNet 一侧可以在管理界面「运行总览 → 连接与服务」中看到 Bridge 使用的服务有客户端连接。
 
@@ -334,7 +333,7 @@ DSH 已就绪（模式: reserved2）
   - 不配置 `mediaProxy` 时，行为与上游完全相同。
   - 配置错误（例如写成 `https://`）时 Bridge 启动失败并说明原因。启动日志会有一行「QQ 媒体下载经代理 …」。
 
-- **新增或修改账号收藏**（`add_custom_face` / `modify_custom_face`）默认不开放，见第 7 节的 `-Stickers`。
+- **新增或修改账号收藏**（`add_custom_face` / `modify_custom_face`）2.1 起默认开放，会修改机器人账号的收藏表情。
 
 ### 大图、动图和 ffmpeg
 
@@ -420,7 +419,7 @@ NeroNet 接收图片没有 1 MiB 的限制；下面的限制是 qq-bridge 把图
 |---|---|
 | 日志反复出现 `NERONET_ONEBOT_AUTH_REJECTED … (HTTP 401): wrong access token` | WebSocket 令牌不对。重新运行 `Connect-QQBridge.ps1`，或检查 `onebot.wsAccessToken`。修正后重启 Bridge |
 | 日志出现 `NERONET_ONEBOT_UNREACHABLE … (ECONNREFUSED); is NeroNet running?` | NeroNet 没有运行，或者地址、端口不对。NeroNet 启动后，Bridge 会自动重连，不需要重启 |
-| 工具调用返回 `retcode 1404`，wording 为 `NERONET_ACTION_NOT_SUPPORTED` | 该动作不在已开放的动作档案中。确认动作配置中有 `qqbridge` 档案，并且已经重启 NeroNet |
+| 工具调用返回 `retcode 1404`，wording 为 `NERONET_ACTION_DISABLED` | qq-bridge 自己用到的动作都默认开放。返回这个结果的动作属于需要手动开启的几组（群管理、群文件管理等），见 NeroNet 部署说明第 8 节；开启后需要重启 NeroNet |
 | 发送返回 `retcode 100`，`NERONET_ACCOUNT_OR_NETWORK_UNAVAILABLE` | 机器人 QQ 未登录、掉线或断网。QQ 恢复后自动可用，这条消息不会补发 |
 | 日志出现「⚠️ DSH 不可用（重启中？），QQ 消息将入队等待」 | DSH 没有运行或无法访问。恢复后自动补发，日志记为「已补投 … 成功 N 条」 |
 | DSH 不可用时还出现「连续多次连上 DSH 事件流后一帧都没收到就断开：多半是 … 协议/版本不匹配」 | 这是上游的通用提示。DSH 只是没有运行时也会出现；先确认 DSH 是否在运行 |
@@ -432,7 +431,7 @@ NeroNet 接收图片没有 1 MiB 的限制；下面的限制是 qq-bridge 把图
 | 收藏表情发送失败：「代理拒绝连接 …」或「无法连接媒体代理」 | `onebot.mediaProxy` 指向的代理不可用，或代理不允许访问该域名 |
 | `state\tool-restrict.log` 里有 `absent=…` | 正常。它表示守卫名单里有这么多工具名在当前 DSH 里不存在，不需要隐藏。只有 `failed` 不为 0 才需要关注（见下） |
 | DSH 日志中出现「restrict 失败 N 个（工具存在但无法隐藏…）」 | 有工具存在却没能从模型的工具列表里隐藏。调用时的白名单仍然会拒绝它；请带上这一行和 DSH 版本反馈问题 |
-| 语音消息只显示「[语音]」 | 语音转文字（`fetch_ptt_text`）不在支持范围内：NeroNet 没有实现这个动作（返回 1404），所以 Bridge 只显示「[语音]」 |
+| 语音消息只显示「[语音]」 | NeroNet 2.1 实现了语音转文字（`fetch_ptt_text`），返回格式与 Bridge 使用的一致，但还没有和 qq-bridge 一起测试。转写失败或 QQ 没有给出文字时，Bridge 只显示「[语音]」 |
 | 发了一张大图，模型说图片打不开或加载失败；Bridge 日志有 `[media] 图片1 不提供：…找不到 ffmpeg` | 图片超过 1 MiB 或长边超过 1280 像素，而 Bridge 没有找到 ffmpeg。见第 8 节“大图、动图和 ffmpeg” |
 | `setup-dsh.mjs` 显示 `缺失：…` 和“安装不完整” | 真实的安装失败。按列出的缺失项检查 `DSH_HOME` 是否正确、是否有权限创建目录链接，然后重新运行 |
 | 从剪贴板粘贴图片后，模型说“这是文件，读不到图” | QQ 客户端把粘贴的内容当作文件发出了。改用聊天窗口的「图片」按钮选择图片发送 |

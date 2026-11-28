@@ -1,25 +1,25 @@
 # NeroNet 部署与更新
 
-适用版本：2.0.0（Windows 版）。示例中的路径和进程号请换成实际值。Linux（x64 / ARM64）和 Docker 的部署说明在各自的包和构建文件里。
+适用版本：2.1.0（Windows 版）。示例中的路径和进程号请换成实际值。Linux（x64 / ARM64）和 Docker 的部署说明在各自的包和构建文件里。
 
 ## 1. 准备
 
 - Windows x64。
-- Node.js 24（x64）。带 Node 的下载包（`-with-node`）已附带，不用另装。用不带 Node 的下载包时，安装 Node.js 后 `node` 在 PATH 中即可；也可以把 `node.exe` 放进 NeroNet 文件夹，或用 `-NodePath` 指定。NeroNet 优先使用文件夹里的 `node.exe`。
+- Node.js 24 或更新的版本（x64）。带 Node 的下载包（`-with-node`）已附带，不用另装；用的不是测试过的 24 版本时，启动时会提示一下。用不带 Node 的下载包时，安装 Node.js 后 `node` 在 PATH 中即可；也可以把 `node.exe` 放进 NeroNet 文件夹，或用 `-NodePath` 指定。NeroNet 优先使用文件夹里的 `node.exe`。
 - 已安装的 Windows 版 QQ，版本在 [KNOWN_LIMITS.md](KNOWN_LIMITS.md) 第 1 条列出的范围内。
 - 已登录的机器人 QQ。电脑上只运行这一个 QQ 即可（例如云服务器）。
 
 ## 2. 直接使用
 
-1. 把压缩包解压到一个文件夹（不要直接解压到磁盘根目录）。
+1. 把压缩包解压到一个文件夹。
 2. 登录机器人 QQ。
 3. 双击 `start.bat`。
 
 启动时 NeroNet 依次做这些事，任何一步不符都不会启动：
 
-- 找到正在运行的 QQ。恰好一个时接入它；一个都没有时提示先登录；有多个时不会自己挑选，见第 3 节。
+- 找到正在运行的 QQ。恰好一个时接入它；有多个时不会自己挑选，见第 3 节。一个都没有时：第一次使用会提示先登录；这个 `data` 目录以前接入过时，NeroNet 先启动，等机器人 QQ 登录后自动接入。
 - 在 `data` 目录里写好运行配置 `data\deployment.json`（每次启动都会按当前位置和 QQ 路径刷新）。
-- 核对包内文件与 `SHA256SUMS.txt` 一致、Native 组件与 `native\native-manifest.json` 一致。
+- 核对包内文件与 `SHA256SUMS.txt` 一致、Native 组件与 `native\native-manifest.json` 一致。说明文档（`docs\`、`*.md`、`*.txt`、许可证文本）的改动只记录，不影响启动。
 
 启动后窗口里显示：
 
@@ -51,13 +51,16 @@ NeroNet 已启动。状态：已就绪
 - NeroNet 与 QQ 里的组件之间的连接意外中断时，NeroNet 会自动恢复：先确认旧的连接已经清理干净，再重新核对 QQ 进程、账号和登录状态，然后重新接入。正常情况下几秒到十几秒完成。
 - 恢复期间管理界面和 OneBot 服务不可用，恢复后自动可用，客户端按自己的重连方式重新连接即可。
 - **中断时正在发送的消息不会自动重发。** 这些请求会收到失败的回应，但消息有可能已经送达，是否重发由客户端自己决定。
-- 10 分钟内最多自动恢复 3 次，每次之前的等待依次是 2 秒、5 秒、15 秒。超过次数，或者无法确认旧的连接已经清理干净时，NeroNet 会停止，并在 `supervisor-metadata.jsonl` 里记录原因（`recoveryExhausted` 或 `recoveryBlocked`）。这时请正常退出并重新登录机器人 QQ，再启动 NeroNet。
+- 自动恢复不限次数，每次之前的等待依次是 2 秒、5 秒、15 秒、60 秒，之后每 5 分钟一次，每次都记录在 `supervisor-metadata.jsonl` 里（`reattachScheduled`）。成功接入后重新从 2 秒开始。Windows 版 NeroNet 不会重启 QQ。
+- 无法确认旧的连接已经清理干净时，NeroNet 不再使用这个 QQ 进程（记录为 `recoveryBlocked`），但会继续运行：正常退出并重新登录机器人 QQ 后自动接入新的进程。
 - 用 `stop.bat` 停止的 NeroNet 不会自动恢复；恢复过程中运行 `stop.bat` 也会立即停止。
 - 恢复时如果登录的不是绑定的机器人账号，或者 QQ 还没登录完，NeroNet 按第 2、3 节的规则保持等待。
 
 接入 QQ 失败时：
 
 - 启动窗口会显示这次失败的原因、QQ 的版本、组件返回的原始结果和处理建议。组件没有给出具体原因时，窗口会如实写“原因尚未确认”。
+- 没有在 QQ 里留下影响的失败会自动再试，间隔依次是 15 秒、60 秒，之后每次加倍，最长 5 分钟。处理问题后再运行一次 `start.bat`，会立即再试一次。
+- 同一个 QQ 程序文件用同一套规则识别失败时（例如 QQ 的内部结构变了），结果会被记住，之后的启动直接显示这个原因，不再花时间重新扫描，窗口里会写明。超时、文件读取错误这类临时原因不会被记住。再运行一次 `start.bat` 会清除记录，下次重新识别；换 NeroNet 版本后也会重新识别。
 - 一次接入的结果不能确认时（例如组件没有确认已经清理完成），NeroNet 会对这个 QQ 进程启用保护，在它退出之前不再接入。保护记录是 `data` 目录里的 `native-startup-unresolved.json`，其中也保存了当时的原因。
 - 解除保护的方法是正常退出这个 QQ 进程：在 QQ 主菜单里选“退出”，只关闭窗口或只退出账号时进程可能还在。QQ 进程退出后保护自动解除，不需要手动删除文件。如果失败的原因没有处理，重新登录后会再次得到同样的结果。
 - 反馈问题时，请提供启动窗口显示的内容，以及 `data\supervisor-metadata.jsonl` 里这次启动的记录（同一次启动的记录带有相同的 `runId`）。不要发送密码、令牌、数据库和聊天内容。
@@ -106,12 +109,13 @@ Get-Process QQ | Where-Object { try { $_.Modules.ModuleName -contains 'wrapper.n
 | `config\webui.json` | 管理界面的密码哈希 |
 | `data\upper\messages.sqlite` | 消息库 |
 | `data\neronet-images\` | 图片缓存 |
+| `data\downloads\` | `download_file` 保存的文件，超过一天自动删除 |
 | `logs\neronet-<日期>.log` | 日志 |
 | `supervisor-metadata.jsonl`、`gateway-metadata.jsonl` | 启动和关闭记录，各自最多保留约 24 MiB |
 
 备份时备份整个数据目录。其中有令牌和聊天内容，请按敏感数据保管。
 
-数据目录之外，NeroNet 还会把识别 QQ 程序文件的结果保存在当前 Windows 用户的 `%LOCALAPPDATA%\NeroNet\binding-cache` 里（不含账号和聊天数据）。删除它只会让下次接入时重新识别一次。
+数据目录之外，NeroNet 还会把识别 QQ 程序文件的结果保存在当前 Windows 用户的 `%LOCALAPPDATA%\NeroNet\binding-cache` 里（这个文件夹无法创建或写入时，改存到数据目录的 `binding-cache`）（不含账号和聊天数据）。删除它只会让下次接入时重新识别一次。
 
 ## 5. 更新和回退
 
@@ -156,21 +160,47 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
 
 - AstrBot：见 [integrations/astrbot/README.md](../integrations/astrbot/README.md)。
 - qq-bridge：见 [integrations/qq-bridge/README.md](../integrations/qq-bridge/README.md)。
-- 其他客户端：在管理界面「OneBot 配置」中添加 HTTP 或 WebSocket 服务并设置令牌，再在数据目录的 `config\neronet-actions.json` 中开放客户端需要的动作，例如：
+- 其他客户端：在管理界面「OneBot 配置」中添加 HTTP 或 WebSocket 服务并设置令牌即可。
 
-  ```json
-  {"profiles":[],"extraActions":["get_group_list","get_friend_list"]}
-  ```
+### 动作权限
 
-  动作配置只在启动时读取，修改后需要正常重启 NeroNet。调用未开放的动作返回 `retcode 1404`。
+2.1 起，NeroNet 实现的动作默认全部开放，客户端接入后不需要再开放动作。只有下面 5 组需要手动开启：
 
-也可以不改文件，在管理界面「管理 → 动作权限」中直接勾选要开放的档案和动作，保存后重启 NeroNet 生效；开启群管理、好友与加群申请、网页登录凭据时会要求再确认一次。
+| 档案 | 包含的动作 | 说明 |
+|---|---|---|
+| `group-admin`（群管理） | `set_group_kick`、`set_group_ban`、`set_group_whole_ban`、`set_group_admin`、`set_group_card`、`set_group_name`、`set_group_special_title`、`set_group_leave` | 作用于真实成员，NeroNet 无法撤销 |
+| `group-files`（群文件管理） | `create_group_file_folder`、`delete_group_file`、`delete_group_file_folder`、`delete_group_folder`、`rename_group_file`、`rename_group_file_folder`、`move_group_file`、`trans_group_file` | 包括其他成员上传的文件，删除后无法恢复 |
+| `requests`（好友与加群申请） | `set_friend_add_request`、`set_group_add_request`、`get_group_system_msg` | 申请事件总是推送，只有处理申请需要开启 |
+| `group-notice`（群公告） | `_get_group_notice`、`_send_group_notice`、`_del_group_notice` | |
+| `web-credentials`（网页登录凭据） | `get_cookies`、`get_csrf_token`、`get_credentials` | 拿到的凭据等同于机器人账号的网页登录态，只对信任的客户端开启 |
 
-可开启的动作档案：`astrbot`、`qqbridge`、`qqbridge-stickers`、`message-read`（标记已读）、`qzone`（QQ 空间）、`group-admin`（群管理：踢人、禁言、全员禁言、管理员、群名片、群名、头衔、退群）、`requests`（好友和加群请求的处理）、`group-notice`（群公告）、`web-credentials`（读取 Cookie 等网页凭据；拿到的凭据等同于账号的网页登录态，只在确实需要时开启）。例如让 AstrBot 同时能管理群、处理请求：
+开启方法：在管理界面「管理 → 动作权限」中勾选，保存后重启 NeroNet 生效；开启群管理、群文件管理、好友与加群申请、网页登录凭据时会要求再确认一次。也可以编辑数据目录的 `config\neronet-actions.json`：
 
 ```json
-{"profiles":["astrbot","group-admin","requests"]}
+{"profiles":["group-admin","requests"]}
 ```
+
+只需要某一组里的个别动作时，写在 `extraActions` 里，例如 `{"extraActions":["set_group_ban"]}`。
+
+- 动作配置只在启动时读取，修改后需要正常重启 NeroNet。文件有错误时，NeroNet 跳过出错的部分并在日志里警告，默认动作和文件里有效的部分照常生效。
+- 旧版本的档案 `astrbot`、`qqbridge`、`qqbridge-stickers`、`message-read`、`qzone` 里的动作现在都默认开放。旧文件里写着这些档案也能正常读取，只是不再起作用，可以删掉。
+- 调用没有开启的动作返回 `retcode 1404`，wording 为 `NERONET_ACTION_DISABLED`；NeroNet 没有实现的动作同样返回 1404，wording 为 `NERONET_ACTION_NOT_SUPPORTED`。两种情况都会在日志里记一条 `actionRejected` 警告，同一个动作 10 分钟内只记一次。
+
+### 2.1 新增的动作
+
+下面的动作默认开放（群文件的修改类动作除外，它们在 `group-files` 档案里）。完整的参数和返回值见管理界面「API 终端」。
+
+| 类别 | 动作 |
+|---|---|
+| 账号资料和状态 | `set_qq_profile`（昵称、个性签名、性别）、`set_self_longnick`、`set_qq_avatar`、`set_online_status`、`set_diy_online_status`、`set_input_status`、`set_friend_remark`、`send_like`（名片点赞，每次 1 到 20） |
+| 表情回应和已读 | `set_group_reaction`、`get_msg_emoji_likes`、`get_emoji_likes`、`fetch_emoji_like`（回应的人，分页）、`_mark_all_as_read` |
+| 群信息 | `get_group_honor_info`、`get_group_signed_list`、`get_group_at_all_remain`、`get_group_share_link`、`get_group_shut_list`、`get_group_info_ex`、`get_group_detail_info`（后两个与 `get_group_info` 相同） |
+| 精华消息 | `get_essence_msg_list`（每条带 `message_id`，可直接用于 `get_msg` 和 `delete_essence_msg`）、`set_essence_msg`、`delete_essence_msg`；设置和移除需要机器人是群主或管理员 |
+| 群文件 | 读取：`get_group_root_files`、`get_group_files_by_folder`、`get_group_file_system_info`；修改：`group-files` 档案里的 8 个动作 |
+| 收藏表情 | `send_custom_face`（按表情 ID 或 MD5 发送账号收藏里的表情）、`delete_custom_face`、`move_custom_face_to_front` |
+| 转发 | `forward_friend_single_msg`、`forward_group_single_msg`（转发一条已存的消息）、`upload_forward_msg`（只上传合并转发，不发送，返回 `res_id`） |
+| 群和好友 | `set_group_remark`、`set_group_sign`（群打卡）、`get_friends_with_category` |
+| 文件和语音 | `get_file`、`download_file`（保存到数据目录的 `data\downloads\`，最大 100 MiB，保留一天）、`fetch_ptt_text`（语音转文字） |
 
 自定义动作：把动作脚本（`.mjs` 文件）放在数据目录的 `config\custom-actions\` 里，重启 NeroNet 后生效。脚本可以声明需要的 QQ 内部命令（只限 `OidbSvcTrpcTcp`，最多 64 个）。
 
@@ -198,7 +228,7 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
    $node    = 'C:\Tools\node-v24.22.1-win-x64\node.exe'
    $profile = 'C:\NeroNet-config\deployment.json'
    .\scripts\Test-NeroNet.ps1 -NodePath $node
-   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\2.0.0'
+   .\scripts\Install-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -Destination 'C:\NeroNet\2.1.0'
    ```
 
    安装脚本把文件复制到一个新目录并再次核对。目标目录已存在时拒绝执行，不会覆盖旧版本。
@@ -206,7 +236,7 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
 3. 启动和停止：
 
    ```powershell
-   Set-Location 'C:\NeroNet\2.0.0'
+   Set-Location 'C:\NeroNet\2.1.0'
    .\scripts\Start-NeroNet.ps1 -NodePath $node -DeploymentProfile $profile -HomeDirectory 'C:\NeroNet-data\bot'
    .\scripts\Stop-NeroNet.ps1 -HomeDirectory 'C:\NeroNet-data\bot'
    ```
@@ -217,13 +247,7 @@ QQ 自身更新后，NeroNet 第一次接入新版本时会先识别（通常几
 
 ## 10. QQ 空间
 
-QQ 空间的动作默认不开放。在数据目录的 `config\neronet-actions.json` 的 `profiles` 中加入 `qzone`，然后正常重启 NeroNet：
-
-```json
-{"profiles":["astrbot","qzone"]}
-```
-
-不需要填写 Cookie，NeroNet 用已登录的机器人 QQ 取得空间的登录态。
+QQ 空间的动作默认开放。不需要填写 Cookie，NeroNet 用已登录的机器人 QQ 取得空间的登录态。
 
 | 动作 | 参数 | 返回 |
 |---|---|---|

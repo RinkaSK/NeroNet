@@ -7,8 +7,7 @@
 //        [--uin <bot QQ>] [--check] [--show-token]
 //
 // NeroNet side: adds/updates the reverse WebSocket client "astrbot" in
-// config/onebot_<QQ>.json and enables the "astrbot" action profile
-// (current action settings, with a compatibility reader for older installations).
+// config/onebot_<QQ>.json (the actions AstrBot uses are enabled by default).
 // AstrBot side (only with --astrbot-data): adds/updates the aiocqhttp platform
 // "neronet" in cmd_config.json. Every changed file is backed up first.
 // Restart NeroNet (and AstrBot, when its file changed) afterwards.
@@ -52,7 +51,7 @@ export function findOneBotConfig(configDir,uin){
 }
 
 /** Pure planning: returns the new documents and what changed. */
-export function plan({onebot,actions,actionsFile,astrbot,url,token}){
+export function plan({onebot,astrbot,url,token}){
  const changes=[];
  const u=new URL(url);
  // NeroNet reverse WebSocket client
@@ -67,11 +66,6 @@ export function plan({onebot,actions,actionsFile,astrbot,url,token}){
   const before=JSON.stringify(existing);Object.assign(existing,want);
   if(JSON.stringify(existing)!==before)changes.push('NeroNet：更新了反向 WebSocket 客户端 "astrbot"');
  }
- // action profile
- const policy=actions??{};
- if(typeof policy!=='object'||Array.isArray(policy))throw Error(actionsFile+' is not a JSON object');
- const profiles=Array.isArray(policy.profiles)?policy.profiles:[];
- if(!profiles.includes('astrbot')){policy.profiles=[...profiles,'astrbot'];changes.push(`NeroNet：在 ${actionsFile} 中开启了 astrbot 动作档案`);}
  // AstrBot platform
  if(astrbot){
   const platforms=Array.isArray(astrbot.platform)?astrbot.platform:(astrbot.platform=[]);
@@ -84,18 +78,17 @@ export function plan({onebot,actions,actionsFile,astrbot,url,token}){
   const others=platforms.filter(x=>x?.type==='aiocqhttp'&&x.id!==PLATFORM_ID&&x.enable!==false&&Number(x.ws_reverse_port)===port);
   if(others.length)changes.push(`warning: AstrBot platform "${others[0].id}" also uses port ${port}; disable one of them`);
  }
- return {onebot,actions:policy,astrbot,token:chosen,changes};
+ return {onebot,astrbot,token:chosen,changes};
 }
 
 export function run(opts){
  const home=path.resolve(opts.home),configDir=path.join(home,'config');
  const onebotFile=findOneBotConfig(configDir,opts.uin);
- const actionsFile=path.join(configDir,'neronet-actions.json');
  const astrFile=opts.astrbotData?path.join(path.resolve(opts.astrbotData),'cmd_config.json'):null;
  if(astrFile&&!fs.existsSync(astrFile))throw Error(opts.astrbotData+' 里没有 cmd_config.json：请先启动一次 AstrBot');
- const before={onebot:fs.readFileSync(onebotFile,'utf8'),actions:fs.existsSync(actionsFile)?fs.readFileSync(actionsFile,'utf8'):null,astrbot:astrFile?fs.readFileSync(astrFile,'utf8'):null};
- const result=plan({onebot:readJson(onebotFile),actions:before.actions===null?{}:readJson(actionsFile),actionsFile:path.basename(actionsFile),astrbot:astrFile?readJson(astrFile):null,url:opts.url,token:opts.token});
- const writes=[[onebotFile,JSON.stringify(result.onebot,null,2)+'\n',before.onebot],[actionsFile,JSON.stringify(result.actions,null,2)+'\n',before.actions]];
+ const before={onebot:fs.readFileSync(onebotFile,'utf8'),astrbot:astrFile?fs.readFileSync(astrFile,'utf8'):null};
+ const result=plan({onebot:readJson(onebotFile),astrbot:astrFile?readJson(astrFile):null,url:opts.url,token:opts.token});
+ const writes=[[onebotFile,JSON.stringify(result.onebot,null,2)+'\n',before.onebot]];
  if(astrFile)writes.push([astrFile,JSON.stringify(result.astrbot,null,2),before.astrbot]);
  const written=[];
  if(!opts.check){

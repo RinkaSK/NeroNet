@@ -2,12 +2,12 @@
 //
 //   node connect-qqbridge.mjs --home <NeroNet data directory>
 //        --bridge <qq-bridge directory (adapted with apply-adapter.mjs)>
-//        [--uin <bot QQ>] [--stickers] [--check] [--show-token]
+//        [--uin <bot QQ>] [--check] [--show-token]
 //
 // NeroNet side: uses the existing loopback HTTP server and forward WebSocket
 // server of config/onebot_<QQ>.json (creates `qqbridge-http` / `qqbridge-ws`
-// only when there is none); existing endpoints are never changed. Enables the
-// `qqbridge` action profile (and `qqbridge-stickers` with --stickers).
+// only when there is none); existing endpoints are never changed. The actions
+// qq-bridge uses are enabled by default.
 // qq-bridge side: writes only the `onebot` section of config.json (creating
 // config.json from config.example.json when missing). Every changed file is
 // backed up first; running it again changes nothing. Tokens are not printed
@@ -26,11 +26,11 @@ const restartNeroNet=process.platform==='win32'?'先运行 stop.bat，再运行 
 const showTokenSwitch=()=>process.env.NERONET_TOOL_ENTRY==='powershell'?'-ShowToken':'--show-token';
 
 export function parseArgs(argv){
- const out={check:false,showToken:false,stickers:false};
+ const out={check:false,showToken:false};
  for(let i=0;i<argv.length;i++){
   const a=argv[i],next=()=>{const v=argv[++i];if(v===undefined||v.startsWith('--'))throw Error(`${a} 后面需要一个值`);return v;};
   if(a==='--home')out.home=next();else if(a==='--bridge')out.bridge=next();else if(a==='--uin')out.uin=next();
-  else if(a==='--check')out.check=true;else if(a==='--show-token')out.showToken=true;else if(a==='--stickers')out.stickers=true;
+  else if(a==='--check')out.check=true;else if(a==='--show-token')out.showToken=true;
   else throw Error('不认识的参数 '+a);
  }
  if(!out.home)throw Error('需要用 --home 指定 NeroNet 的数据目录');
@@ -111,7 +111,7 @@ function pickServer(kind,list,dedicated,fallback,notes){
 function freePort(start,taken){let p=start;while(taken.has(p))p++;return p;}
 
 /** Pure planning: returns the new documents and what changed. */
-export function plan({onebot,actions,actionsFile,bridgeConfig,stickers}){
+export function plan({onebot,bridgeConfig}){
  const changes=[];
  const nets=onebot.networks??(onebot.networks={});
  const http=Array.isArray(nets.httpServers)?nets.httpServers:(nets.httpServers=[]);
@@ -131,18 +131,12 @@ export function plan({onebot,actions,actionsFile,bridgeConfig,stickers}){
   wsAccessToken:w.accessToken??'',
   httpAccessToken:h.accessToken??''
  };
- // action profiles
- const policy=actions??{};
- if(typeof policy!=='object'||Array.isArray(policy))throw Error(actionsFile+' is not a JSON object');
- const profiles=Array.isArray(policy.profiles)?[...policy.profiles]:[];
- for(const name of stickers?['qqbridge','qqbridge-stickers']:['qqbridge'])if(!profiles.includes(name)){profiles.push(name);changes.push(`NeroNet：在 ${actionsFile} 中开启了 ${name} 动作档案`);}
- if(profiles.length)policy.profiles=profiles;
  // qq-bridge config.json: only the onebot section
  const cfg=bridgeConfig;
  const before=JSON.stringify(cfg.onebot??null);
  cfg.onebot={...(cfg.onebot&&typeof cfg.onebot==='object'?cfg.onebot:{}),...endpoint};
  if(JSON.stringify(cfg.onebot)!==before)changes.push(`qq-bridge：${before==='null'?'添加':'更新'}了 onebot 段（WS ${endpoint.wsUrl}，HTTP ${endpoint.httpUrl}）`);
- return {onebot,actions:policy,bridgeConfig:cfg,endpoint,changes};
+ return {onebot,bridgeConfig:cfg,endpoint,changes};
 }
 
 /**
@@ -174,20 +168,18 @@ export function run(opts){
  const bridge=path.resolve(opts.bridge);
  checkBridgeDir(bridge);
  const onebotFile=findOneBotConfig(configDir,opts.uin);
- const actionsFile=path.join(configDir,'neronet-actions.json');
  const bridgeFile=path.join(bridge,'config.json'),exampleFile=path.join(bridge,'config.example.json');
  if(!fs.existsSync(bridgeFile)&&!fs.existsSync(exampleFile))throw Error(bridge+' 里既没有 config.json 也没有 config.example.json');
  const before={
   onebot:fs.readFileSync(onebotFile,'utf8'),
-  actions:fs.existsSync(actionsFile)?fs.readFileSync(actionsFile,'utf8'):null,
   bridge:fs.existsSync(bridgeFile)?fs.readFileSync(bridgeFile,'utf8'):null
  };
  const result=plan({
-  onebot:readJson(onebotFile),actions:before.actions===null?{}:readJson(actionsFile),actionsFile:path.basename(actionsFile),
-  bridgeConfig:before.bridge===null?readJson(exampleFile):readJson(bridgeFile),stickers:opts.stickers
+  onebot:readJson(onebotFile),
+  bridgeConfig:before.bridge===null?readJson(exampleFile):readJson(bridgeFile)
  });
  if(before.bridge===null)result.changes.push('qq-bridge：用 config.example.json 创建了 config.json（还需要填写 dsh、ownerQQ 和 allow 列表）');
- const writes=[[onebotFile,JSON.stringify(result.onebot,null,2)+'\n',before.onebot],[actionsFile,JSON.stringify(result.actions,null,2)+'\n',before.actions],[bridgeFile,JSON.stringify(result.bridgeConfig,null,2)+'\n',before.bridge]];
+ const writes=[[onebotFile,JSON.stringify(result.onebot,null,2)+'\n',before.onebot],[bridgeFile,JSON.stringify(result.bridgeConfig,null,2)+'\n',before.bridge]];
  const written=[],backups=[];
  if(!opts.check){
   const tag=stamp();
@@ -203,7 +195,7 @@ export function run(opts){
   endpoint:{...result.endpoint,wsAccessToken:shown(result.endpoint.wsAccessToken),httpAccessToken:shown(result.endpoint.httpAccessToken)},
   media:ffmpegCheck(result.bridgeConfig),
   rollback:backups.length?'回退方法：停止 qq-bridge 和 NeroNet，把每个 *.bak-qqbridge-<时间> 文件复制回它原来的文件，再重新启动':'没有写入任何文件',
-  next:written.length?['重启 NeroNet（'+restartNeroNet+'），让它读取动作档案和服务配置','启动或重启 qq-bridge（在它的目录里运行 npm start）']:[]
+  next:written.length?['重启 NeroNet（'+restartNeroNet+'），让它读取新的服务配置','启动或重启 qq-bridge（在它的目录里运行 npm start）']:[]
  };
 }
 

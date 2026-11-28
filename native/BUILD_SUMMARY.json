@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "product": "NeroNet",
-  "release": "2.0.0",
-  "patch": "actions-2.0",
-  "basedOn": "native-integrated-20261119",
+  "release": "2.1.0",
+  "basedOn": "2.0.0",
   "controlAbi": 8,
-  "sourceIdentity": "f98f0b09c10f230893f5428d6e6bbd2b28684a6cbad4bafffa1cf9a64e0ec878",
-  "ruleId": "48cea7a033e73cc88fc182d90198bf06453f61926e60826e573f21f17dd6b6b3",
+  "sourceCommit": "0358d9d3c0d26e9bc3da01dc8721587c26def104",
+  "sourceIdentity": "0311701f095b7fd79867c3e193440241533fe93aea8f426eeb2edd67aa1b6361",
+  "ruleId": "2b00308639e195ac9d40c3295aa484f51f8ea851437321b4e1252b4eadfbbf6a",
   "compiler": "MSVC 14.44.35207 x64",
   "windowsSdk": "10.0.26100.0",
   "compileFlags": [
@@ -26,25 +26,28 @@
     "childLocator": false
   },
   "changes": [
-    "neronet_live_binding.dll: reviewed command list for group administration, requests and group notices; policy extension (op 19) for custom actions"
+    "neronet_native_host.exe: the locator reads offsets and registers from QQ's code instead of fixed values; Core backend rules that do not resolve keep the legacy result; deterministic identification failures are remembered per QQ file and rule set (discovery.failed); the identification cache root is the one the supervisor passes (NERONET_BINDING_CACHE)",
+    "neronet_live_binding.dll: QQ start-up states are waited out instead of refused; a QQ executor that is busy fails only that request (NERONET_EXECUTOR_BUSY) instead of ending the session; the release command list has the commands of the 2.1 actions (the one-way friend list under QQ's name MQUpdateSvc_com_qq_ti.web.OidbSvc.0xe17_0)",
+    "neronet_receive_consumer.dll: unchanged"
   ],
   "artifacts": [
     {
       "name": "neronet_native_host.exe",
-      "sha256": "2a0c7d1b47e1876c8f86d22f5e46d170fff8614e44de972852ad72ea82973b6b",
-      "sameAs160": true
+      "sha256": "d6089a6aff34bea1124e6a5dd927255781ca42686f4e3ed585d8e9a10265f3d2",
+      "sameAsPrevious": false
     },
     {
       "name": "neronet_live_binding.dll",
-      "sha256": "73fb7058fdcac3013a0dfb54a5fbf1ca81c8f86e90238e1c49c20ff0efac6400",
-      "sameAs160": false
+      "sha256": "f5c504b533126dcaee672a2acf9a09c8086feac169d1bbb22ee81d1d494f1f84",
+      "sameAsPrevious": false
     },
     {
       "name": "neronet_receive_consumer.dll",
       "sha256": "1061329d265babf35defac955a9c113bb1915d3a34ddc968ae848e8abd71a9d9",
-      "sameAs160": true
+      "sameAsPrevious": true
     }
   ],
-  "nativeTestsOf160CarriedOver": false,
+  "reproducedInTwoCheckouts": true,
+  "previousNativeTestsCarriedOver": false,
   "runtimeOnlineVerified": false
 }

@@ -4,14 +4,12 @@
 # -NodePath and -HomeDirectory default to the NeroNet folder's node.exe (else Node on PATH) and data folder.
 # The qq-bridge directory must first be adapted with
 #   node adapter\apply-adapter.mjs <qq-bridge>
-# Add -Stickers to also allow the optional sticker-collection actions (they change the bot account's saved stickers).
 # Nothing is started or restarted; restart NeroNet and qq-bridge afterwards. See README.md in this directory.
 param(
  [string]$HomeDirectory,
  [Parameter(Mandatory=$true)][string]$BridgeDirectory,
  [string]$NodePath,
  [string]$Uin,
- [switch]$Stickers,
  [switch]$Check,
  [switch]$ShowToken
 )
@@ -26,7 +24,6 @@ if(!$command){throw '找不到 Node.js。请使用带 Node 的 NeroNet 下载包
 $NodePath=$command.Source
 $arguments=@((Join-Path $PSScriptRoot 'connect-qqbridge.mjs'),'--home',$HomeDirectory,'--bridge',$BridgeDirectory)
 if($Uin){$arguments+=@('--uin',$Uin)}
-if($Stickers){$arguments+='--stickers'}
 if($Check){$arguments+='--check'}
 if($ShowToken){$arguments+='--show-token'}
 # The tool words its hints for this script: -ShowToken here, --show-token when it is run with node.

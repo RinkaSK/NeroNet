@@ -21,12 +21,14 @@ $ErrorActionPreference='Stop'
 # The launchers (start.bat, stop.bat) set NERONET_LAUNCHER: a failure is then shown as one plain line.
 $main={
 $root=Split-Path -Parent $PSScriptRoot
+# Node.js 24 runs on Windows 10 and later; older systems also lack what this script uses.
+if([Environment]::OSVersion.Version.Major -lt 10){throw '需要 Windows 10 或 Windows 11（64 位）。这台电脑的系统版本过旧，NeroNet 使用的 Node.js 24 无法在上面运行'}
 if(Test-Path -LiteralPath (Join-Path $root '.install-incomplete')){throw '这个目录的安装没有完成，请重新安装到一个新目录'}
 
 if(!$NodePath){$local=Join-Path $root 'node.exe';$NodePath=if(Test-Path -LiteralPath $local -PathType Leaf){$local}else{'node.exe'}}
 $command=Get-Command $NodePath -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if(!$command){throw '找不到 Node.js。请安装 Node.js 24（x64），或把 node.exe 放进 NeroNet 文件夹，或用 -NodePath 指定它的位置'}
-$NodePath=$command.Source
+$NodePath=$command.Path
 $app=Join-Path $root 'app\index.mjs'
 if(!$NativeDirectory){$NativeDirectory=Join-Path $root 'native'}
 
@@ -37,7 +39,7 @@ function Invoke-App {
  $lines=@(& $NodePath $app @Arguments 2>&1 | ForEach-Object {"$_"})
  [pscustomobject]@{code=$LASTEXITCODE;text=($lines -join ' ').Trim();json=($lines | Where-Object {$_ -match '^[\{\[]'} | Select-Object -Last 1)}
 }
-function Explain-NoQQ {'没有找到正在运行的 QQ。请先登录机器人 QQ，再启动 NeroNet。（QQ 以管理员身份运行时，NeroNet 也要以管理员身份启动。）'}
+function Explain-NoQQ {'没有找到正在运行的 QQ。第一次使用时请先登录机器人 QQ，再启动 NeroNet。（QQ 以管理员身份运行时，NeroNet 也要以管理员身份启动。）'}
 
 $portable=!$DeploymentProfile
 if($portable){
@@ -48,7 +50,6 @@ if($portable){
   if($prepared.text -match 'NERONET_NO_QQ_PROCESS'){throw (Explain-NoQQ)}
   if($prepared.text -match 'NERONET_SEVERAL_QQ_INSTALLATIONS: (.+)'){throw ('电脑上运行着不同安装位置的 QQ（'+$Matches[1].Trim()+'）。NeroNet 不会自己挑选，请用 -BotPid 指定机器人 QQ 的进程号，例如 start.bat -BotPid 1234（见 docs\DEPLOY.md 第 3 节）')}
   if($prepared.text -match 'NERONET_NOT_A_QQ_PROCESS'){throw ('进程 '+$BotPid+' 不是已登录的 QQ 主进程。可用的进程号见 docs\DEPLOY.md 第 3 节的命令')}
-  if($prepared.text -match 'NERONET_PACKAGE_AT_DRIVE_ROOT'){throw '请把 NeroNet 放在一个文件夹里，不要直接解压到磁盘根目录'}
   throw ('准备运行配置失败：'+$prepared.text)
  }
  $prepared=$prepared.json|ConvertFrom-Json
@@ -71,17 +72,21 @@ if(!$BotPid){
  $query=@('bot-process','--profile',$DeploymentProfile);if($AdminPid){$query+=@('--exclude',"$AdminPid")}
  $found=Invoke-App $query
  if($found.code -or !$found.json){
-  if($found.text -match 'NERONET_NO_QQ_PROCESS'){throw (Explain-NoQQ)}
-  if($found.text -match 'NERONET_SEVERAL_QQ_PROCESSES: (.+)'){throw ('电脑上运行着多个 QQ（进程号 '+$Matches[1].Trim()+'）。NeroNet 不会自己挑选，请用 -BotPid 指定机器人 QQ 的进程号')}
-  throw ('查找机器人 QQ 进程失败：'+$found.text)
+  if($found.text -match 'NERONET_NO_QQ_PROCESS'){
+   # The deployment is known (earlier start or own profile): start now and attach to the bot QQ
+   # when it is started and logged in.
+   $BotPid=0;$botSelection='还没有 QQ 在运行：登录机器人 QQ 后自动接入'
+  }
+  elseif($found.text -match 'NERONET_SEVERAL_QQ_PROCESSES: (.+)'){throw ('电脑上运行着多个 QQ（进程号 '+$Matches[1].Trim()+'）。NeroNet 不会自己挑选，请用 -BotPid 指定机器人 QQ 的进程号')}
+  else{throw ('查找机器人 QQ 进程失败：'+$found.text)}
  }
- $BotPid=[int](($found.json|ConvertFrom-Json).pid)
+ else{$BotPid=[int](($found.json|ConvertFrom-Json).pid)}
  # Say how the process was chosen: the only QQ on this computer, or the only one left once the
  # -AdminPid process is set aside (then two QQ are running, and "the only one" would be wrong).
- $botSelection=if($AdminPid){'排除 -AdminPid 指定的 QQ（进程 '+$AdminPid+'）后，剩下的唯一一个 QQ'}else{'电脑上唯一运行的 QQ'}
+ if($BotPid){$botSelection=if($AdminPid){'排除 -AdminPid 指定的 QQ（进程 '+$AdminPid+'）后，剩下的唯一一个 QQ'}else{'电脑上唯一运行的 QQ'}}
 }
 if($AdminPid -and $AdminPid -eq $BotPid){throw '-AdminPid 必须是另一个 QQ 进程，不能和 -BotPid 相同'}
-$selected=@($BotPid);if($AdminPid){$selected+=$AdminPid}
+$selected=@();if($BotPid){$selected+=$BotPid};if($AdminPid){$selected+=$AdminPid}
 foreach($id in $selected){if((Get-Process -Id $id -ErrorAction Stop).Path -ne $policy.qqExecutable){throw ('进程 '+$id+' 不是部署配置里的 QQ 程序（'+$policy.qqExecutable+'）')}}
 
 # Check the package files and the selected Native build before anything is written
@@ -210,7 +215,11 @@ if($state -eq 'ended'){
 }
 # Attaching failed and NeroNet keeps running: the reason, what was done, and what happens next.
 if($state -ne 'ready' -and $result -and ($result.state -eq 'guarded' -or $result.state -eq 'attach-failed')){
- throw ("接入机器人 QQ（进程 "+$result.pid+"）没有成功。`r`n  "+$resultText+"`r`n  状态页：http://127.0.0.1:5100/status")
+ Write-Host ("NeroNet 已启动，但还没有接入机器人 QQ（进程 "+$result.pid+"）。") -ForegroundColor Yellow
+ Write-Host ("  "+$resultText)
+ Write-Host  '  NeroNet 在后台继续运行。状态页：http://127.0.0.1:5100/status ；要停止请运行 stop.bat。'
+ if($PassThru){[pscustomobject]@{startedPid=$process.Id;botPid=$BotPid;state=$result.state;home=$h;deploymentProfile=$DeploymentProfile;webui='http://127.0.0.1:5099';readiness='http://127.0.0.1:5100'}}
+ return
 }
 $status=switch($state){
  'ready'{'已就绪'}
@@ -232,7 +241,7 @@ $boot=$null
 try{$bootResult=Invoke-App @('bootstrap-state','--home',$h);if(!$bootResult.code -and $bootResult.json){$boot=$bootResult.json|ConvertFrom-Json}}catch{}
 Write-Host ''
 Write-Host ('NeroNet 已启动。状态：'+$status)
-Write-Host ('  机器人 QQ 进程：'+$BotPid+'（'+$botSelection+'）')
+if($BotPid){Write-Host ('  机器人 QQ 进程：'+$BotPid+'（'+$botSelection+'）')}else{Write-Host ('  机器人 QQ：'+$botSelection)}
 Write-Host  '  管理界面：http://127.0.0.1:5099'
 if($boot -and $boot.initialPasswordActive){Write-Host ('  初始密码：'+$boot.file+'（首次登录后请修改，修改后这个文件会自动删除）')}
 elseif($boot -and $boot.initialPasswordPending){Write-Host ('  初始密码：就绪后写入 '+$boot.file)}
